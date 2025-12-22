@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+sqlalchemy
+passlib[bcrypt]
+pydantic
+python-multipart
+mysql-connector-python
+pymysql
+

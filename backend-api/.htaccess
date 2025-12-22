@@ -1,0 +1,32 @@
+# FastAPI/WSGI Configuration for GoDaddy
+# This file configures Apache to run the Python application
+
+# Enable Python
+AddHandler fcgid-script .py
+
+# Set Python path
+SetEnv PYTHONPATH "/home/your_username/public_html/backend-api:/home/your_username/public_html/backend-api/src"
+
+# Set working directory
+SetEnv WORKING_DIR "/home/your_username/public_html/backend-api"
+
+# Enable rewrite engine
+RewriteEngine On
+
+# Redirect all requests to wsgi.py
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ wsgi.py/$1 [QSA,L]
+
+# Security: Prevent access to sensitive files
+<FilesMatch "\.(db|sqlite|sqlite3|env|pyc|py)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Allow access to wsgi.py
+<Files "wsgi.py">
+    Order allow,deny
+    Allow from all
+</Files>
+
