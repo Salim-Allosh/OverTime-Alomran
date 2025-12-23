@@ -2,7 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import BranchCard from "../components/BranchCard";
 
-export default function HomePage({ branches, colorClasses }) {
+export default function HomePage({ branches }) {
   const navigate = useNavigate();
 
   const handleSelectBranch = (branch) => {
@@ -11,19 +11,23 @@ export default function HomePage({ branches, colorClasses }) {
 
   return (
     <>
+      <h1 className="main-title">الصفحة الرئيسية - مركز العمران للتدريب والتطوير</h1>
       <main className="container">
         {branches.length === 0 ? (
           <div className="panel" style={{ textAlign: "center", padding: "3rem" }}>
-            <p style={{ color: "#666", fontSize: "1.1rem" }}>لا توجد فروع متاحة حالياً</p>
+            <p style={{ color: "#6B7280", fontSize: "14px" }}>لا توجد فروع متاحة حالياً</p>
           </div>
         ) : (
-          <div className="cards-grid">
-            {branches.map((b, index) => (
+          <div style={{ 
+            display: "grid", 
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", 
+            gap: "1rem"
+          }}>
+            {branches.map((b) => (
               <BranchCard 
                 key={b.id} 
                 branch={b} 
                 onSelect={handleSelectBranch}
-                colorClass={colorClasses[index % colorClasses.length]}
               />
             ))}
           </div>

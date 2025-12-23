@@ -9,11 +9,16 @@ import AdminPage from "./pages/AdminPage";
 import ReportsPage from "./pages/ReportsPage";
 import ContractsPage from "./pages/ContractsPage";
 import DailyReportsPage from "./pages/DailyReportsPage";
+import DailySalesReportsPage from "./pages/DailySalesReportsPage";
+import SalesStaffPage from "./pages/SalesStaffPage";
+import MonthlyContractReportsPage from "./pages/MonthlyContractReportsPage";
+import NetProfitPage from "./pages/NetProfitPage";
+import BudgetPage from "./pages/BudgetPage";
+import StatisticsPage from "./pages/StatisticsPage";
 import { apiGet } from "./api";
 
 export default function App() {
   const [branches, setBranches] = useState([]);
-  const colorClasses = ["red", "green", "blue", "purple", "orange", "teal", "pink", "indigo", "amber"];
 
   useEffect(() => {
     apiGet("/branches", "")
@@ -29,12 +34,18 @@ export default function App() {
       <BrowserRouter>
         <Layout>
           <Routes>
-            <Route path="/" element={<HomePage branches={branches} colorClasses={colorClasses} />} />
+            <Route path="/" element={<HomePage branches={branches} />} />
             <Route path="/branch/:branchId" element={<BranchPage />} />
             <Route path="/drafts" element={<DraftsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/statistics" element={<StatisticsPage />} />
             <Route path="/contracts" element={<ContractsPage />} />
             <Route path="/daily-reports" element={<DailyReportsPage />} />
+            <Route path="/daily-sales-reports" element={<DailySalesReportsPage />} />
+            <Route path="/monthly-contract-reports" element={<MonthlyContractReportsPage />} />
+            <Route path="/net-profit" element={<NetProfitPage />} />
+            <Route path="/budget" element={<BudgetPage />} />
+            <Route path="/sales-staff" element={<SalesStaffPage />} />
             <Route path="/admin" element={<AdminPage />} />
           </Routes>
         </Layout>

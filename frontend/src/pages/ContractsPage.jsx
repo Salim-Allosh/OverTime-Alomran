@@ -260,45 +260,63 @@ export default function ContractsPage() {
           )}
 
           {contracts.length === 0 ? (
-            <p style={{ textAlign: "center", color: "#666", padding: "1.5rem", fontSize: "0.9rem" }}>لا توجد عقود حالياً</p>
+            <div className="table-container">
+              <table>
+                <tbody>
+                  <tr>
+                    <td colSpan="8" style={{ textAlign: "center", padding: "2rem", color: "#9CA3AF" }}>لا توجد عقود حالياً</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           ) : (
-            <div className="table">
-              <div className="row head" style={{ gridTemplateColumns: "repeat(8, 1fr)" }}>
-                <span>الفرع</span>
-                <span>المدرس</span>
-                <span>الطالب</span>
-                <span>رقم العقد</span>
-                <span>تاريخ البدء</span>
-                <span>تاريخ الانتهاء</span>
-                <span>سعر الساعة</span>
-                <span>الإجراءات</span>
-              </div>
-              {contracts.map(contract => (
-                <div key={contract.id} className="row" style={{ gridTemplateColumns: "repeat(8, 1fr)" }}>
-                  <span>{getBranchName(contract.branch_id)}</span>
-                  <span>{contract.teacher_name}</span>
-                  <span>{contract.student_name}</span>
-                  <span>{contract.contract_number}</span>
-                  <span>{contract.start_date}</span>
-                  <span>{contract.end_date || "-"}</span>
-                  <span>{contract.hourly_rate} درهم</span>
-                  <span>
-                    <button 
-                      className="btn-small" 
-                      style={{ backgroundColor: "#007bff", color: "white", marginRight: "0.5rem" }}
-                      onClick={() => handleEdit(contract)}
-                    >
-                      تعديل
-                    </button>
-                    <button 
-                      className="btn-small btn-danger"
-                      onClick={() => handleDelete(contract.id)}
-                    >
-                      حذف
-                    </button>
-                  </span>
-                </div>
-              ))}
+            <div className="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>الفرع</th>
+                    <th>المدرس</th>
+                    <th>الطالب</th>
+                    <th>رقم العقد</th>
+                    <th>تاريخ البدء</th>
+                    <th>تاريخ الانتهاء</th>
+                    <th style={{ textAlign: "left" }}>سعر الساعة</th>
+                    <th>الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contracts.map(contract => (
+                    <tr key={contract.id}>
+                      <td>{getBranchName(contract.branch_id)}</td>
+                      <td>{contract.teacher_name}</td>
+                      <td>{contract.student_name}</td>
+                      <td>{contract.contract_number}</td>
+                      <td>{contract.start_date}</td>
+                      <td>{contract.end_date || "-"}</td>
+                      <td className="number" data-type="number">{contract.hourly_rate} درهم</td>
+                      <td>
+                        {!userInfo?.is_branch_account && (
+                          <>
+                            <button 
+                              className="btn btn-small" 
+                              style={{ marginLeft: "0.5rem" }}
+                              onClick={() => handleEdit(contract)}
+                            >
+                              تعديل
+                            </button>
+                            <button 
+                              className="btn btn-small btn-danger"
+                              onClick={() => handleDelete(contract.id)}
+                            >
+                              حذف
+                            </button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

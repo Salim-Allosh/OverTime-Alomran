@@ -75,19 +75,25 @@ oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=
 class Branch(Base):
     __tablename__ = "branches"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
+    name = Column(String(255), nullable=False, unique=True)
     default_hourly_rate = Column(DECIMAL(10, 2), nullable=False, default=0)
 
     operation_accounts = relationship("OperationAccount", back_populates="branch")
+    sales_staff = relationship("SalesStaff", back_populates="branch")
 
 
 class OperationAccount(Base):
     __tablename__ = "operation_accounts"
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, nullable=False)
-    password_hash = Column(String, nullable=False)
+    username = Column(String(100), unique=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
     is_super_admin = Column(Boolean, default=False)
+    is_sales_manager = Column(Boolean, default=False)  # مدير مبيعات في الفرع
+    is_operation_manager = Column(Boolean, default=False)  # مدير أوبريشن للفرع
+    is_branch_account = Column(Boolean, default=False)  # حساب الفرع (عرض فقط)
+    is_backdoor = Column(Boolean, default=False)  # حساب باكدور (مخفي)
+    is_active = Column(Boolean, default=True)  # تفعيل/تعطيل الحساب
 
     branch = relationship("Branch", back_populates="operation_accounts")
 
@@ -96,15 +102,15 @@ class SessionDraft(Base):
     __tablename__ = "session_drafts"
     id = Column(Integer, primary_key=True, index=True)
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False, index=True)
-    teacher_name = Column(String, nullable=False)
-    student_name = Column(String, nullable=False)
+    teacher_name = Column(String(255), nullable=False)
+    student_name = Column(String(255), nullable=False)
     session_date = Column(Date, nullable=False)
-    start_time = Column(String, nullable=True)
-    end_time = Column(String, nullable=True)
+    start_time = Column(String(10), nullable=True)
+    end_time = Column(String(10), nullable=True)
     duration_hours = Column(DECIMAL(5, 2), nullable=False)
-    duration_text = Column(String, nullable=False)
-    status = Column(String, nullable=False, default="pending")
-    rejection_reason = Column(String, nullable=True)
+    duration_text = Column(String(50), nullable=False)
+    status = Column(String(50), nullable=False, default="pending")
+    rejection_reason = Column(String(500), nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
 
@@ -112,17 +118,17 @@ class SessionRecord(Base):
     __tablename__ = "sessions"
     id = Column(Integer, primary_key=True, index=True)
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False, index=True)
-    teacher_name = Column(String, nullable=False)
-    student_name = Column(String, nullable=False)
+    teacher_name = Column(String(255), nullable=False)
+    student_name = Column(String(255), nullable=False)
     session_date = Column(Date, nullable=False)
-    start_time = Column(String, nullable=True)
-    end_time = Column(String, nullable=True)
+    start_time = Column(String(10), nullable=True)
+    end_time = Column(String(10), nullable=True)
     duration_hours = Column(DECIMAL(5, 2), nullable=False)
-    duration_text = Column(String, nullable=False)
-    contract_number = Column(String, nullable=False)
+    duration_text = Column(String(50), nullable=False)
+    contract_number = Column(String(100), nullable=False)
     hourly_rate = Column(DECIMAL(10, 2), nullable=False)
     calculated_amount = Column(DECIMAL(12, 2), nullable=False)
-    location = Column(String, nullable=False, default="internal")  # internal or external
+    location = Column(String(20), nullable=False, default="internal")  # internal or external
     approved_by = Column(Integer, ForeignKey("operation_accounts.id"), nullable=False)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
@@ -131,8 +137,8 @@ class Expense(Base):
     __tablename__ = "expenses"
     id = Column(Integer, primary_key=True, index=True)
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False, index=True)
-    teacher_name = Column(String, nullable=True)  # Optional teacher name
-    title = Column(String, nullable=False)
+    teacher_name = Column(String(255), nullable=True)  # Optional teacher name
+    title = Column(String(255), nullable=False)
     amount = Column(DECIMAL(12, 2), nullable=False)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
@@ -140,16 +146,16 @@ class Expense(Base):
 class Contract(Base):
     __tablename__ = "contracts"
     id = Column(Integer, primary_key=True, index=True)
-    contract_number = Column(String, unique=True, nullable=False, index=True)
-    student_name = Column(String, nullable=False)
-    teacher_name = Column(String, nullable=False, index=True)
+    contract_number = Column(String(100), unique=True, nullable=False, index=True)
+    student_name = Column(String(255), nullable=False)
+    teacher_name = Column(String(255), nullable=False, index=True)
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False, index=True)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)
     hourly_rate = Column(DECIMAL(10, 2), nullable=False)
     total_hours = Column(DECIMAL(5, 2), default=0)
-    status = Column(String, nullable=False, default="active", index=True)  # active, completed, cancelled
-    notes = Column(String, nullable=True)
+    status = Column(String(50), nullable=False, default="active", index=True)  # active, completed, cancelled
+    notes = Column(String(1000), nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, nullable=True, onupdate=func.now())
 
@@ -168,9 +174,37 @@ class DailyReport(Base):
     external_amount = Column(DECIMAL(12, 2), nullable=False, default=0)
     total_expenses = Column(DECIMAL(12, 2), nullable=False, default=0)
     net_profit = Column(DECIMAL(12, 2), nullable=False, default=0)
-    notes = Column(String, nullable=True)
+    notes = Column(String(1000), nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, nullable=True, onupdate=func.now())
+
+
+class SalesStaff(Base):
+    __tablename__ = "sales_staff"
+    id = Column(Integer, primary_key=True, index=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    phone = Column(String(20), nullable=True)
+    email = Column(String(255), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    branch = relationship("Branch", back_populates="sales_staff")
+
+
+class DailySalesReport(Base):
+    __tablename__ = "daily_sales_reports"
+    id = Column(Integer, primary_key=True, index=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False, index=True)
+    sales_staff_id = Column(Integer, ForeignKey("sales_staff.id"), nullable=False, index=True)
+    report_date = Column(Date, nullable=False, index=True)
+    sales_amount = Column(DECIMAL(12, 2), nullable=False)
+    number_of_deals = Column(Integer, nullable=False, default=0)
+    notes = Column(String(1000), nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    branch = relationship("Branch")
+    sales_staff = relationship("SalesStaff")
 
 
 # ---------- SCHEMAS ----------
@@ -183,7 +217,7 @@ class BranchOut(BranchIn):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class OperationAccountIn(BaseModel):
@@ -191,6 +225,11 @@ class OperationAccountIn(BaseModel):
     password: Optional[str] = Field(default=None, min_length=6)
     branch_id: int
     is_super_admin: bool = False
+    is_sales_manager: bool = False  # مدير مبيعات في الفرع
+    is_operation_manager: bool = False  # مدير أوبريشن للفرع
+    is_branch_account: bool = False  # حساب الفرع (عرض فقط)
+    is_backdoor: bool = False  # حساب باكدور (مخفي)
+    is_active: bool = True  # تفعيل/تعطيل الحساب
 
 
 class OperationAccountOut(BaseModel):
@@ -198,9 +237,14 @@ class OperationAccountOut(BaseModel):
     username: str
     branch_id: int
     is_super_admin: bool
+    is_sales_manager: bool  # مدير مبيعات في الفرع
+    is_operation_manager: bool  # مدير أوبريشن للفرع
+    is_branch_account: bool  # حساب الفرع (عرض فقط)
+    is_backdoor: bool  # حساب باكدور (مخفي)
+    is_active: bool  # تفعيل/تعطيل الحساب
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class DraftCreate(BaseModel):
@@ -229,7 +273,7 @@ class DraftOut(BaseModel):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class DraftApprove(BaseModel):
@@ -270,7 +314,7 @@ class SessionOut(BaseModel):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class ExpenseIn(BaseModel):
@@ -287,7 +331,7 @@ class ExpenseOut(ExpenseIn):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class SummaryOut(BaseModel):
@@ -351,6 +395,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     user = db.query(OperationAccount).filter(OperationAccount.username == token).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
     return user
 
 
@@ -361,8 +407,57 @@ def get_optional_user(token: str = Depends(oauth2_scheme_optional), db: Session 
 
 
 def assert_branch_access(user: OperationAccount, branch_id: int):
-    if not user.is_super_admin and user.branch_id != branch_id:
+    """التحقق من صلاحية الوصول للفرع"""
+    # Backdoor account يمكنه الوصول لكل شيء
+    if user.is_backdoor:
+        return
+    
+    # Super Admin يمكنه الوصول لكل شيء
+    if user.is_super_admin:
+        return
+    
+    # باقي الحسابات يمكنها الوصول لفرعها فقط
+    if user.branch_id != branch_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Branch access denied")
+
+
+def require_super_admin(user: OperationAccount):
+    """يتطلب صلاحيات Super Admin أو Backdoor"""
+    if not user.is_super_admin and not user.is_backdoor:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super admin access required")
+
+
+def require_operation_manager(user: OperationAccount):
+    """يتطلب صلاحيات Operation Manager أو أعلى"""
+    if not (user.is_super_admin or user.is_operation_manager or user.is_backdoor):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Operation manager access required")
+
+
+def require_sales_manager(user: OperationAccount):
+    """يتطلب صلاحيات Sales Manager أو أعلى"""
+    if not (user.is_super_admin or user.is_sales_manager or user.is_operation_manager or user.is_backdoor):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sales manager access required")
+
+
+def can_edit(user: OperationAccount):
+    """التحقق من إمكانية التعديل (ليس Branch Account فقط)"""
+    if user.is_branch_account and not (user.is_super_admin or user.is_backdoor):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Read-only access")
+
+
+def get_user_role(user: OperationAccount) -> str:
+    """الحصول على نوع الحساب"""
+    if user.is_backdoor:
+        return "backdoor"
+    if user.is_super_admin:
+        return "super_admin"
+    if user.is_operation_manager:
+        return "operation_manager"
+    if user.is_sales_manager:
+        return "sales_manager"
+    if user.is_branch_account:
+        return "branch_account"
+    return "regular"
 
 
 # ---------- APP ----------
@@ -768,7 +863,7 @@ class MonthlyReportOut(BaseModel):
     net_profit: Decimal
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 @app.get("/reports/monthly", response_model=List[MonthlyReportOut])
@@ -979,10 +1074,7 @@ def get_monthly_reports(
         return []
 
 
-# Super Admin
-def require_super_admin(user: OperationAccount):
-    if not user.is_super_admin:
-        raise HTTPException(status_code=403, detail="Super admin only")
+# Super Admin - تم تحديثه في الأعلى
 
 
 @app.post("/branches", response_model=BranchOut)
@@ -1046,6 +1138,11 @@ def create_operation_account(
         password_hash=hashed,
         branch_id=payload.branch_id,
         is_super_admin=payload.is_super_admin,
+        is_sales_manager=payload.is_sales_manager,
+        is_operation_manager=payload.is_operation_manager,
+        is_branch_account=payload.is_branch_account,
+        is_backdoor=payload.is_backdoor,
+        is_active=payload.is_active,
     )
     db.add(account)
     db.commit()
@@ -1067,6 +1164,11 @@ def bootstrap_operation_account(payload: OperationAccountIn, db: Session = Depen
         password_hash=hashed,
         branch_id=payload.branch_id,
         is_super_admin=payload.is_super_admin,
+        is_sales_manager=payload.is_sales_manager,
+        is_operation_manager=payload.is_operation_manager,
+        is_branch_account=payload.is_branch_account,
+        is_backdoor=payload.is_backdoor,
+        is_active=payload.is_active,
     )
     db.add(account)
     db.commit()
@@ -1110,6 +1212,11 @@ def update_operation_account(
         account.password_hash = hash_password(payload.password)
     account.branch_id = payload.branch_id
     account.is_super_admin = payload.is_super_admin
+    account.is_sales_manager = payload.is_sales_manager
+    account.is_operation_manager = payload.is_operation_manager
+    account.is_branch_account = payload.is_branch_account
+    account.is_backdoor = payload.is_backdoor
+    account.is_active = payload.is_active
     
     db.commit()
     db.refresh(account)
@@ -1175,9 +1282,21 @@ def list_branches(db: Session = Depends(get_db)):
     return db.query(Branch).order_by(Branch.id).all()
 
 
-@app.get("/auth/me", response_model=OperationAccountOut)
+@app.get("/auth/me")
 def get_current_user_info(user: OperationAccount = Depends(get_current_user)):
-    return user
+    """الحصول على معلومات المستخدم الحالي مع نوع الحساب"""
+    return {
+        "id": user.id,
+        "username": user.username,
+        "branch_id": user.branch_id,
+        "is_super_admin": user.is_super_admin,
+        "is_sales_manager": user.is_sales_manager,
+        "is_operation_manager": user.is_operation_manager,
+        "is_branch_account": user.is_branch_account,
+        "is_backdoor": user.is_backdoor,
+        "is_active": user.is_active,
+        "role": get_user_role(user)
+    }
 
 
 # Teacher name management
@@ -1351,7 +1470,7 @@ class ContractOut(ContractIn):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class ContractUpdate(BaseModel):
@@ -1385,7 +1504,7 @@ class DailyReportOut(DailyReportIn):
     updated_at: Optional[datetime] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class DailyReportUpdate(BaseModel):
@@ -1599,6 +1718,252 @@ def delete_daily_report(
 ):
     """حذف تقرير يومي"""
     report = db.query(DailyReport).filter(DailyReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="التقرير غير موجود")
+    assert_branch_access(user, report.branch_id)
+    
+    db.delete(report)
+    db.commit()
+    return {"status": "deleted", "message": "تم حذف التقرير بنجاح"}
+
+
+# ========== SALES STAFF SCHEMAS ==========
+class SalesStaffIn(BaseModel):
+    branch_id: int
+    name: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    is_active: bool = True
+
+
+class SalesStaffOut(SalesStaffIn):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SalesStaffUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+# ========== DAILY SALES REPORT SCHEMAS ==========
+class DailySalesReportIn(BaseModel):
+    branch_id: int
+    sales_staff_id: int
+    report_date: date
+    sales_amount: condecimal(max_digits=12, decimal_places=2)
+    number_of_deals: int = 0
+    notes: Optional[str] = None
+
+
+class DailySalesReportOut(DailySalesReportIn):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DailySalesReportUpdate(BaseModel):
+    sales_amount: Optional[condecimal(max_digits=12, decimal_places=2)] = None
+    number_of_deals: Optional[int] = None
+    notes: Optional[str] = None
+
+
+# ========== SALES STAFF ENDPOINTS ==========
+
+@app.post("/sales-staff", response_model=SalesStaffOut)
+def create_sales_staff(
+    payload: SalesStaffIn,
+    db: Session = Depends(get_db),
+    user: OperationAccount = Depends(get_current_user),
+):
+    """إنشاء موظف مبيعات جديد"""
+    require_sales_manager(user)
+    assert_branch_access(user, payload.branch_id)
+    
+    staff = SalesStaff(**payload.dict())
+    db.add(staff)
+    db.commit()
+    db.refresh(staff)
+    return staff
+
+
+@app.get("/sales-staff", response_model=List[SalesStaffOut])
+def list_sales_staff(
+    branch_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    user: OperationAccount = Depends(get_current_user),
+):
+    """قائمة موظفي المبيعات"""
+    query = db.query(SalesStaff)
+    
+    if branch_id:
+        assert_branch_access(user, branch_id)
+        query = query.filter(SalesStaff.branch_id == branch_id)
+    elif not user.is_super_admin and not user.is_backdoor:
+        query = query.filter(SalesStaff.branch_id == user.branch_id)
+    
+    return query.order_by(SalesStaff.created_at.desc()).all()
+
+
+@app.get("/sales-staff/{staff_id}", response_model=SalesStaffOut)
+def get_sales_staff(
+    staff_id: int,
+    db: Session = Depends(get_db),
+    user: OperationAccount = Depends(get_current_user),
+):
+    """الحصول على موظف مبيعات محدد"""
+    staff = db.query(SalesStaff).filter(SalesStaff.id == staff_id).first()
+    if not staff:
+        raise HTTPException(status_code=404, detail="موظف المبيعات غير موجود")
+    assert_branch_access(user, staff.branch_id)
+    return staff
+
+
+@app.patch("/sales-staff/{staff_id}", response_model=SalesStaffOut)
+def update_sales_staff(
+    staff_id: int,
+    payload: SalesStaffUpdate,
+    db: Session = Depends(get_db),
+    user: OperationAccount = Depends(get_current_user),
+):
+    """تحديث موظف مبيعات"""
+    require_sales_manager(user)
+    staff = db.query(SalesStaff).filter(SalesStaff.id == staff_id).first()
+    if not staff:
+        raise HTTPException(status_code=404, detail="موظف المبيعات غير موجود")
+    assert_branch_access(user, staff.branch_id)
+    
+    update_data = payload.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(staff, field, value)
+    
+    db.commit()
+    db.refresh(staff)
+    return staff
+
+
+@app.delete("/sales-staff/{staff_id}")
+def delete_sales_staff(
+    staff_id: int,
+    db: Session = Depends(get_db),
+    user: OperationAccount = Depends(get_current_user),
+):
+    """حذف موظف مبيعات"""
+    require_sales_manager(user)
+    staff = db.query(SalesStaff).filter(SalesStaff.id == staff_id).first()
+    if not staff:
+        raise HTTPException(status_code=404, detail="موظف المبيعات غير موجود")
+    assert_branch_access(user, staff.branch_id)
+    
+    db.delete(staff)
+    db.commit()
+    return {"status": "deleted", "message": "تم حذف موظف المبيعات بنجاح"}
+
+
+# ========== DAILY SALES REPORTS ENDPOINTS ==========
+
+@app.post("/daily-sales-reports", response_model=DailySalesReportOut)
+def create_daily_sales_report(
+    payload: DailySalesReportIn,
+    db: Session = Depends(get_db),
+    user: OperationAccount = Depends(get_current_user),
+):
+    """إنشاء تقرير مبيعات يومي"""
+    require_sales_manager(user)
+    assert_branch_access(user, payload.branch_id)
+    
+    # التحقق من وجود موظف المبيعات
+    staff = db.query(SalesStaff).filter(SalesStaff.id == payload.sales_staff_id).first()
+    if not staff:
+        raise HTTPException(status_code=404, detail="موظف المبيعات غير موجود")
+    if staff.branch_id != payload.branch_id:
+        raise HTTPException(status_code=400, detail="موظف المبيعات لا ينتمي لهذا الفرع")
+    
+    report = DailySalesReport(**payload.dict())
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+    return report
+
+
+@app.get("/daily-sales-reports", response_model=List[DailySalesReportOut])
+def list_daily_sales_reports(
+    branch_id: Optional[int] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    db: Session = Depends(get_db),
+    user: OperationAccount = Depends(get_current_user),
+):
+    """قائمة تقارير المبيعات اليومية"""
+    query = db.query(DailySalesReport)
+    
+    if branch_id:
+        assert_branch_access(user, branch_id)
+        query = query.filter(DailySalesReport.branch_id == branch_id)
+    elif not user.is_super_admin and not user.is_backdoor:
+        query = query.filter(DailySalesReport.branch_id == user.branch_id)
+    
+    if date_from:
+        query = query.filter(DailySalesReport.report_date >= date_from)
+    if date_to:
+        query = query.filter(DailySalesReport.report_date <= date_to)
+    
+    return query.order_by(DailySalesReport.report_date.desc()).all()
+
+
+@app.get("/daily-sales-reports/{report_id}", response_model=DailySalesReportOut)
+def get_daily_sales_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: OperationAccount = Depends(get_current_user),
+):
+    """الحصول على تقرير مبيعات يومي محدد"""
+    report = db.query(DailySalesReport).filter(DailySalesReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="التقرير غير موجود")
+    assert_branch_access(user, report.branch_id)
+    return report
+
+
+@app.patch("/daily-sales-reports/{report_id}", response_model=DailySalesReportOut)
+def update_daily_sales_report(
+    report_id: int,
+    payload: DailySalesReportUpdate,
+    db: Session = Depends(get_db),
+    user: OperationAccount = Depends(get_current_user),
+):
+    """تحديث تقرير مبيعات يومي"""
+    require_sales_manager(user)
+    report = db.query(DailySalesReport).filter(DailySalesReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="التقرير غير موجود")
+    assert_branch_access(user, report.branch_id)
+    
+    update_data = payload.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(report, field, value)
+    
+    db.commit()
+    db.refresh(report)
+    return report
+
+
+@app.delete("/daily-sales-reports/{report_id}")
+def delete_daily_sales_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: OperationAccount = Depends(get_current_user),
+):
+    """حذف تقرير مبيعات يومي"""
+    require_sales_manager(user)
+    report = db.query(DailySalesReport).filter(DailySalesReport.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="التقرير غير موجود")
     assert_branch_access(user, report.branch_id)

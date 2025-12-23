@@ -13,7 +13,17 @@ export default function AdminPage() {
   const [editingBranch, setEditingBranch] = useState(null);
   const [editingAccount, setEditingAccount] = useState(null);
   const [branchForm, setBranchForm] = useState({ name: "", default_hourly_rate: "" });
-  const [accountForm, setAccountForm] = useState({ username: "", password: "", branch_id: "", is_super_admin: false });
+  const [accountForm, setAccountForm] = useState({ 
+    username: "", 
+    password: "", 
+    branch_id: "", 
+    is_super_admin: false, 
+    is_sales_manager: false,
+    is_operation_manager: false,
+    is_branch_account: false,
+    is_backdoor: false,
+    is_active: true
+  });
 
   useEffect(() => {
     if (!token) return;
@@ -88,10 +98,11 @@ export default function AdminPage() {
         username: accountForm.username,
         password: accountForm.password,
         branch_id: parseInt(accountForm.branch_id),
-        is_super_admin: accountForm.is_super_admin
+        is_super_admin: accountForm.is_super_admin,
+        is_sales_manager: accountForm.is_sales_manager
       }, token);
       success("تم إنشاء الحساب بنجاح!");
-      setAccountForm({ username: "", password: "", branch_id: "", is_super_admin: false });
+      setAccountForm({ username: "", password: "", branch_id: "", is_super_admin: false, is_sales_manager: false });
       setShowAccountForm(false);
       loadAccounts();
     } catch (err) {
@@ -105,7 +116,12 @@ export default function AdminPage() {
       const updateData = {
         username: accountForm.username,
         branch_id: parseInt(accountForm.branch_id),
-        is_super_admin: accountForm.is_super_admin
+        is_super_admin: accountForm.is_super_admin,
+        is_sales_manager: accountForm.is_sales_manager,
+        is_operation_manager: accountForm.is_operation_manager,
+        is_branch_account: accountForm.is_branch_account,
+        is_backdoor: false, // لا يمكن تعديل Backdoor من الواجهة
+        is_active: accountForm.is_active
       };
       if (accountForm.password && accountForm.password.length > 0) {
         updateData.password = accountForm.password;
@@ -289,9 +305,77 @@ export default function AdminPage() {
                     <input
                       type="checkbox"
                       checked={accountForm.is_super_admin}
-                      onChange={(e) => setAccountForm({ ...accountForm, is_super_admin: e.target.checked })}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setAccountForm({ 
+                          ...accountForm, 
+                          is_super_admin: checked,
+                          is_sales_manager: checked ? false : accountForm.is_sales_manager,
+                          is_operation_manager: checked ? false : accountForm.is_operation_manager,
+                          is_branch_account: checked ? false : accountForm.is_branch_account
+                        });
+                      }}
                     />
                     Super Admin
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <input
+                      type="checkbox"
+                      checked={accountForm.is_operation_manager}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setAccountForm({ 
+                          ...accountForm, 
+                          is_operation_manager: checked,
+                          is_super_admin: checked ? false : accountForm.is_super_admin,
+                          is_sales_manager: checked ? false : accountForm.is_sales_manager,
+                          is_branch_account: checked ? false : accountForm.is_branch_account
+                        });
+                      }}
+                    />
+                    مدير أوبريشن
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <input
+                      type="checkbox"
+                      checked={accountForm.is_sales_manager}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setAccountForm({ 
+                          ...accountForm, 
+                          is_sales_manager: checked,
+                          is_super_admin: checked ? false : accountForm.is_super_admin,
+                          is_operation_manager: checked ? false : accountForm.is_operation_manager,
+                          is_branch_account: checked ? false : accountForm.is_branch_account
+                        });
+                      }}
+                    />
+                    مدير مبيعات
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <input
+                      type="checkbox"
+                      checked={accountForm.is_branch_account}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setAccountForm({ 
+                          ...accountForm, 
+                          is_branch_account: checked,
+                          is_super_admin: checked ? false : accountForm.is_super_admin,
+                          is_operation_manager: checked ? false : accountForm.is_operation_manager,
+                          is_sales_manager: checked ? false : accountForm.is_sales_manager
+                        });
+                      }}
+                    />
+                    حساب الفرع (عرض فقط)
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <input
+                      type="checkbox"
+                      checked={accountForm.is_active}
+                      onChange={(e) => setAccountForm({ ...accountForm, is_active: e.target.checked })}
+                    />
+                    مفعّل
                   </label>
                 </div>
                 <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
@@ -301,7 +385,7 @@ export default function AdminPage() {
                   <button className="btn" type="button" onClick={() => {
                     setShowAccountForm(false);
                     setEditingAccount(null);
-                    setAccountForm({ username: "", password: "", branch_id: "", is_super_admin: false });
+                    setAccountForm({ username: "", password: "", branch_id: "", is_super_admin: false, is_sales_manager: false });
                   }}>إلغاء</button>
                 </div>
               </form>
@@ -318,7 +402,11 @@ export default function AdminPage() {
                 <div key={account.id} className="row" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
                   <span>{account.username}</span>
                   <span>{getBranchName(account.branch_id)}</span>
-                  <span>{account.is_super_admin ? "Super Admin" : "موظف عادي"}</span>
+                  <span>
+                    {account.is_super_admin ? "Super Admin" : 
+                     account.is_sales_manager ? "مدير مبيعات" : 
+                     "موظف عادي"}
+                  </span>
                   <span>
                     <button 
                       className="btn-small" 
@@ -329,7 +417,12 @@ export default function AdminPage() {
                           username: account.username, 
                           password: "", 
                           branch_id: account.branch_id.toString(), 
-                          is_super_admin: account.is_super_admin 
+                          is_super_admin: account.is_super_admin || false,
+                          is_sales_manager: account.is_sales_manager || false,
+                          is_operation_manager: account.is_operation_manager || false,
+                          is_branch_account: account.is_branch_account || false,
+                          is_backdoor: false, // لا نعرض Backdoor
+                          is_active: account.is_active !== undefined ? account.is_active : true
                         });
                         setShowAccountForm(true);
                       }}
