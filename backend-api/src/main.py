@@ -870,6 +870,7 @@ class MonthlyReportOut(BaseModel):
 def get_monthly_reports(
     branch_id: Optional[int] = None,
     year: Optional[int] = None,
+    month: Optional[int] = None,
     db: Session = Depends(get_db),
     user: OperationAccount = Depends(get_current_user),
 ):
@@ -893,6 +894,11 @@ def get_monthly_reports(
                 func.YEAR(SessionDraft.created_at) == year
             )
         
+        if month:
+            drafts_query = drafts_query.filter(
+                func.MONTH(SessionDraft.created_at) == month
+            )
+        
         all_drafts = drafts_query.order_by(SessionDraft.created_at.desc()).all()
         
         # Get all approved sessions grouped by month (based on created_at)
@@ -908,6 +914,11 @@ def get_monthly_reports(
         if year:
             sessions_query = sessions_query.filter(
                 func.YEAR(SessionRecord.created_at) == year
+            )
+        
+        if month:
+            sessions_query = sessions_query.filter(
+                func.MONTH(SessionRecord.created_at) == month
             )
         
         all_sessions = sessions_query.order_by(SessionRecord.created_at.desc()).all()
@@ -935,6 +946,11 @@ def get_monthly_reports(
         if year:
             expenses_query = expenses_query.filter(
                 func.YEAR(Expense.created_at) == year
+            )
+        
+        if month:
+            expenses_query = expenses_query.filter(
+                func.MONTH(Expense.created_at) == month
             )
         
         all_expenses = expenses_query.order_by(Expense.created_at.desc()).all()
@@ -1303,6 +1319,8 @@ def get_current_user_info(user: OperationAccount = Depends(get_current_user)):
 class TeacherNameMerge(BaseModel):
     old_name: str
     new_name: str
+    old_location: Optional[str] = None  # If provided, only update sessions with this location
+    new_location: Optional[str] = None  # If provided, update location to this value
     session_ids: Optional[List[int]] = None  # If provided, only update these sessions
 
 
@@ -1385,11 +1403,18 @@ def merge_teacher_names(
                 SessionRecord.teacher_name == payload.old_name
             )
             
+            # If old_location is provided, filter by location as well
+            if payload.old_location:
+                sessions_query = sessions_query.filter(SessionRecord.location == payload.old_location)
+            
             # Check branch access for each session
             sessions = sessions_query.all()
             for session in sessions:
                 assert_branch_access(user, session.branch_id)
                 session.teacher_name = payload.new_name
+                # Update location if new_location is provided
+                if payload.new_location:
+                    session.location = payload.new_location
                 updated_count += 1
             
             db.commit()
@@ -1398,12 +1423,19 @@ def merge_teacher_names(
                 "status": "merged",
                 "old_name": payload.old_name,
                 "new_name": payload.new_name,
+                "old_location": payload.old_location,
+                "new_location": payload.new_location,
                 "updated_count": updated_count,
                 "message": f"تم تحديث {updated_count} جلسة في التقرير المفتوح فقط"
             }
         
         # Otherwise, update all sessions in database (respecting branch access)
         sessions_query = db.query(SessionRecord).filter(SessionRecord.teacher_name == payload.old_name)
+        
+        # If old_location is provided, filter by location as well
+        if payload.old_location:
+            sessions_query = sessions_query.filter(SessionRecord.location == payload.old_location)
+        
         if not user.is_super_admin:
             # Regular users can only update their own branch's records
             sessions_query = sessions_query.filter(SessionRecord.branch_id == user.branch_id)
@@ -1411,6 +1443,9 @@ def merge_teacher_names(
         sessions = sessions_query.all()
         for session in sessions:
             session.teacher_name = payload.new_name
+            # Update location if new_location is provided
+            if payload.new_location:
+                session.location = payload.new_location
             updated_count += 1
         
         # Update drafts - filter by branch access first

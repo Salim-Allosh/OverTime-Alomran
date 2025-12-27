@@ -602,3 +602,825 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+                }
+            )
+            db.commit()
+            if (i + 1) % 10 == 0:
+                print(f"✓ تم إضافة {i + 1} مصروف...")
+        
+        print(f"✓ تم إضافة 70 مصروف")
+        
+        # 7. إضافة تقارير يومية
+        print("\n" + "="*60)
+        print("إضافة التقارير اليومية...")
+        print("="*60)
+        
+        today = date.today()
+        reports_added = 0
+        
+        for days_ago in range(90):
+            report_date = today - timedelta(days=days_ago)
+            
+            for branch_id in branch_ids:
+                result = db.execute(
+                    text("""SELECT 
+                        COUNT(*) as total_sessions,
+                        COALESCE(SUM(duration_hours), 0) as total_hours,
+                        COALESCE(SUM(calculated_amount), 0) as total_amount,
+                        SUM(CASE WHEN location = 'internal' THEN 1 ELSE 0 END) as internal_sessions,
+                        SUM(CASE WHEN location = 'external' THEN 1 ELSE 0 END) as external_sessions,
+                        COALESCE(SUM(CASE WHEN location = 'internal' THEN calculated_amount ELSE 0 END), 0) as internal_amount,
+                        COALESCE(SUM(CASE WHEN location = 'external' THEN calculated_amount ELSE 0 END), 0) as external_amount
+                       FROM sessions 
+                       WHERE branch_id = :branch_id AND DATE(session_date) = :report_date"""),
+                    {"branch_id": branch_id, "report_date": report_date}
+                )
+                stats = result.fetchone()
+                
+                total_sessions = stats[0] or 0
+                total_hours = float(stats[1] or 0)
+                total_amount = float(stats[2] or 0)
+                internal_sessions = stats[3] or 0
+                external_sessions = stats[4] or 0
+                internal_amount = float(stats[5] or 0)
+                external_amount = float(stats[6] or 0)
+                
+                result = db.execute(
+                    text("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE branch_id = :branch_id AND DATE(created_at) = :report_date"),
+                    {"branch_id": branch_id, "report_date": report_date}
+                )
+                total_expenses = float(result.fetchone()[0] or 0)
+                net_profit = total_amount - total_expenses
+                
+                db.execute(
+                    text("""INSERT INTO daily_reports 
+                       (branch_id, report_date, total_sessions, total_hours, total_amount,
+                        internal_sessions, external_sessions, internal_amount, external_amount,
+                        total_expenses, net_profit)
+                       VALUES (:branch_id, :report_date, :total_sessions, :total_hours, :total_amount,
+                        :internal_sessions, :external_sessions, :internal_amount, :external_amount,
+                        :total_expenses, :net_profit)
+                       ON DUPLICATE KEY UPDATE
+                       total_sessions = VALUES(total_sessions),
+                       total_hours = VALUES(total_hours),
+                       total_amount = VALUES(total_amount),
+                       internal_sessions = VALUES(internal_sessions),
+                       external_sessions = VALUES(external_sessions),
+                       internal_amount = VALUES(internal_amount),
+                       external_amount = VALUES(external_amount),
+                       total_expenses = VALUES(total_expenses),
+                       net_profit = VALUES(net_profit)"""),
+                    {
+                        "branch_id": branch_id, "report_date": report_date,
+                        "total_sessions": total_sessions, "total_hours": total_hours, "total_amount": total_amount,
+                        "internal_sessions": internal_sessions, "external_sessions": external_sessions,
+                        "internal_amount": internal_amount, "external_amount": external_amount,
+                        "total_expenses": total_expenses, "net_profit": net_profit
+                    }
+                )
+                db.commit()
+                reports_added += 1
+        
+        print(f"✓ تم إضافة {reports_added} تقرير يومي")
+        
+        # 8. إضافة تقارير المبيعات اليومية
+        print("\n" + "="*60)
+        print("إضافة تقارير المبيعات اليومية...")
+        print("="*60)
+        
+        result = db.execute(text("SELECT id, branch_id FROM sales_staff WHERE is_active = 1"))
+        active_staff = result.fetchall()
+        
+        if active_staff:
+            sales_reports_added = 0
+            for days_ago in range(90):
+                report_date = today - timedelta(days=days_ago)
+                
+                staff_to_report = random.sample(active_staff, min(10, len(active_staff)))
+                
+                for staff_id, branch_id in staff_to_report:
+                    number_of_deals = random.randint(0, 5)
+                    sales_amount = round(random.uniform(0, 10000), 2) if number_of_deals > 0 else 0
+                    
+                    db.execute(
+                        text("""INSERT INTO daily_sales_reports 
+                           (sales_staff_id, branch_id, report_date, sales_amount, number_of_deals)
+                           VALUES (:staff_id, :branch_id, :report_date, :sales_amount, :number_of_deals)
+                           ON DUPLICATE KEY UPDATE
+                           sales_amount = VALUES(sales_amount),
+                           number_of_deals = VALUES(number_of_deals)"""),
+                        {
+                            "staff_id": staff_id, "branch_id": branch_id, "report_date": report_date,
+                            "sales_amount": sales_amount, "number_of_deals": number_of_deals
+                        }
+                    )
+                    db.commit()
+                    sales_reports_added += 1
+            
+            print(f"✓ تم إضافة {sales_reports_added} تقرير مبيعات يومي")
+        
+        # 9. إضافة الميزانيات (إذا كان الجدول موجوداً)
+        print("\n" + "="*60)
+        print("إضافة الميزانيات...")
+        print("="*60)
+        
+        try:
+            # التحقق من وجود الجدول
+            result = db.execute(text("SHOW TABLES LIKE 'budgets'"))
+            if result.fetchone():
+                budget_types = ["monthly", "quarterly", "yearly"]
+                budget_categories = ["income", "expense"]
+                
+                for year in [2024, 2025]:
+                    for month in range(1, 13):
+                        budget_date = date(year, month, 1)
+                        
+                        for branch_id in branch_ids:
+                            for budget_type in budget_types:
+                                for category in budget_categories:
+                                    budgeted_amount = round(random.uniform(1000, 50000), 2)
+                                    
+                                    db.execute(
+                                        text("""INSERT INTO budgets 
+                                           (branch_id, budget_date, budget_type, category, budgeted_amount)
+                                           VALUES (:branch_id, :budget_date, :budget_type, :category, :budgeted_amount)
+                                           ON DUPLICATE KEY UPDATE
+                                           budgeted_amount = VALUES(budgeted_amount)"""),
+                                        {
+                                            "branch_id": branch_id, "budget_date": budget_date,
+                                            "budget_type": budget_type, "category": category,
+                                            "budgeted_amount": budgeted_amount
+                                        }
+                                    )
+                                    db.commit()
+                
+                print(f"✓ تم إضافة الميزانيات")
+                
+                # 10. إضافة عناصر الميزانية
+                print("\n" + "="*60)
+                print("إضافة عناصر الميزانية...")
+                print("="*60)
+                
+                item_names = [
+                    "راتب الموظفين", "إيجار المكتب", "كهرباء ومياه", "إنترنت واتصالات",
+                    "مواد تعليمية", "صيانة وأصلاح", "إعلانات وتسويق", "نقل ومواصلات",
+                    "تأمين", "ضرائب", "استشارات قانونية", "تدريب الموظفين",
+                    "معدات وأجهزة", "أثاث", "برمجيات", "تنظيف وصيانة",
+                ]
+                
+                result = db.execute(text("SELECT id, branch_id FROM budgets LIMIT 100"))
+                budgets_list = result.fetchall()
+                
+                items_added = 0
+                for budget_id, branch_id in budgets_list:
+                    for i in range(random.randint(3, 8)):
+                        item_name = random.choice(item_names)
+                        planned_amount = round(random.uniform(100, 5000), 2)
+                        actual_amount = round(planned_amount * random.uniform(0.8, 1.2), 2)
+                        
+                        db.execute(
+                            text("""INSERT INTO budget_items 
+                               (budget_id, branch_id, item_name, planned_amount, actual_amount)
+                               VALUES (:budget_id, :branch_id, :item_name, :planned_amount, :actual_amount)"""),
+                            {
+                                "budget_id": budget_id, "branch_id": branch_id,
+                                "item_name": item_name, "planned_amount": planned_amount,
+                                "actual_amount": actual_amount
+                            }
+                        )
+                        db.commit()
+                        items_added += 1
+                
+                print(f"✓ تم إضافة {items_added} عنصر ميزانية")
+            else:
+                print("⚠ جدول budgets غير موجود - تم تخطي إضافة الميزانيات")
+        except Exception as e:
+            print(f"⚠ خطأ في إضافة الميزانيات: {e} - تم تخطيها")
+        
+        print("\n" + "="*60)
+        print("✓ تم إضافة جميع البيانات التجريبية بنجاح!")
+        print("="*60)
+        
+        # التحقق من البيانات
+        print("\n" + "="*60)
+        print("ملخص البيانات المضافة:")
+        print("="*60)
+        
+        result = db.execute(text("SELECT COUNT(*) FROM branches"))
+        print(f"✓ الفروع: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM operation_accounts"))
+        print(f"✓ الحسابات: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM sales_staff"))
+        print(f"✓ موظفي المبيعات: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM contracts"))
+        print(f"✓ العقود: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM sessions"))
+        print(f"✓ الجلسات: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM expenses"))
+        print(f"✓ المصاريف: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM daily_reports"))
+        print(f"✓ التقارير اليومية: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM daily_sales_reports"))
+        print(f"✓ تقارير المبيعات اليومية: {result.fetchone()[0]}")
+        
+        try:
+            result = db.execute(text("SELECT COUNT(*) FROM budgets"))
+            print(f"✓ الميزانيات: {result.fetchone()[0]}")
+        except:
+            print("✓ الميزانيات: الجدول غير موجود")
+        
+        try:
+            result = db.execute(text("SELECT COUNT(*) FROM budget_items"))
+            print(f"✓ عناصر الميزانية: {result.fetchone()[0]}")
+        except:
+            print("✓ عناصر الميزانية: الجدول غير موجود")
+        
+        print("\n" + "="*60)
+        print("معلومات تسجيل الدخول:")
+        print("="*60)
+        print("المشرف العام:")
+        print("  - اسم المستخدم: admin")
+        print("  - كلمة المرور: admin123")
+        
+        db.close()
+        return True
+        
+    except Exception as e:
+        print(f"\n✗ خطأ في إضافة البيانات: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def main():
+    """الدالة الرئيسية"""
+    print("="*60)
+    print("سكريبت إضافة بيانات تجريبية كثيرة")
+    print("="*60)
+    
+    if not seed_data():
+        return
+    
+    print("\n" + "="*60)
+    print("✓ تم إكمال العملية بنجاح!")
+    print("="*60)
+
+
+if __name__ == "__main__":
+    main()
+
+                }
+            )
+            db.commit()
+            if (i + 1) % 10 == 0:
+                print(f"✓ تم إضافة {i + 1} مصروف...")
+        
+        print(f"✓ تم إضافة 70 مصروف")
+        
+        # 7. إضافة تقارير يومية
+        print("\n" + "="*60)
+        print("إضافة التقارير اليومية...")
+        print("="*60)
+        
+        today = date.today()
+        reports_added = 0
+        
+        for days_ago in range(90):
+            report_date = today - timedelta(days=days_ago)
+            
+            for branch_id in branch_ids:
+                result = db.execute(
+                    text("""SELECT 
+                        COUNT(*) as total_sessions,
+                        COALESCE(SUM(duration_hours), 0) as total_hours,
+                        COALESCE(SUM(calculated_amount), 0) as total_amount,
+                        SUM(CASE WHEN location = 'internal' THEN 1 ELSE 0 END) as internal_sessions,
+                        SUM(CASE WHEN location = 'external' THEN 1 ELSE 0 END) as external_sessions,
+                        COALESCE(SUM(CASE WHEN location = 'internal' THEN calculated_amount ELSE 0 END), 0) as internal_amount,
+                        COALESCE(SUM(CASE WHEN location = 'external' THEN calculated_amount ELSE 0 END), 0) as external_amount
+                       FROM sessions 
+                       WHERE branch_id = :branch_id AND DATE(session_date) = :report_date"""),
+                    {"branch_id": branch_id, "report_date": report_date}
+                )
+                stats = result.fetchone()
+                
+                total_sessions = stats[0] or 0
+                total_hours = float(stats[1] or 0)
+                total_amount = float(stats[2] or 0)
+                internal_sessions = stats[3] or 0
+                external_sessions = stats[4] or 0
+                internal_amount = float(stats[5] or 0)
+                external_amount = float(stats[6] or 0)
+                
+                result = db.execute(
+                    text("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE branch_id = :branch_id AND DATE(created_at) = :report_date"),
+                    {"branch_id": branch_id, "report_date": report_date}
+                )
+                total_expenses = float(result.fetchone()[0] or 0)
+                net_profit = total_amount - total_expenses
+                
+                db.execute(
+                    text("""INSERT INTO daily_reports 
+                       (branch_id, report_date, total_sessions, total_hours, total_amount,
+                        internal_sessions, external_sessions, internal_amount, external_amount,
+                        total_expenses, net_profit)
+                       VALUES (:branch_id, :report_date, :total_sessions, :total_hours, :total_amount,
+                        :internal_sessions, :external_sessions, :internal_amount, :external_amount,
+                        :total_expenses, :net_profit)
+                       ON DUPLICATE KEY UPDATE
+                       total_sessions = VALUES(total_sessions),
+                       total_hours = VALUES(total_hours),
+                       total_amount = VALUES(total_amount),
+                       internal_sessions = VALUES(internal_sessions),
+                       external_sessions = VALUES(external_sessions),
+                       internal_amount = VALUES(internal_amount),
+                       external_amount = VALUES(external_amount),
+                       total_expenses = VALUES(total_expenses),
+                       net_profit = VALUES(net_profit)"""),
+                    {
+                        "branch_id": branch_id, "report_date": report_date,
+                        "total_sessions": total_sessions, "total_hours": total_hours, "total_amount": total_amount,
+                        "internal_sessions": internal_sessions, "external_sessions": external_sessions,
+                        "internal_amount": internal_amount, "external_amount": external_amount,
+                        "total_expenses": total_expenses, "net_profit": net_profit
+                    }
+                )
+                db.commit()
+                reports_added += 1
+        
+        print(f"✓ تم إضافة {reports_added} تقرير يومي")
+        
+        # 8. إضافة تقارير المبيعات اليومية
+        print("\n" + "="*60)
+        print("إضافة تقارير المبيعات اليومية...")
+        print("="*60)
+        
+        result = db.execute(text("SELECT id, branch_id FROM sales_staff WHERE is_active = 1"))
+        active_staff = result.fetchall()
+        
+        if active_staff:
+            sales_reports_added = 0
+            for days_ago in range(90):
+                report_date = today - timedelta(days=days_ago)
+                
+                staff_to_report = random.sample(active_staff, min(10, len(active_staff)))
+                
+                for staff_id, branch_id in staff_to_report:
+                    number_of_deals = random.randint(0, 5)
+                    sales_amount = round(random.uniform(0, 10000), 2) if number_of_deals > 0 else 0
+                    
+                    db.execute(
+                        text("""INSERT INTO daily_sales_reports 
+                           (sales_staff_id, branch_id, report_date, sales_amount, number_of_deals)
+                           VALUES (:staff_id, :branch_id, :report_date, :sales_amount, :number_of_deals)
+                           ON DUPLICATE KEY UPDATE
+                           sales_amount = VALUES(sales_amount),
+                           number_of_deals = VALUES(number_of_deals)"""),
+                        {
+                            "staff_id": staff_id, "branch_id": branch_id, "report_date": report_date,
+                            "sales_amount": sales_amount, "number_of_deals": number_of_deals
+                        }
+                    )
+                    db.commit()
+                    sales_reports_added += 1
+            
+            print(f"✓ تم إضافة {sales_reports_added} تقرير مبيعات يومي")
+        
+        # 9. إضافة الميزانيات (إذا كان الجدول موجوداً)
+        print("\n" + "="*60)
+        print("إضافة الميزانيات...")
+        print("="*60)
+        
+        try:
+            # التحقق من وجود الجدول
+            result = db.execute(text("SHOW TABLES LIKE 'budgets'"))
+            if result.fetchone():
+                budget_types = ["monthly", "quarterly", "yearly"]
+                budget_categories = ["income", "expense"]
+                
+                for year in [2024, 2025]:
+                    for month in range(1, 13):
+                        budget_date = date(year, month, 1)
+                        
+                        for branch_id in branch_ids:
+                            for budget_type in budget_types:
+                                for category in budget_categories:
+                                    budgeted_amount = round(random.uniform(1000, 50000), 2)
+                                    
+                                    db.execute(
+                                        text("""INSERT INTO budgets 
+                                           (branch_id, budget_date, budget_type, category, budgeted_amount)
+                                           VALUES (:branch_id, :budget_date, :budget_type, :category, :budgeted_amount)
+                                           ON DUPLICATE KEY UPDATE
+                                           budgeted_amount = VALUES(budgeted_amount)"""),
+                                        {
+                                            "branch_id": branch_id, "budget_date": budget_date,
+                                            "budget_type": budget_type, "category": category,
+                                            "budgeted_amount": budgeted_amount
+                                        }
+                                    )
+                                    db.commit()
+                
+                print(f"✓ تم إضافة الميزانيات")
+                
+                # 10. إضافة عناصر الميزانية
+                print("\n" + "="*60)
+                print("إضافة عناصر الميزانية...")
+                print("="*60)
+                
+                item_names = [
+                    "راتب الموظفين", "إيجار المكتب", "كهرباء ومياه", "إنترنت واتصالات",
+                    "مواد تعليمية", "صيانة وأصلاح", "إعلانات وتسويق", "نقل ومواصلات",
+                    "تأمين", "ضرائب", "استشارات قانونية", "تدريب الموظفين",
+                    "معدات وأجهزة", "أثاث", "برمجيات", "تنظيف وصيانة",
+                ]
+                
+                result = db.execute(text("SELECT id, branch_id FROM budgets LIMIT 100"))
+                budgets_list = result.fetchall()
+                
+                items_added = 0
+                for budget_id, branch_id in budgets_list:
+                    for i in range(random.randint(3, 8)):
+                        item_name = random.choice(item_names)
+                        planned_amount = round(random.uniform(100, 5000), 2)
+                        actual_amount = round(planned_amount * random.uniform(0.8, 1.2), 2)
+                        
+                        db.execute(
+                            text("""INSERT INTO budget_items 
+                               (budget_id, branch_id, item_name, planned_amount, actual_amount)
+                               VALUES (:budget_id, :branch_id, :item_name, :planned_amount, :actual_amount)"""),
+                            {
+                                "budget_id": budget_id, "branch_id": branch_id,
+                                "item_name": item_name, "planned_amount": planned_amount,
+                                "actual_amount": actual_amount
+                            }
+                        )
+                        db.commit()
+                        items_added += 1
+                
+                print(f"✓ تم إضافة {items_added} عنصر ميزانية")
+            else:
+                print("⚠ جدول budgets غير موجود - تم تخطي إضافة الميزانيات")
+        except Exception as e:
+            print(f"⚠ خطأ في إضافة الميزانيات: {e} - تم تخطيها")
+        
+        print("\n" + "="*60)
+        print("✓ تم إضافة جميع البيانات التجريبية بنجاح!")
+        print("="*60)
+        
+        # التحقق من البيانات
+        print("\n" + "="*60)
+        print("ملخص البيانات المضافة:")
+        print("="*60)
+        
+        result = db.execute(text("SELECT COUNT(*) FROM branches"))
+        print(f"✓ الفروع: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM operation_accounts"))
+        print(f"✓ الحسابات: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM sales_staff"))
+        print(f"✓ موظفي المبيعات: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM contracts"))
+        print(f"✓ العقود: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM sessions"))
+        print(f"✓ الجلسات: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM expenses"))
+        print(f"✓ المصاريف: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM daily_reports"))
+        print(f"✓ التقارير اليومية: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM daily_sales_reports"))
+        print(f"✓ تقارير المبيعات اليومية: {result.fetchone()[0]}")
+        
+        try:
+            result = db.execute(text("SELECT COUNT(*) FROM budgets"))
+            print(f"✓ الميزانيات: {result.fetchone()[0]}")
+        except:
+            print("✓ الميزانيات: الجدول غير موجود")
+        
+        try:
+            result = db.execute(text("SELECT COUNT(*) FROM budget_items"))
+            print(f"✓ عناصر الميزانية: {result.fetchone()[0]}")
+        except:
+            print("✓ عناصر الميزانية: الجدول غير موجود")
+        
+        print("\n" + "="*60)
+        print("معلومات تسجيل الدخول:")
+        print("="*60)
+        print("المشرف العام:")
+        print("  - اسم المستخدم: admin")
+        print("  - كلمة المرور: admin123")
+        
+        db.close()
+        return True
+        
+    except Exception as e:
+        print(f"\n✗ خطأ في إضافة البيانات: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def main():
+    """الدالة الرئيسية"""
+    print("="*60)
+    print("سكريبت إضافة بيانات تجريبية كثيرة")
+    print("="*60)
+    
+    if not seed_data():
+        return
+    
+    print("\n" + "="*60)
+    print("✓ تم إكمال العملية بنجاح!")
+    print("="*60)
+
+
+if __name__ == "__main__":
+    main()
+
+                }
+            )
+            db.commit()
+            if (i + 1) % 10 == 0:
+                print(f"✓ تم إضافة {i + 1} مصروف...")
+        
+        print(f"✓ تم إضافة 70 مصروف")
+        
+        # 7. إضافة تقارير يومية
+        print("\n" + "="*60)
+        print("إضافة التقارير اليومية...")
+        print("="*60)
+        
+        today = date.today()
+        reports_added = 0
+        
+        for days_ago in range(90):
+            report_date = today - timedelta(days=days_ago)
+            
+            for branch_id in branch_ids:
+                result = db.execute(
+                    text("""SELECT 
+                        COUNT(*) as total_sessions,
+                        COALESCE(SUM(duration_hours), 0) as total_hours,
+                        COALESCE(SUM(calculated_amount), 0) as total_amount,
+                        SUM(CASE WHEN location = 'internal' THEN 1 ELSE 0 END) as internal_sessions,
+                        SUM(CASE WHEN location = 'external' THEN 1 ELSE 0 END) as external_sessions,
+                        COALESCE(SUM(CASE WHEN location = 'internal' THEN calculated_amount ELSE 0 END), 0) as internal_amount,
+                        COALESCE(SUM(CASE WHEN location = 'external' THEN calculated_amount ELSE 0 END), 0) as external_amount
+                       FROM sessions 
+                       WHERE branch_id = :branch_id AND DATE(session_date) = :report_date"""),
+                    {"branch_id": branch_id, "report_date": report_date}
+                )
+                stats = result.fetchone()
+                
+                total_sessions = stats[0] or 0
+                total_hours = float(stats[1] or 0)
+                total_amount = float(stats[2] or 0)
+                internal_sessions = stats[3] or 0
+                external_sessions = stats[4] or 0
+                internal_amount = float(stats[5] or 0)
+                external_amount = float(stats[6] or 0)
+                
+                result = db.execute(
+                    text("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE branch_id = :branch_id AND DATE(created_at) = :report_date"),
+                    {"branch_id": branch_id, "report_date": report_date}
+                )
+                total_expenses = float(result.fetchone()[0] or 0)
+                net_profit = total_amount - total_expenses
+                
+                db.execute(
+                    text("""INSERT INTO daily_reports 
+                       (branch_id, report_date, total_sessions, total_hours, total_amount,
+                        internal_sessions, external_sessions, internal_amount, external_amount,
+                        total_expenses, net_profit)
+                       VALUES (:branch_id, :report_date, :total_sessions, :total_hours, :total_amount,
+                        :internal_sessions, :external_sessions, :internal_amount, :external_amount,
+                        :total_expenses, :net_profit)
+                       ON DUPLICATE KEY UPDATE
+                       total_sessions = VALUES(total_sessions),
+                       total_hours = VALUES(total_hours),
+                       total_amount = VALUES(total_amount),
+                       internal_sessions = VALUES(internal_sessions),
+                       external_sessions = VALUES(external_sessions),
+                       internal_amount = VALUES(internal_amount),
+                       external_amount = VALUES(external_amount),
+                       total_expenses = VALUES(total_expenses),
+                       net_profit = VALUES(net_profit)"""),
+                    {
+                        "branch_id": branch_id, "report_date": report_date,
+                        "total_sessions": total_sessions, "total_hours": total_hours, "total_amount": total_amount,
+                        "internal_sessions": internal_sessions, "external_sessions": external_sessions,
+                        "internal_amount": internal_amount, "external_amount": external_amount,
+                        "total_expenses": total_expenses, "net_profit": net_profit
+                    }
+                )
+                db.commit()
+                reports_added += 1
+        
+        print(f"✓ تم إضافة {reports_added} تقرير يومي")
+        
+        # 8. إضافة تقارير المبيعات اليومية
+        print("\n" + "="*60)
+        print("إضافة تقارير المبيعات اليومية...")
+        print("="*60)
+        
+        result = db.execute(text("SELECT id, branch_id FROM sales_staff WHERE is_active = 1"))
+        active_staff = result.fetchall()
+        
+        if active_staff:
+            sales_reports_added = 0
+            for days_ago in range(90):
+                report_date = today - timedelta(days=days_ago)
+                
+                staff_to_report = random.sample(active_staff, min(10, len(active_staff)))
+                
+                for staff_id, branch_id in staff_to_report:
+                    number_of_deals = random.randint(0, 5)
+                    sales_amount = round(random.uniform(0, 10000), 2) if number_of_deals > 0 else 0
+                    
+                    db.execute(
+                        text("""INSERT INTO daily_sales_reports 
+                           (sales_staff_id, branch_id, report_date, sales_amount, number_of_deals)
+                           VALUES (:staff_id, :branch_id, :report_date, :sales_amount, :number_of_deals)
+                           ON DUPLICATE KEY UPDATE
+                           sales_amount = VALUES(sales_amount),
+                           number_of_deals = VALUES(number_of_deals)"""),
+                        {
+                            "staff_id": staff_id, "branch_id": branch_id, "report_date": report_date,
+                            "sales_amount": sales_amount, "number_of_deals": number_of_deals
+                        }
+                    )
+                    db.commit()
+                    sales_reports_added += 1
+            
+            print(f"✓ تم إضافة {sales_reports_added} تقرير مبيعات يومي")
+        
+        # 9. إضافة الميزانيات (إذا كان الجدول موجوداً)
+        print("\n" + "="*60)
+        print("إضافة الميزانيات...")
+        print("="*60)
+        
+        try:
+            # التحقق من وجود الجدول
+            result = db.execute(text("SHOW TABLES LIKE 'budgets'"))
+            if result.fetchone():
+                budget_types = ["monthly", "quarterly", "yearly"]
+                budget_categories = ["income", "expense"]
+                
+                for year in [2024, 2025]:
+                    for month in range(1, 13):
+                        budget_date = date(year, month, 1)
+                        
+                        for branch_id in branch_ids:
+                            for budget_type in budget_types:
+                                for category in budget_categories:
+                                    budgeted_amount = round(random.uniform(1000, 50000), 2)
+                                    
+                                    db.execute(
+                                        text("""INSERT INTO budgets 
+                                           (branch_id, budget_date, budget_type, category, budgeted_amount)
+                                           VALUES (:branch_id, :budget_date, :budget_type, :category, :budgeted_amount)
+                                           ON DUPLICATE KEY UPDATE
+                                           budgeted_amount = VALUES(budgeted_amount)"""),
+                                        {
+                                            "branch_id": branch_id, "budget_date": budget_date,
+                                            "budget_type": budget_type, "category": category,
+                                            "budgeted_amount": budgeted_amount
+                                        }
+                                    )
+                                    db.commit()
+                
+                print(f"✓ تم إضافة الميزانيات")
+                
+                # 10. إضافة عناصر الميزانية
+                print("\n" + "="*60)
+                print("إضافة عناصر الميزانية...")
+                print("="*60)
+                
+                item_names = [
+                    "راتب الموظفين", "إيجار المكتب", "كهرباء ومياه", "إنترنت واتصالات",
+                    "مواد تعليمية", "صيانة وأصلاح", "إعلانات وتسويق", "نقل ومواصلات",
+                    "تأمين", "ضرائب", "استشارات قانونية", "تدريب الموظفين",
+                    "معدات وأجهزة", "أثاث", "برمجيات", "تنظيف وصيانة",
+                ]
+                
+                result = db.execute(text("SELECT id, branch_id FROM budgets LIMIT 100"))
+                budgets_list = result.fetchall()
+                
+                items_added = 0
+                for budget_id, branch_id in budgets_list:
+                    for i in range(random.randint(3, 8)):
+                        item_name = random.choice(item_names)
+                        planned_amount = round(random.uniform(100, 5000), 2)
+                        actual_amount = round(planned_amount * random.uniform(0.8, 1.2), 2)
+                        
+                        db.execute(
+                            text("""INSERT INTO budget_items 
+                               (budget_id, branch_id, item_name, planned_amount, actual_amount)
+                               VALUES (:budget_id, :branch_id, :item_name, :planned_amount, :actual_amount)"""),
+                            {
+                                "budget_id": budget_id, "branch_id": branch_id,
+                                "item_name": item_name, "planned_amount": planned_amount,
+                                "actual_amount": actual_amount
+                            }
+                        )
+                        db.commit()
+                        items_added += 1
+                
+                print(f"✓ تم إضافة {items_added} عنصر ميزانية")
+            else:
+                print("⚠ جدول budgets غير موجود - تم تخطي إضافة الميزانيات")
+        except Exception as e:
+            print(f"⚠ خطأ في إضافة الميزانيات: {e} - تم تخطيها")
+        
+        print("\n" + "="*60)
+        print("✓ تم إضافة جميع البيانات التجريبية بنجاح!")
+        print("="*60)
+        
+        # التحقق من البيانات
+        print("\n" + "="*60)
+        print("ملخص البيانات المضافة:")
+        print("="*60)
+        
+        result = db.execute(text("SELECT COUNT(*) FROM branches"))
+        print(f"✓ الفروع: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM operation_accounts"))
+        print(f"✓ الحسابات: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM sales_staff"))
+        print(f"✓ موظفي المبيعات: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM contracts"))
+        print(f"✓ العقود: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM sessions"))
+        print(f"✓ الجلسات: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM expenses"))
+        print(f"✓ المصاريف: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM daily_reports"))
+        print(f"✓ التقارير اليومية: {result.fetchone()[0]}")
+        
+        result = db.execute(text("SELECT COUNT(*) FROM daily_sales_reports"))
+        print(f"✓ تقارير المبيعات اليومية: {result.fetchone()[0]}")
+        
+        try:
+            result = db.execute(text("SELECT COUNT(*) FROM budgets"))
+            print(f"✓ الميزانيات: {result.fetchone()[0]}")
+        except:
+            print("✓ الميزانيات: الجدول غير موجود")
+        
+        try:
+            result = db.execute(text("SELECT COUNT(*) FROM budget_items"))
+            print(f"✓ عناصر الميزانية: {result.fetchone()[0]}")
+        except:
+            print("✓ عناصر الميزانية: الجدول غير موجود")
+        
+        print("\n" + "="*60)
+        print("معلومات تسجيل الدخول:")
+        print("="*60)
+        print("المشرف العام:")
+        print("  - اسم المستخدم: admin")
+        print("  - كلمة المرور: admin123")
+        
+        db.close()
+        return True
+        
+    except Exception as e:
+        print(f"\n✗ خطأ في إضافة البيانات: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def main():
+    """الدالة الرئيسية"""
+    print("="*60)
+    print("سكريبت إضافة بيانات تجريبية كثيرة")
+    print("="*60)
+    
+    if not seed_data():
+        return
+    
+    print("\n" + "="*60)
+    print("✓ تم إكمال العملية بنجاح!")
+    print("="*60)
+
+
+if __name__ == "__main__":
+    main()

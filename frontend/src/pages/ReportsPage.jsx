@@ -405,311 +405,521 @@ export default function ReportsPage() {
     );
   };
 
-  const generatePDF = async (group, monthExpenses, teacherStats, totals, branchName) => {
-    let printContent = null;
+  const generateTeacherPDF = async (teacherStat, teacherSessions, group, branchName) => {
+    // Create a temporary container for the teacher's report
+    const printContent = document.createElement('div');
+    printContent.style.position = 'absolute';
+    printContent.style.left = '-9999px';
+    printContent.style.top = '0';
+    printContent.style.width = '210mm';
+    printContent.style.backgroundColor = 'white';
+    printContent.style.padding = '15px';
+    printContent.style.fontFamily = 'Cairo, Arial, sans-serif';
+    printContent.style.direction = 'rtl';
+    printContent.style.textAlign = 'right';
+    
+    // Add title header
+    const titleDiv = document.createElement('div');
+    titleDiv.style.textAlign = 'center';
+    titleDiv.style.marginBottom = '15px';
+    titleDiv.style.paddingBottom = '10px';
+    titleDiv.style.borderBottom = '2px solid #007bff';
+    titleDiv.innerHTML = `
+      <h1 style="font-size: 18px; font-weight: bold; margin: 0 0 5px 0; color: #007bff;">تقرير مدرس - مركز العمران للتدريب والتطوير</h1>
+      <h2 style="font-size: 14px; font-weight: bold; margin: 0; color: #333;">${branchName} - ${teacherStat.teacher_name} - ${group.monthName} ${group.year}</h2>
+    `;
+    printContent.appendChild(titleDiv);
+    
+    // Teacher Statistics Summary
+    const statsDiv = document.createElement('div');
+    statsDiv.style.marginBottom = '15px';
+    statsDiv.style.padding = '10px';
+    statsDiv.style.backgroundColor = '#f8f9fa';
+    statsDiv.style.borderRadius = '6px';
+    statsDiv.innerHTML = `
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center;">
+        <div style="padding: 10px; background: white; border-radius: 6px;">
+          <div style="color: #666; font-size: 12px; margin-bottom: 5px;">عدد الساعات</div>
+          <div style="font-size: 16px; font-weight: bold; color: #007bff;">${teacherStat.total_hours.toFixed(2)}</div>
+        </div>
+        <div style="padding: 10px; background: white; border-radius: 6px;">
+          <div style="color: #666; font-size: 12px; margin-bottom: 5px;">الإجمالي</div>
+          <div style="font-size: 16px; font-weight: bold; color: #28a745;">${teacherStat.total_amount.toFixed(2)} درهم</div>
+        </div>
+        <div style="padding: 10px; background: white; border-radius: 6px;">
+          <div style="color: #666; font-size: 12px; margin-bottom: 5px;">النوع</div>
+          <div style="font-size: 16px; font-weight: bold; color: ${teacherStat.location === "external" ? "#ffc107" : "#007bff"};">${teacherStat.location === "external" ? "خارجي" : "داخلي"}</div>
+        </div>
+      </div>
+    `;
+    printContent.appendChild(statsDiv);
+    
+    // Sessions Table
+    const sessionsTable = document.createElement('div');
+    sessionsTable.style.marginBottom = '15px';
+    sessionsTable.innerHTML = `
+      <h3 style="font-size: 14px; color: #007bff; margin-bottom: 10px;">الجلسات (${teacherSessions.length})</h3>
+      <div style="display: grid; gap: 5px;">
+        <div style="display: grid; grid-template-columns: 1fr 1.2fr 1fr 1fr 0.9fr 0.9fr 0.8fr 1fr 1fr 1.1fr; padding: 8px; background: #f8f9fa; font-weight: bold; font-size: 11px; text-align: center;">
+          <span>الطالب</span>
+          <span>تاريخ الجلسة</span>
+          <span>من الساعة</span>
+          <span>إلى الساعة</span>
+          <span>المدة</span>
+          <span>رقم العقد</span>
+          <span>سعر الساعة</span>
+          <span>الإجمالي</span>
+          <span>داخلي/خارجي</span>
+          <span>الفرع</span>
+        </div>
+        ${teacherSessions.map(session => `
+          <div style="display: grid; grid-template-columns: 1fr 1.2fr 1fr 1fr 0.9fr 0.9fr 0.8fr 1fr 1fr 1.1fr; padding: 6px; border-bottom: 1px solid #ddd; font-size: 10px; text-align: center;">
+            <span>${session.student_name}</span>
+            <span>${session.session_date}</span>
+            <span>${convertTo12Hour(session.start_time)}</span>
+            <span>${convertTo12Hour(session.end_time)}</span>
+            <span>${session.duration_text}</span>
+            <span style="font-weight: bold; color: #007bff;">${session.contract_number}</span>
+            <span>${parseFloat(session.hourly_rate || 0).toFixed(2)} درهم</span>
+            <span style="font-weight: bold; color: #28a745;">${parseFloat(session.calculated_amount || 0).toFixed(2)} درهم</span>
+            <span style="color: ${session.location === "external" ? "#ffc107" : "#007bff"}; font-weight: bold;">${session.location === "external" ? "خارجي" : "داخلي"}</span>
+            <span>${getBranchName(session.branch_id)}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    printContent.appendChild(sessionsTable);
+    
+    document.body.appendChild(printContent);
+    
+    // Wait for content to render
+    await new Promise(resolve => setTimeout(resolve, 500));
     
     try {
-      // Create completely isolated container - will not affect main page
-      printContent = document.createElement('div');
-      
-      // Maximum isolation - prevent any impact on main page
-      // Note: html2canvas needs element to be visible (but can be off-screen)
-      printContent.style.cssText = `
-        position: absolute !important;
-        left: -20000px !important;
-        top: 0 !important;
-        width: 210mm !important;
-        min-height: 297mm !important;
-        max-width: 210mm !important;
-        background-color: white !important;
-        padding: 20mm !important;
-        margin: 0 !important;
-        border: none !important;
-        box-sizing: border-box !important;
-        pointer-events: none !important;
-        z-index: -1 !important;
-        overflow: visible !important;
-        isolation: isolate !important;
-        contain: layout style paint !important;
-        font-family: Arial, sans-serif !important;
-        direction: rtl !important;
-        text-align: right !important;
-      `;
-      
-      printContent.setAttribute('dir', 'rtl');
-      printContent.setAttribute('lang', 'ar');
-      printContent.setAttribute('aria-hidden', 'true');
-      
-      // Add global styles for Arabic support
-      const styleTag = document.createElement('style');
-      styleTag.textContent = `
-        @page {
-          margin: 0;
-        }
-        * {
-          font-family: Arial, sans-serif !important;
-          direction: rtl !important;
-          text-align: right !important;
-          box-sizing: border-box !important;
-        }
-        body {
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-      `;
-      printContent.appendChild(styleTag);
-      
-      // Title Section with modern design
-      const titleSection = document.createElement('div');
-      titleSection.style.cssText = `
-        background: linear-gradient(135deg, #2980b9 0%, #3498db 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 8px;
-        margin-bottom: 25px;
-        text-align: center;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-      `;
-      
-      const h1 = document.createElement('h1');
-      h1.textContent = 'تقرير شهري - مركز العمران للتدريب والتطوير';
-      h1.style.cssText = 'margin: 0 0 10px 0; font-size: 20px; font-weight: bold; font-family: Arial, sans-serif;';
-      titleSection.appendChild(h1);
-      
-      const h2 = document.createElement('h2');
-      h2.textContent = `${branchName} - ${group.monthName} ${group.year}`;
-      h2.style.cssText = 'margin: 0; font-size: 16px; font-weight: normal; font-family: Arial, sans-serif;';
-      titleSection.appendChild(h2);
-      
-      printContent.appendChild(titleSection);
-      
-      // Statistics Summary Box
-      const statsBox = document.createElement('div');
-      statsBox.style.cssText = `
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        padding: 20px;
-        border-radius: 8px;
-        margin-bottom: 25px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      `;
-      
-      const statsTitle = document.createElement('h3');
-      statsTitle.textContent = 'الإحصائيات الإجمالية';
-      statsTitle.style.cssText = 'margin: 0 0 15px 0; font-size: 16px; font-weight: bold; color: #2c3e50; font-family: Arial, sans-serif;';
-      statsBox.appendChild(statsTitle);
-      
-      const statsList = document.createElement('div');
-      statsList.style.cssText = 'font-size: 12px; line-height: 2; font-family: Arial, sans-serif;';
-      
-      const statsItems = [
-        { label: 'الإجمالي الداخلي', value: totals.internalTotal.toFixed(2), bold: false },
-        { label: 'الإجمالي الخارجي', value: totals.externalTotal.toFixed(2), bold: false },
-        { label: 'إجمالي المصاريف', value: totals.expensesTotal.toFixed(2), bold: false },
-        { label: 'الإجمالي الكامل', value: totals.grandTotal.toFixed(2), bold: true, color: '#2980b9' }
-      ];
-      
-      statsItems.forEach(item => {
-        const p = document.createElement('p');
-        p.textContent = `${item.label}: ${item.value} درهم`;
-        p.style.cssText = `margin: 5px 0; font-family: Arial, sans-serif; ${item.bold ? 'font-weight: bold;' : ''} ${item.color ? `color: ${item.color};` : ''}`;
-        statsList.appendChild(p);
-      });
-      
-      statsBox.appendChild(statsList);
-      printContent.appendChild(statsBox);
-      
-      // Helper function to create modern table
-      const createTable = (title, headers, rows) => {
-        const tableSection = document.createElement('div');
-        tableSection.style.cssText = 'margin-bottom: 25px;';
-        
-        const tableTitle = document.createElement('h3');
-        tableTitle.textContent = title;
-        tableTitle.style.cssText = 'margin: 0 0 15px 0; font-size: 16px; font-weight: bold; color: #2c3e50; font-family: Arial, sans-serif;';
-        tableSection.appendChild(tableTitle);
-        
-        const table = document.createElement('table');
-        table.style.cssText = `
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 11px;
-          font-family: Arial, sans-serif;
-          background: white;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-          border-radius: 6px;
-          overflow: hidden;
-        `;
-        
-        // Header row
-        const thead = document.createElement('thead');
-        const headerRow = document.createElement('tr');
-        headerRow.style.cssText = 'background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%); color: white;';
-        
-        headers.forEach(header => {
-          const th = document.createElement('th');
-          th.textContent = header;
-          th.style.cssText = `
-            padding: 12px 8px;
-            text-align: center;
-            font-weight: bold;
-            font-family: Arial, sans-serif;
-            direction: rtl;
-            border: 1px solid rgba(255,255,255,0.2);
-          `;
-          headerRow.appendChild(th);
-        });
-        
-        thead.appendChild(headerRow);
-        table.appendChild(thead);
-        
-        // Body rows
-        const tbody = document.createElement('tbody');
-        rows.forEach((row, idx) => {
-          const tr = document.createElement('tr');
-          if (idx % 2 === 0) {
-            tr.style.cssText = 'background-color: #f8f9fa;';
-          }
-          
-          row.forEach(cell => {
-            const td = document.createElement('td');
-            td.textContent = cell || '';
-            td.style.cssText = `
-              padding: 10px 8px;
-              text-align: center;
-              border: 1px solid #dee2e6;
-              font-family: Arial, sans-serif;
-              direction: rtl;
-            `;
-            tr.appendChild(td);
-          });
-          
-          tbody.appendChild(tr);
-        });
-        
-        table.appendChild(tbody);
-        tableSection.appendChild(table);
-        return tableSection;
-      };
-      
-      // Teacher Statistics Table
-      if (teacherStats.length > 0) {
-        const teacherHeaders = ['اسم المدرس', 'الساعات', 'الإجمالي', 'النوع'];
-        const teacherRows = teacherStats.map(stat => [
-          stat.teacher_name,
-          stat.total_hours.toFixed(2),
-          `${stat.total_amount.toFixed(2)} درهم`,
-          stat.location === 'external' ? 'خارجي' : 'داخلي'
-        ]);
-        printContent.appendChild(createTable('إحصائيات المدرسين', teacherHeaders, teacherRows));
-      }
-      
-      // Expenses Table
-      if (monthExpenses.length > 0) {
-        const expenseHeaders = ['اسم الفرع', 'اسم المدرس', 'السبب', 'المبلغ'];
-        const expenseRows = monthExpenses.map(expense => [
-          getBranchName(expense.branch_id),
-          expense.teacher_name || '-',
-          expense.title,
-          `${parseFloat(expense.amount || 0).toFixed(2)} درهم`
-        ]);
-        printContent.appendChild(createTable('المصاريف الإضافية', expenseHeaders, expenseRows));
-      }
-      
-      // Sessions Table
-      if (group.sessions.length > 0) {
-        const sessionHeaders = ['الفرع', 'المدرس', 'الطالب', 'التاريخ', 'من', 'إلى', 'الساعات', 'العقد', 'السعر', 'الإجمالي', 'النوع'];
-        const sessionRows = group.sessions.map(session => [
-          getBranchName(session.branch_id),
-          session.teacher_name,
-          session.student_name,
-          session.session_date,
-          convertTo12Hour(session.start_time),
-          convertTo12Hour(session.end_time),
-          parseFloat(session.duration_hours || 0).toFixed(2),
-          session.contract_number || '-',
-          parseFloat(session.hourly_rate || 0).toFixed(2),
-          parseFloat(session.calculated_amount || 0).toFixed(2),
-          session.location === 'external' ? 'خارجي' : 'داخلي'
-        ]);
-        printContent.appendChild(createTable('تفاصيل الجلسات', sessionHeaders, sessionRows));
-      }
-      
-      // Append to body with maximum isolation
-      document.body.appendChild(printContent);
-      
-      // Force layout calculation
-      printContent.offsetHeight;
-      
-      // Wait for rendering - multiple frames to ensure everything is ready
-      await new Promise(resolve => requestAnimationFrame(resolve));
-      await new Promise(resolve => requestAnimationFrame(resolve));
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Verify element is in DOM
-      if (!printContent.parentNode || !document.body.contains(printContent)) {
-        throw new Error('Element was removed from DOM before capture');
-      }
-      
-      // Convert to canvas with better options
+      // Convert to canvas
       const canvas = await html2canvas(printContent, {
         scale: 2,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
         allowTaint: false,
-        letterRendering: true,
-        removeContainer: false,
-        foreignObjectRendering: false,
-        onclone: (clonedDoc, element) => {
-          // Ensure cloned element has proper styles
-          const clonedElement = clonedDoc.querySelector('[dir="rtl"]');
-          if (clonedElement) {
-            clonedElement.style.position = 'absolute';
-            clonedElement.style.left = '0';
-            clonedElement.style.top = '0';
-          }
-        }
+        letterRendering: true
       });
       
       // Calculate PDF dimensions
       const imgWidth = 210; // A4 width in mm
       const pageHeight = 297; // A4 height in mm
+      const topMargin = 10; // Top margin for new pages in mm
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       let heightLeft = imgHeight;
       
       // Create PDF
       const pdf = new jsPDF('p', 'mm', 'a4');
       let position = 0;
-      const marginTop = 10;
       
       // Add first page
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= (pageHeight - marginTop);
+      heightLeft -= pageHeight;
       
-      // Add additional pages if needed
+      // Add additional pages if needed with top margin
       while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
+        position = heightLeft - imgHeight - topMargin; // Add top margin for new pages
         pdf.addPage();
         pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= (pageHeight - marginTop);
+        heightLeft -= (pageHeight - topMargin); // Account for margin in remaining height
+      }
+      
+      // Save PDF with teacher name and month
+      const fileName = `تقرير_${teacherStat.teacher_name.replace(/\s/g, "_")}_${group.monthName}_${group.year}.pdf`;
+      pdf.save(fileName);
+      
+      console.log('Teacher PDF generated successfully');
+    } catch (err) {
+      console.error('Error generating teacher PDF:', err);
+      showError('حدث خطأ أثناء إنشاء ملف PDF: ' + (err.message || err));
+    } finally {
+      // Clean up
+      if (document.body.contains(printContent)) {
+        document.body.removeChild(printContent);
+      }
+    }
+  };
+
+  const generateAllTeachersPDF = async (group, teacherStats, branchName) => {
+    // Generate PDF for each teacher sequentially
+    for (const stat of teacherStats) {
+      const teacherSessions = group.sessions.filter(s => s.teacher_name === stat.teacher_name);
+      if (teacherSessions.length > 0) {
+        await generateTeacherPDF(stat, teacherSessions, group, branchName);
+        // Small delay between downloads to avoid browser blocking
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    success(`تم تحميل ${teacherStats.length} ملف PDF للمدرسين`);
+  };
+
+  const generatePDF = async (group, monthExpenses, teacherStats, totals, branchName) => {
+    // Find the expanded content element
+    const monthKey = `${group.year}-${group.month}`;
+    const expandedContent = document.querySelector(`[data-month-key="${monthKey}"]`);
+    
+    if (!expandedContent) {
+      showError('يرجى فتح البطاقة الشهرية أولاً لعرض المحتوى');
+      return;
+    }
+    
+    // Create a temporary container with the same content
+    const printContent = document.createElement('div');
+    printContent.style.position = 'absolute';
+    printContent.style.left = '-9999px';
+    printContent.style.top = '0';
+    printContent.style.width = '210mm';
+    printContent.style.backgroundColor = 'white';
+    printContent.style.padding = '15px';
+    printContent.style.fontFamily = 'Cairo, Arial, sans-serif';
+    printContent.style.direction = 'rtl';
+    printContent.style.textAlign = 'right';
+    
+    // Add title header
+    const titleDiv = document.createElement('div');
+    titleDiv.style.textAlign = 'center';
+    titleDiv.style.marginBottom = '15px';
+    titleDiv.style.paddingBottom = '10px';
+    titleDiv.style.borderBottom = '2px solid #007bff';
+    titleDiv.innerHTML = `
+      <h1 style="font-size: 18px; font-weight: bold; margin: 0 0 5px 0; color: #007bff;">تقرير شهري - مركز العمران للتدريب والتطوير</h1>
+      <h2 style="font-size: 14px; font-weight: bold; margin: 0; color: #333;">${branchName} - ${group.monthName} ${group.year}</h2>
+    `;
+    printContent.appendChild(titleDiv);
+    
+    // Clone the expanded content
+    const clonedContent = expandedContent.cloneNode(true);
+    
+    // Scale down all font sizes in cloned content
+    const allElements = clonedContent.querySelectorAll('*');
+    allElements.forEach(el => {
+      const style = window.getComputedStyle(el);
+      const fontSize = parseFloat(style.fontSize);
+      if (fontSize && !isNaN(fontSize)) {
+        el.style.fontSize = `${fontSize * 0.75}px`; // Reduce by 25%
+      }
+      
+      // Reduce padding and margins
+      if (style.padding) {
+        const padding = parseFloat(style.padding);
+        if (padding && !isNaN(padding)) {
+          el.style.padding = `${padding * 0.7}px`;
+        }
+      }
+      if (style.margin) {
+        const margin = parseFloat(style.margin);
+        if (margin && !isNaN(margin)) {
+          el.style.margin = `${margin * 0.7}px`;
+        }
+      }
+    });
+    
+    // Specifically reduce table sizes more aggressively and improve column widths
+    const tables = clonedContent.querySelectorAll('.table');
+    tables.forEach(table => {
+      // Check if this is the sessions table (last table in the content)
+      const isSessionsTable = table.querySelector('.row.head span')?.textContent.includes('الفرع') || 
+                              table.querySelector('.row.head span')?.textContent.includes('المدرس');
+      
+      // Reduce table gap - minimal for sessions table
+      if (isSessionsTable) {
+        table.style.gap = '0'; // No gap for sessions table
+        table.style.margin = '0';
+        table.style.padding = '0';
+      } else {
+        table.style.gap = '0.1rem';
+      }
+      
+      // Reduce row padding and font sizes
+      const rows = table.querySelectorAll('.row');
+      rows.forEach(row => {
+        // Minimal padding for sessions table rows
+        if (isSessionsTable) {
+          row.style.padding = '0.02rem 0.05rem'; // Very minimal padding
+          row.style.fontSize = '0.5rem'; // Smaller font
+          row.style.minHeight = 'auto'; // Remove min-height
+          row.style.lineHeight = '1'; // Very tight line height
+          row.style.margin = '0'; // No margin
+          row.style.border = 'none'; // Remove any borders
+        } else {
+          row.style.padding = '0.2rem 0.15rem';
+          row.style.fontSize = '0.55rem';
+        }
+        
+        // Adjust grid columns for sessions table (10 columns after removing actions and داخلي/خارجي)
+        const currentCols = row.style.gridTemplateColumns || window.getComputedStyle(row).gridTemplateColumns;
+        if (currentCols && (currentCols.includes('repeat(12') || currentCols.includes('0.8fr 1.2fr'))) {
+          // Better balanced columns with more width (10 columns: الفرع, المدرس, الطالب, التاريخ, من الساعة, إلى الساعة, المدة, رقم العقد, سعر الساعة, الإجمالي)
+          row.style.gridTemplateColumns = '1.1fr 1.7fr 1.7fr 1.3fr 1.2fr 1.2fr 1.1fr 1.3fr 1.3fr 1.4fr';
+        }
+        
+        // Reduce span font sizes in rows and center content
+        const spans = row.querySelectorAll('span');
+        spans.forEach(span => {
+          if (isSessionsTable) {
+            span.style.fontSize = '0.5rem'; // Smaller font
+            span.style.padding = '0.02rem'; // Minimal padding
+            span.style.lineHeight = '1.1'; // Tight line height
+          } else {
+            span.style.fontSize = '0.55rem';
+            span.style.padding = '0.05rem';
+          }
+          span.style.wordBreak = 'break-word';
+          span.style.overflow = 'hidden';
+          span.style.textOverflow = 'ellipsis';
+          span.style.display = 'flex';
+          span.style.alignItems = 'center';
+          span.style.justifyContent = 'center';
+          span.style.textAlign = 'center';
+        });
+      });
+      
+      // Reduce header row sizes
+      const headerRows = table.querySelectorAll('.row.head');
+      headerRows.forEach(headerRow => {
+        if (isSessionsTable) {
+          headerRow.style.padding = '0.02rem 0.05rem'; // Very minimal padding
+          headerRow.style.fontSize = '0.5rem'; // Smaller font
+          headerRow.style.minHeight = 'auto'; // Remove min-height
+          headerRow.style.lineHeight = '1'; // Very tight line height
+          headerRow.style.margin = '0'; // No margin
+          headerRow.style.border = 'none'; // Remove any borders
+        } else {
+          headerRow.style.padding = '0.25rem 0.15rem';
+          headerRow.style.fontSize = '0.6rem';
+        }
+        
+        // Adjust grid columns for sessions table header (10 columns after removing actions and داخلي/خارجي)
+        const currentCols = headerRow.style.gridTemplateColumns || window.getComputedStyle(headerRow).gridTemplateColumns;
+        if (currentCols && (currentCols.includes('repeat(12') || currentCols.includes('0.8fr 1.2fr'))) {
+          headerRow.style.gridTemplateColumns = '1.1fr 1.7fr 1.7fr 1.3fr 1.2fr 1.2fr 1.1fr 1.3fr 1.3fr 1.4fr';
+        }
+        
+        const headerSpans = headerRow.querySelectorAll('span');
+        headerSpans.forEach(span => {
+          if (isSessionsTable) {
+            span.style.fontSize = '0.55rem'; // Smaller font
+            span.style.padding = '0.02rem'; // Minimal padding
+            span.style.lineHeight = '1.1'; // Tight line height
+          } else {
+            span.style.fontSize = '0.6rem';
+            span.style.padding = '0.05rem';
+          }
+          span.style.display = 'flex';
+          span.style.alignItems = 'center';
+          span.style.justifyContent = 'center';
+          span.style.textAlign = 'center';
+        });
+      });
+    });
+    
+    // Reduce h4, h5 sizes and remove number from "الجلسات" heading
+    const headings = clonedContent.querySelectorAll('h4, h5');
+    headings.forEach(heading => {
+      const style = window.getComputedStyle(heading);
+      const fontSize = parseFloat(style.fontSize);
+      if (fontSize && !isNaN(fontSize)) {
+        heading.style.fontSize = `${fontSize * 0.7}px`;
+      }
+      heading.style.marginBottom = '0.4rem';
+      
+      // Remove number from "الجلسات" heading
+      const text = heading.textContent.trim();
+      if (text.includes('الجلسات') && text.includes('(')) {
+        // Remove the number part like "(6)" from "الجلسات (6)"
+        heading.textContent = 'الجلسات';
+      }
+    });
+    
+    // Reduce statistics boxes sizes
+    const statBoxes = clonedContent.querySelectorAll('[style*="grid-template-columns"]');
+    statBoxes.forEach(box => {
+      const children = box.children;
+      Array.from(children).forEach(child => {
+        child.style.padding = '0.5rem';
+        const innerDivs = child.querySelectorAll('div');
+        innerDivs.forEach(div => {
+          const style = window.getComputedStyle(div);
+          const fontSize = parseFloat(style.fontSize);
+          if (fontSize && !isNaN(fontSize)) {
+            div.style.fontSize = `${fontSize * 0.65}px`;
+          }
+        });
+      });
+    });
+    
+    // Remove buttons and forms from cloned content
+    const buttons = clonedContent.querySelectorAll('button');
+    buttons.forEach(btn => btn.remove());
+    
+    const forms = clonedContent.querySelectorAll('form');
+    forms.forEach(form => form.remove());
+    
+    // Remove action buttons from sessions table
+    const actionCells = clonedContent.querySelectorAll('[style*="الإجراءات"]');
+    actionCells.forEach(cell => {
+      const row = cell.closest('.row');
+      if (row) {
+        const actionSpan = row.querySelector('span:last-child');
+        if (actionSpan && actionSpan.querySelector('button')) {
+          actionSpan.remove();
+        }
+      }
+    });
+    
+    // Remove the last column (الإجراءات) from sessions table header
+    const sessionHeaders = clonedContent.querySelectorAll('.row.head');
+    sessionHeaders.forEach(header => {
+      const spans = header.querySelectorAll('span');
+      if (spans.length > 0) {
+        const lastSpan = spans[spans.length - 1];
+        if (lastSpan.textContent.includes('الإجراءات')) {
+          lastSpan.remove();
+        }
+      }
+    });
+    
+    // Remove the last column (الإجراءات) from session rows
+    const sessionRows = clonedContent.querySelectorAll('.row:not(.head)');
+    sessionRows.forEach(row => {
+      const spans = row.querySelectorAll('span');
+      if (spans.length > 0) {
+        // Remove last span if it contains buttons (الإجراءات)
+        const lastSpan = spans[spans.length - 1];
+        if (lastSpan.querySelector('button')) {
+          lastSpan.remove();
+        }
+        // Remove second to last span if it contains "داخلي" or "خارجي" (داخلي/خارجي column)
+        if (spans.length > 1) {
+          const secondLastSpan = spans[spans.length - 2];
+          const text = secondLastSpan.textContent.trim();
+          if (text === 'داخلي' || text === 'خارجي') {
+            secondLastSpan.remove();
+          }
+        }
+      }
+    });
+    
+    // Remove "داخلي/خارجي" column from session table headers
+    sessionHeaders.forEach(header => {
+      const spans = header.querySelectorAll('span');
+      spans.forEach((span, index) => {
+        const text = span.textContent.trim();
+        if (text === 'داخلي/خارجي') {
+          span.remove();
+        }
+      });
+    });
+    
+    // Remove "PDF" column from teacher statistics table
+    const teacherStatsTables = clonedContent.querySelectorAll('.table');
+    teacherStatsTables.forEach(table => {
+      // Check if this is the teacher statistics table (contains "اسم المدرس" in header)
+      const headerRow = table.querySelector('.row.head');
+      if (headerRow) {
+        const headerSpans = headerRow.querySelectorAll('span');
+        const isTeacherStatsTable = Array.from(headerSpans).some(span => 
+          span.textContent.trim().includes('اسم المدرس')
+        );
+        
+        if (isTeacherStatsTable) {
+          // Remove "PDF" column from header
+          headerSpans.forEach(span => {
+            if (span.textContent.trim() === 'PDF') {
+              span.remove();
+            }
+          });
+          
+          // Remove "PDF" column from data rows and adjust grid columns
+          const dataRows = table.querySelectorAll('.row:not(.head)');
+          dataRows.forEach(row => {
+            const spans = row.querySelectorAll('span');
+            // Remove last span (PDF column)
+            if (spans.length > 0) {
+              const lastSpan = spans[spans.length - 1];
+              if (lastSpan.querySelector('button') || lastSpan.textContent.trim() === 'PDF') {
+                lastSpan.remove();
+              }
+            }
+            // Adjust grid columns to 4 columns (اسم المدرس, عدد الساعات, الإجمالي, داخلي/خارجي)
+            row.style.gridTemplateColumns = '1.5fr 1fr 1fr 1fr';
+          });
+          
+          // Adjust header grid columns to 4 columns
+          headerRow.style.gridTemplateColumns = '1.5fr 1fr 1fr 1fr';
+        }
+      }
+    });
+    
+    // Remove margins and padding from sessions table container div
+    const sessionsTableContainers = clonedContent.querySelectorAll('div');
+    sessionsTableContainers.forEach(container => {
+      const h5 = container.querySelector('h5');
+      if (h5 && h5.textContent.trim() === 'الجلسات') {
+        // This is the sessions table container
+        container.style.marginBottom = '0';
+        container.style.padding = '0';
+        container.style.marginTop = '0';
+      }
+    });
+    
+    printContent.appendChild(clonedContent);
+    document.body.appendChild(printContent);
+    
+    // Wait for content to render
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    try {
+      // Convert to canvas
+      const canvas = await html2canvas(printContent, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        allowTaint: false,
+        letterRendering: true
+      });
+      
+      // Calculate PDF dimensions
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm
+      const topMargin = 10; // Top margin for new pages in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      
+      // Create PDF
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      let position = 0;
+      
+      // Add first page
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+      
+      // Add additional pages if needed with top margin
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight - topMargin; // Add top margin for new pages
+        pdf.addPage();
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= (pageHeight - topMargin); // Account for margin in remaining height
       }
       
       // Save PDF
       const fileName = `تقرير_${group.monthName}_${group.year}_${branchName.replace(/\s/g, "_")}.pdf`;
       pdf.save(fileName);
       
-      success('تم إنشاء ملف PDF بنجاح');
+      console.log('PDF generated successfully');
     } catch (err) {
       console.error('Error generating PDF:', err);
       showError('حدث خطأ أثناء إنشاء ملف PDF: ' + (err.message || err));
     } finally {
-      // Clean up - remove element if it exists
-      if (printContent && printContent.parentNode) {
-        try {
-          printContent.parentNode.removeChild(printContent);
-        } catch (e) {
-          // Ignore cleanup errors
-        }
+      // Clean up
+      if (document.body.contains(printContent)) {
+        document.body.removeChild(printContent);
       }
     }
   };
@@ -778,16 +988,28 @@ export default function ReportsPage() {
 
           {!loading && !error && branchGroups.length > 0 && (
             <div>
-              <div className="filters-bar" style={{ marginBottom: "0.75rem" }}>
-                <h2 style={{ fontSize: "16px", margin: 0, fontWeight: 600, color: "#2B2A2A" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.75rem" }}>
+                <h2 style={{ margin: 0, color: "#007bff", fontSize: "1rem" }}>
                   الجلسات الموافق عليها ({sessions.length})
                 </h2>
+                <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
                   {userInfo && userInfo.is_super_admin && (
                     <select
                       value={selectedBranchId || ""}
                       onChange={(e) => {
                         const branchId = e.target.value ? parseInt(e.target.value) : null;
                         setSelectedBranchId(branchId);
+                      }}
+                      style={{
+                        padding: "0.4rem 0.8rem",
+                        borderRadius: "6px",
+                        border: "1px solid #007bff",
+                        backgroundColor: "white",
+                        color: "#007bff",
+                        cursor: "pointer",
+                        fontFamily: "Cairo",
+                        fontSize: "0.8rem",
+                        fontWeight: "bold"
                       }}
                     >
                       <option value="">جميع الفروع</option>
@@ -801,24 +1023,33 @@ export default function ReportsPage() {
                       loadTeacherNames();
                       setShowMergeModal(true);
                     }}
-                  className="btn"
-                >
-                  دمج أسماء المدرسين
+                    style={{
+                      padding: "0.4rem 0.8rem",
+                      borderRadius: "6px",
+                      border: "1px solid #28a745",
+                      backgroundColor: "#28a745",
+                      color: "white",
+                      cursor: "pointer",
+                      fontFamily: "Cairo",
+                      fontWeight: "bold",
+                      fontSize: "0.8rem"
+                    }}
+                  >
+                    دمج أسماء المدرسين (في التقرير المفتوح فقط)
                   </button>
+                </div>
               </div>
               
               {branchGroups.map((branchGroup) => (
-                <div key={branchGroup.branchId} style={{ marginBottom: "1.5rem" }}>
+                <div key={branchGroup.branchId} style={{ marginBottom: "1rem" }}>
                   <h3 style={{ 
-                    color: "#2B2A2A", 
+                    color: "#007bff", 
                     marginBottom: "0.75rem", 
-                    padding: "0.75rem 1rem",
-                    backgroundColor: "white",
+                    padding: "0.75rem",
+                    backgroundColor: "#f8f9fa",
                     borderRadius: "6px",
-                    border: "1px solid #E5E7EB",
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)"
+                    border: "1px solid #dcdcdc",
+                    fontSize: "0.95rem"
                   }}>
                     {branchGroup.branchName}
                   </h3>
@@ -835,8 +1066,9 @@ export default function ReportsPage() {
                     key={monthKey}
                     className="panel" 
                     style={{ 
-                      marginBottom: "0.75rem",
-                      padding: 0,
+                      marginBottom: "1rem", 
+                      border: "1px solid #dcdcdc", 
+                      borderRadius: "6px",
                       overflow: "hidden"
                     }}
                   >
@@ -847,20 +1079,13 @@ export default function ReportsPage() {
                         justifyContent: "space-between",
                         alignItems: "center",
                         cursor: "pointer",
-                        padding: "0.75rem 1rem",
-                        backgroundColor: "#F9FAFB",
-                        borderBottom: isExpanded ? "2px solid #E5E7EB" : "none",
-                        transition: "all 0.2s ease"
+                        padding: "0.75rem",
+                        backgroundColor: "#f8f9fa",
+                        borderBottom: isExpanded ? "1px solid #dcdcdc" : "none"
                       }}
                       onClick={() => toggleMonth(group.year, group.month)}
-                      onMouseEnter={(e) => {
-                        if (!isExpanded) e.currentTarget.style.backgroundColor = "#F3F4F6";
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isExpanded) e.currentTarget.style.backgroundColor = "#F9FAFB";
-                      }}
                     >
-                      <h3 style={{ margin: 0, color: "#2B2A2A", fontSize: "14px", fontWeight: 600 }}>
+                      <h3 style={{ margin: 0, color: "#007bff", fontSize: "0.9rem" }}>
                         {group.monthName} {group.year}
                       </h3>
                       <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
@@ -869,23 +1094,36 @@ export default function ReportsPage() {
                             e.stopPropagation();
                             generatePDF(group, monthExpenses, teacherStats, totals, branchGroup.branchName);
                           }}
-                          className="btn primary btn-small"
+                          style={{
+                            padding: "0.4rem 0.8rem",
+                            borderRadius: "6px",
+                            border: "1px solid #007bff",
+                            backgroundColor: "#007bff",
+                            color: "white",
+                            cursor: "pointer",
+                            fontFamily: "Cairo",
+                            fontWeight: "bold",
+                            fontSize: "0.75rem",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.3rem"
+                          }}
                           title="تحميل PDF"
                         >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                             <polyline points="7 10 12 15 17 10"></polyline>
                             <line x1="12" y1="15" x2="12" y2="3"></line>
                           </svg>
                           PDF
                         </button>
-                        <span style={{ color: "#6B7280", fontSize: "12px" }}>
-                          عدد الجلسات: <strong style={{ color: "#2B2A2A" }}>{group.sessions.length}</strong>
+                        <span style={{ color: "#666", fontSize: "0.8rem" }}>
+                          عدد الجلسات: <strong>{group.sessions.length}</strong>
                         </span>
-                        <span style={{ color: "#5A7ACD", fontWeight: "600", fontSize: "13px" }}>
+                        <span style={{ color: "#28a745", fontWeight: "bold", fontSize: "0.85rem" }}>
                           الإجمالي: {totals.grandTotal.toFixed(2)} درهم
                         </span>
-                        <span style={{ fontSize: "12px", color: "#6B7280" }}>
+                        <span style={{ fontSize: "0.9rem" }}>
                           {isExpanded ? "▼" : "▶"}
                         </span>
                       </div>
@@ -895,60 +1133,115 @@ export default function ReportsPage() {
                     {isExpanded && (
                       <div style={{ padding: "1rem" }} data-month-key={monthKey}>
                         {/* Statistics Summary */}
-                        <div style={{ marginBottom: "1rem" }}>
-                          <h4 style={{ fontSize: "13px", fontWeight: 600, marginBottom: "0.75rem", color: "#2B2A2A", paddingBottom: "0.5rem", borderBottom: "1px solid #E5E7EB" }}>الإحصائيات الإجمالية</h4>
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.5rem", marginBottom: "1rem" }}>
-                            <div className="stat-card">
-                              <div className="stat-label">الإجمالي الداخلي</div>
-                              <div className="stat-value">{totals.internalTotal.toFixed(2)}</div>
-                              <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "0.25rem" }}>درهم</div>
+                        <div style={{ marginBottom: "1.5rem", padding: "1rem", backgroundColor: "#f8f9fa", borderRadius: "6px" }}>
+                          <h4 style={{ color: "#007bff", marginBottom: "0.75rem", fontSize: "0.9rem" }}>الإحصائيات الإجمالية</h4>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.75rem", marginBottom: "1rem" }}>
+                            <div style={{ textAlign: "center", padding: "0.75rem", backgroundColor: "white", borderRadius: "6px" }}>
+                              <div style={{ color: "#666", fontSize: "0.75rem", marginBottom: "0.4rem" }}>الإجمالي الداخلي</div>
+                              <div style={{ fontSize: "1rem", fontWeight: "bold", color: "#007bff" }}>
+                                {totals.internalTotal.toFixed(2)} درهم
                               </div>
-                            <div className="stat-card">
-                              <div className="stat-label">الإجمالي الخارجي</div>
-                              <div className="stat-value">{totals.externalTotal.toFixed(2)}</div>
-                              <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "0.25rem" }}>درهم</div>
                             </div>
-                            <div className="stat-card">
-                              <div className="stat-label">إجمالي المصاريف</div>
-                              <div className="stat-value">{totals.expensesTotal.toFixed(2)}</div>
-                              <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "0.25rem" }}>درهم</div>
+                            <div style={{ textAlign: "center", padding: "0.75rem", backgroundColor: "white", borderRadius: "6px" }}>
+                              <div style={{ color: "#666", fontSize: "0.75rem", marginBottom: "0.4rem" }}>الإجمالي الخارجي</div>
+                              <div style={{ fontSize: "1rem", fontWeight: "bold", color: "#ffc107" }}>
+                                {totals.externalTotal.toFixed(2)} درهم
                               </div>
-                            <div className="stat-card">
-                              <div className="stat-label">الإجمالي الكامل</div>
-                              <div className="stat-value" style={{ color: "#5A7ACD" }}>{totals.grandTotal.toFixed(2)}</div>
-                              <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "0.25rem" }}>درهم</div>
+                            </div>
+                            <div style={{ textAlign: "center", padding: "0.75rem", backgroundColor: "white", borderRadius: "6px" }}>
+                              <div style={{ color: "#666", fontSize: "0.75rem", marginBottom: "0.4rem" }}>إجمالي المصاريف</div>
+                              <div style={{ fontSize: "1rem", fontWeight: "bold", color: "#dc3545" }}>
+                                {totals.expensesTotal.toFixed(2)} درهم
+                              </div>
+                            </div>
+                            <div style={{ textAlign: "center", padding: "0.75rem", backgroundColor: "white", borderRadius: "6px" }}>
+                              <div style={{ color: "#666", fontSize: "0.75rem", marginBottom: "0.4rem" }}>الإجمالي الكامل</div>
+                              <div style={{ fontSize: "1rem", fontWeight: "bold", color: "#28a745" }}>
+                                {totals.grandTotal.toFixed(2)} درهم
                               </div>
                             </div>
                           </div>
 
                           {/* Teacher Statistics */}
-                        <div style={{ marginBottom: "1rem" }}>
-                          <h5 style={{ fontSize: "13px", fontWeight: 600, margin: "0 0 0.75rem 0", color: "#2B2A2A" }}>إحصائيات المدرسين</h5>
-                          <div className="table-container">
-                            <table>
-                              <thead>
-                                <tr>
-                                  <th>اسم المدرس</th>
-                                  <th style={{ textAlign: "left" }}>عدد الساعات</th>
-                                  <th style={{ textAlign: "left" }}>الإجمالي</th>
-                                  <th>داخلي/خارجي</th>
-                                </tr>
-                              </thead>
-                              <tbody>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                            <h5 style={{ color: "#007bff", margin: 0, fontSize: "0.85rem" }}>إحصائيات المدرسين</h5>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                generateAllTeachersPDF(group, teacherStats, branchGroup.branchName);
+                              }}
+                              style={{
+                                padding: "0.35rem 0.7rem",
+                                borderRadius: "6px",
+                                border: "1px solid #28a745",
+                                backgroundColor: "#28a745",
+                                color: "white",
+                                cursor: "pointer",
+                                fontFamily: "Cairo",
+                                fontWeight: "bold",
+                                fontSize: "0.7rem",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.3rem"
+                              }}
+                              title="تحميل PDF لكل المدرسين"
+                            >
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                              </svg>
+                              تحميل PDF لكل المدرسين
+                            </button>
+                          </div>
+                          <div className="table" style={{ gap: "0.25rem" }}>
+                            <div className="row head" style={{ gridTemplateColumns: "1.5fr 1fr 1fr 1fr 0.8fr", fontSize: "0.8rem", padding: "0.5rem" }}>
+                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>اسم المدرس</span>
+                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>عدد الساعات</span>
+                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>الإجمالي</span>
+                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>داخلي/خارجي</span>
+                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>PDF</span>
+                            </div>
                             {teacherStats.map((stat, idx) => (
-                                  <tr key={idx}>
-                                    <td>{stat.teacher_name}</td>
-                                    <td className="number" data-type="number">{stat.total_hours.toFixed(2)}</td>
-                                    <td className="number" data-type="number">{stat.total_amount.toFixed(2)} درهم</td>
-                                    <td>
-                                      <span className={`status status-${stat.location === "external" ? "pending" : "active"}`}>
+                              <div key={idx} className="row" style={{ gridTemplateColumns: "1.5fr 1fr 1fr 1fr 0.8fr", fontSize: "0.8rem", padding: "0.5rem" }}>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{stat.teacher_name}</span>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{stat.total_hours.toFixed(2)}</span>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{stat.total_amount.toFixed(2)} درهم</span>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center", color: stat.location === "external" ? "#ffc107" : "#007bff", fontWeight: "bold" }}>
                                   {stat.location === "external" ? "خارجي" : "داخلي"}
                                 </span>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const teacherSessions = group.sessions.filter(s => s.teacher_name === stat.teacher_name);
+                                      generateTeacherPDF(stat, teacherSessions, group, branchGroup.branchName);
+                                    }}
+                                    style={{
+                                      padding: "0.25rem 0.5rem",
+                                      borderRadius: "4px",
+                                      border: "1px solid #007bff",
+                                      backgroundColor: "#007bff",
+                                      color: "white",
+                                      cursor: "pointer",
+                                      fontFamily: "Cairo",
+                                      fontSize: "0.7rem",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "0.2rem"
+                                    }}
+                                    title={`تحميل PDF لـ ${stat.teacher_name}`}
+                                  >
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                      <polyline points="7 10 12 15 17 10"></polyline>
+                                      <line x1="12" y1="15" x2="12" y2="3"></line>
+                                    </svg>
+                                    PDF
+                                  </button>
+                                </span>
+                              </div>
+                            ))}
                           </div>
                         </div>
 
@@ -972,8 +1265,8 @@ export default function ReportsPage() {
                               + إضافة مصروف إضافي
                             </button>
                           ) : (
-                            <div className="panel" style={{ marginBottom: "0.75rem" }}>
-                              <h5 style={{ fontSize: "13px", fontWeight: 600, marginBottom: "0.75rem" }}>إضافة مصروف إضافي</h5>
+                            <div className="panel" style={{ backgroundColor: "#f8f9fa", padding: "1rem" }}>
+                              <h5 style={{ marginBottom: "0.75rem", fontSize: "0.85rem" }}>إضافة مصروف إضافي</h5>
                               <form onSubmit={(e) => handleAddExpense(group.year, group.month, e)}>
                                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem", marginBottom: "0.75rem" }}>
                                   <input
@@ -981,7 +1274,7 @@ export default function ReportsPage() {
                                     placeholder="اسم المدرس"
                                     value={expenseForm.teacher_name}
                                     onChange={(e) => setExpenseForm(prev => ({ ...prev, teacher_name: e.target.value }))}
-                                    style={{ padding: "0.4rem 0.6rem", fontSize: "11px", border: "1px solid #D1D1D1", borderRadius: "3px" }}
+                                    style={{ padding: "0.4rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "0.8rem" }}
                                   />
                                   <input
                                     type="text"
@@ -989,7 +1282,7 @@ export default function ReportsPage() {
                                     value={expenseForm.title}
                                     onChange={(e) => setExpenseForm(prev => ({ ...prev, title: e.target.value }))}
                                     required
-                                    style={{ padding: "0.4rem 0.6rem", fontSize: "11px", border: "1px solid #D1D1D1", borderRadius: "3px" }}
+                                    style={{ padding: "0.4rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "0.8rem" }}
                                   />
                                   <input
                                     type="number"
@@ -998,13 +1291,13 @@ export default function ReportsPage() {
                                     value={expenseForm.amount}
                                     onChange={(e) => setExpenseForm(prev => ({ ...prev, amount: e.target.value }))}
                                     required
-                                    style={{ padding: "0.4rem 0.6rem", fontSize: "11px", border: "1px solid #D1D1D1", borderRadius: "3px" }}
+                                    style={{ padding: "0.4rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "0.8rem" }}
                                   />
                                   <select
                                     value={expenseForm.branch_id}
                                     onChange={(e) => setExpenseForm(prev => ({ ...prev, branch_id: parseInt(e.target.value) }))}
                                     required
-                                    style={{ padding: "0.4rem 0.6rem", fontSize: "11px", border: "1px solid #D1D1D1", borderRadius: "3px" }}
+                                    style={{ padding: "0.4rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "0.8rem" }}
                                   >
                                     <option value="">اختر الفرع</option>
                                     {branches.map(b => (
@@ -1012,8 +1305,21 @@ export default function ReportsPage() {
                                     ))}
                                   </select>
                                 </div>
-                                <div style={{ display: "flex", gap: "0.5rem" }}>
-                                  <button type="submit" className="btn primary">
+                                <div style={{ display: "flex", gap: "0.4rem" }}>
+                                  <button
+                                    type="submit"
+                                    style={{
+                                      padding: "0.4rem 0.8rem",
+                                      borderRadius: "6px",
+                                      border: "1px solid #28a745",
+                                      backgroundColor: "#28a745",
+                                      color: "white",
+                                      cursor: "pointer",
+                                      fontFamily: "Cairo",
+                                      fontWeight: "bold",
+                                      fontSize: "0.8rem"
+                                    }}
+                                  >
                                     إضافة
                                   </button>
                                   <button
@@ -1022,7 +1328,16 @@ export default function ReportsPage() {
                                       setShowExpenseForm(prev => ({ ...prev, [monthKey]: false }));
                                       setExpenseForm({ title: "", amount: "", branch_id: branches[0]?.id || "", teacher_name: "" });
                                     }}
-                                    className="btn"
+                                    style={{
+                                      padding: "0.4rem 0.8rem",
+                                      borderRadius: "6px",
+                                      border: "1px solid #dc3545",
+                                      backgroundColor: "white",
+                                      color: "#dc3545",
+                                      cursor: "pointer",
+                                      fontFamily: "Cairo",
+                                      fontSize: "0.8rem"
+                                    }}
                                   >
                                     إلغاء
                                   </button>
@@ -1035,108 +1350,112 @@ export default function ReportsPage() {
                         {/* Expenses List */}
                         {monthExpenses.length > 0 && (
                           <div style={{ marginBottom: "1rem" }}>
-                            <h5 style={{ fontSize: "13px", fontWeight: 600, marginBottom: "0.5rem", color: "#2B2A2A" }}>المصاريف الإضافية ({monthExpenses.length})</h5>
-                            <div className="table-container">
-                              <table>
-                                <thead>
-                                  <tr>
-                                    <th>اسم الفرع</th>
-                                    <th>اسم المدرس</th>
-                                    <th>السبب</th>
-                                    <th style={{ textAlign: "left" }}>المبلغ</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
+                            <h5 style={{ color: "#dc3545", marginBottom: "0.4rem", fontSize: "0.85rem" }}>المصاريف الإضافية ({monthExpenses.length})</h5>
+                            <div className="table" style={{ gap: "0.25rem" }}>
+                              <div className="row head" style={{ gridTemplateColumns: "repeat(4, 1fr)", fontSize: "0.8rem", padding: "0.5rem" }}>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>اسم الفرع</span>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>اسم المدرس</span>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>السبب</span>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>المبلغ</span>
+                              </div>
                               {monthExpenses.map((expense) => (
-                                    <tr key={expense.id}>
-                                      <td>{getBranchName(expense.branch_id)}</td>
-                                      <td>{expense.teacher_name || "-"}</td>
-                                      <td>{expense.title}</td>
-                                      <td className="number" data-type="number" style={{ fontWeight: "600", color: "#2B2A2A" }}>
+                                <div key={expense.id} className="row" style={{ gridTemplateColumns: "repeat(4, 1fr)", fontSize: "0.8rem", padding: "0.5rem" }}>
+                                  <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{getBranchName(expense.branch_id)}</span>
+                                  <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{expense.teacher_name || "-"}</span>
+                                  <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{expense.title}</span>
+                                  <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", color: "#dc3545" }}>
                                     {parseFloat(expense.amount || 0).toFixed(2)} درهم
-                                      </td>
-                                    </tr>
+                                  </span>
+                                </div>
                               ))}
-                                </tbody>
-                              </table>
                             </div>
                           </div>
                         )}
 
                         {/* Sessions Table */}
                         <div>
-                          <h5 style={{ fontSize: "13px", fontWeight: 600, marginBottom: "0.5rem", color: "#2B2A2A" }}>تفاصيل الجلسات ({group.sessions.length})</h5>
-                          <div className="table-container" style={{ overflowX: "auto" }}>
-                            <table style={{ minWidth: "1200px" }}>
-                              <thead>
-                                <tr>
-                                  <th>الفرع</th>
-                                  <th>المدرس</th>
-                                  <th>الطالب</th>
-                                  <th>تاريخ الجلسة</th>
-                                  <th>من الساعة</th>
-                                  <th>إلى الساعة</th>
-                                  <th style={{ textAlign: "left" }}>عدد الساعات</th>
-                                  <th>رقم العقد</th>
-                                  <th style={{ textAlign: "left" }}>سعر الساعة</th>
-                                  <th style={{ textAlign: "left" }}>الإجمالي</th>
-                                  <th>داخلي/خارجي</th>
-                                  <th>الإجراءات</th>
-                                </tr>
-                              </thead>
-                              <tbody>
+                          <h5 style={{ color: "#007bff", marginBottom: "0.4rem", fontSize: "0.85rem" }}>الجلسات ({group.sessions.length})</h5>
+                          <div className="table" style={{ gap: "0.25rem" }}>
+                            <div className="row head" style={{ gridTemplateColumns: "0.8fr 1.2fr 1.2fr 1fr 0.9fr 0.9fr 0.8fr 1fr 1fr 1.1fr 0.9fr 0.7fr", fontSize: "0.8rem", padding: "0.5rem" }}>
+                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>الفرع</span>
+                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>المدرس</span>
+                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>الطالب</span>
+                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>تاريخ الجلسة</span>
+                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>من الساعة</span>
+                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>إلى الساعة</span>
+                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>المدة</span>
+                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>رقم العقد</span>
+                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>سعر الساعة</span>
+                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>الإجمالي</span>
+                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>داخلي/خارجي</span>
+                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>الإجراءات</span>
+                            </div>
                             {group.sessions.map((session) => (
-                                  <tr key={session.id}>
-                                    <td>{getBranchName(session.branch_id)}</td>
-                                    <td>{session.teacher_name}</td>
-                                    <td>{session.student_name}</td>
-                                    <td>{session.session_date}</td>
-                                    <td>{convertTo12Hour(session.start_time)}</td>
-                                    <td>{convertTo12Hour(session.end_time)}</td>
-                                    <td className="number" data-type="number" style={{ textAlign: "left" }}>
-                                      {parseFloat(session.duration_hours || 0).toFixed(2)}
-                                    </td>
-                                    <td style={{ fontWeight: "600", color: "#5A7ACD" }}>{session.contract_number}</td>
-                                    <td className="number" data-type="number" style={{ textAlign: "left" }}>
-                                      {parseFloat(session.hourly_rate || 0).toFixed(2)} درهم
-                                    </td>
-                                    <td className="number" data-type="number" style={{ fontWeight: "600", color: "#5A7ACD", textAlign: "left" }}>
+                              <div key={session.id} className="row" style={{ gridTemplateColumns: "0.8fr 1.2fr 1.2fr 1fr 0.9fr 0.9fr 0.8fr 1fr 1fr 1.1fr 0.9fr 0.7fr", fontSize: "0.8rem", padding: "0.5rem" }}>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{getBranchName(session.branch_id)}</span>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{session.teacher_name}</span>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{session.student_name}</span>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{session.session_date}</span>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{convertTo12Hour(session.start_time)}</span>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{convertTo12Hour(session.end_time)}</span>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{session.duration_text}</span>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", color: "#007bff" }}>{session.contract_number}</span>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{parseFloat(session.hourly_rate || 0).toFixed(2)} درهم</span>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", color: "#28a745" }}>
                                   {parseFloat(session.calculated_amount || 0).toFixed(2)} درهم
-                                    </td>
-                                    <td>
-                                      <span className={`status status-${session.location === "external" ? "pending" : "active"}`}>
+                                </span>
+                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center", color: session.location === "external" ? "#ffc107" : "#007bff", fontWeight: "bold" }}>
                                   {session.location === "external" ? "خارجي" : "داخلي"}
                                 </span>
-                                    </td>
-                                    <td>
-                                      <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
+                                <span style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "0.2rem", gap: "0.15rem" }}>
                                   <button 
                                     onClick={() => handleEdit(session)}
-                                          className="btn btn-small"
-                                          style={{ padding: "0.3rem", minWidth: "32px" }}
+                                    style={{ 
+                                      padding: "0.3rem",
+                                      backgroundColor: "#ffc107",
+                                      color: "white",
+                                      border: "none",
+                                      whiteSpace: "nowrap",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      minWidth: "28px",
+                                      height: "28px",
+                                      borderRadius: "4px",
+                                      cursor: "pointer"
+                                    }}
                                     title="تعديل"
                                   >
-                                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                                       <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
                                     </svg>
                                   </button>
                                   <button 
                                     onClick={() => handleDelete(session.id)}
-                                          className="btn btn-small btn-danger"
-                                          style={{ padding: "0.3rem", minWidth: "32px" }}
+                                    style={{ 
+                                      padding: "0.3rem", 
+                                      whiteSpace: "nowrap", 
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      minWidth: "28px",
+                                      height: "28px",
+                                      borderRadius: "4px",
+                                      border: "none",
+                                      cursor: "pointer",
+                                      backgroundColor: "#dc3545",
+                                      color: "white"
+                                    }}
                                     title="حذف"
                                   >
-                                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                                       <polyline points="3 6 5 6 21 6"></polyline>
                                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                                     </svg>
                                   </button>
+                                </span>
                               </div>
-                                    </td>
-                                  </tr>
                             ))}
-                              </tbody>
-                            </table>
                           </div>
                         </div>
                       </div>

@@ -94,11 +94,11 @@ for /l %%i in (1,1,15) do (
     timeout /t 1 /nobreak >nul
     netstat -an 2>nul | findstr ":8000" | findstr "LISTENING" >nul 2>&1
     if !errorlevel! equ 0 (
-        set "BACKEND_OK=1"
+  set "BACKEND_OK=1"
         echo   [OK] Backend is running on port 8000
         echo   [INFO] Backend will auto-reload on code changes
-        goto backend_done
-    )
+  goto backend_done
+)
     if %%i lss 15 (
         echo   Waiting for Backend to start... (attempt %%i/15)
     )
@@ -107,8 +107,8 @@ if !BACKEND_OK! equ 0 (
     echo   [ERROR] Failed to start Backend or Backend not responding
     echo   Please check the "Backend Server - OverTime" window for errors
     echo   Make sure MySQL is running in XAMPP
-    pause
-    exit /b 1
+pause
+exit /b 1
 )
 
 :backend_done
@@ -150,11 +150,11 @@ for /l %%i in (1,1,15) do (
     timeout /t 1 /nobreak >nul
     netstat -an 2>nul | findstr ":5173" | findstr "LISTENING" >nul 2>&1
     if !errorlevel! equ 0 (
-        set "FRONTEND_OK=1"
+  set "FRONTEND_OK=1"
         echo   [OK] Frontend is running on port 5173
         echo   [INFO] Frontend will auto-reload on code changes
-        goto frontend_done
-    )
+  goto frontend_done
+)
     if %%i lss 15 (
         echo   Waiting for Frontend to start... (attempt %%i/15)
     )
@@ -162,8 +162,8 @@ for /l %%i in (1,1,15) do (
 if !FRONTEND_OK! equ 0 (
     echo   [ERROR] Failed to start Frontend or Frontend not responding
     echo   Please check the "Frontend Server - OverTime" window for errors
-    pause
-    exit /b 1
+pause
+exit /b 1
 )
 
 :frontend_done
