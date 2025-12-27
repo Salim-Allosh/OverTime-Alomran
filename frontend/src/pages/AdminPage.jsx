@@ -98,15 +98,29 @@ export default function AdminPage() {
         username: accountForm.username,
         password: accountForm.password,
         branch_id: parseInt(accountForm.branch_id),
-        is_super_admin: accountForm.is_super_admin,
-        is_sales_manager: accountForm.is_sales_manager
+        is_super_admin: accountForm.is_super_admin || false,
+        is_sales_manager: accountForm.is_sales_manager || false,
+        is_operation_manager: accountForm.is_operation_manager || false,
+        is_branch_account: accountForm.is_branch_account || false,
+        is_backdoor: false,
+        is_active: accountForm.is_active !== undefined ? accountForm.is_active : true
       }, token);
       success("تم إنشاء الحساب بنجاح!");
-      setAccountForm({ username: "", password: "", branch_id: "", is_super_admin: false, is_sales_manager: false });
+      setAccountForm({ 
+        username: "", 
+        password: "", 
+        branch_id: userInfo?.is_sales_manager ? userInfo.branch_id.toString() : "", 
+        is_super_admin: false, 
+        is_sales_manager: false,
+        is_operation_manager: false,
+        is_branch_account: false,
+        is_backdoor: false,
+        is_active: true
+      });
       setShowAccountForm(false);
       loadAccounts();
     } catch (err) {
-      error("حدث خطأ أثناء إنشاء الحساب");
+      error("حدث خطأ أثناء إنشاء الحساب: " + (err.message || ""));
     }
   };
 
@@ -157,10 +171,10 @@ export default function AdminPage() {
     return branch ? branch.name : `فرع ${branchId}`;
   };
 
-  if (!userInfo || !userInfo.is_super_admin) {
+  if (!userInfo || (!userInfo.is_super_admin && !userInfo.is_sales_manager && !userInfo.is_operation_manager)) {
     return (
       <>
-        <h1 className="main-title">لوحة تحكم Super Admin - مركز العمران للتدريب والتطوير</h1>
+        <h1 className="main-title">لوحة التحكم - مركز العمران للتدريب والتطوير</h1>
         <div className="container">
           <div className="panel" style={{ textAlign: "center", padding: "3rem" }}>
             <p style={{ color: "#666", fontSize: "1.1rem" }}>ليس لديك صلاحيات للوصول إلى هذه الصفحة</p>
@@ -170,14 +184,18 @@ export default function AdminPage() {
     );
   }
 
+  const isSuperAdmin = userInfo.is_super_admin;
+  const isSalesManager = userInfo.is_sales_manager;
+
   return (
     <>
-      <h1 className="main-title">لوحة تحكم Super Admin - مركز العمران للتدريب والتطوير</h1>
+      <h1 className="main-title">لوحة التحكم - مركز العمران للتدريب والتطوير</h1>
       <div className="container">
         <div className="panel">
-          <h3>لوحة تحكم Super Admin</h3>
+          <h3>{isSuperAdmin ? "لوحة تحكم Super Admin" : "إعدادات الفرع"}</h3>
           
-          {/* Branches Section */}
+          {/* Branches Section - فقط للسوبر أدمن */}
+          {isSuperAdmin && (
           <div style={{ marginTop: "2rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
               <h4>إدارة الفروع</h4>
@@ -258,18 +276,31 @@ export default function AdminPage() {
               ))}
             </div>
           </div>
+          )}
 
           {/* Accounts Section */}
-          <div style={{ marginTop: "3rem" }}>
+          <div style={{ marginTop: isSuperAdmin ? "3rem" : "0" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-              <h4>إدارة الحسابات</h4>
-              <button className="btn primary" onClick={() => {
-                setEditingAccount(null);
-                setAccountForm({ username: "", password: "", branch_id: "", is_super_admin: false });
-                setShowAccountForm(true);
-              }}>
-                إنشاء حساب جديد
-              </button>
+              <h4>{isSuperAdmin ? "إدارة الحسابات" : "إدارة موظفي الفرع"}</h4>
+              {(isSuperAdmin || isSalesManager) && (
+                <button className="btn primary" onClick={() => {
+                  setEditingAccount(null);
+                  setAccountForm({ 
+                    username: "", 
+                    password: "", 
+                    branch_id: isSalesManager ? userInfo.branch_id.toString() : "", 
+                    is_super_admin: false,
+                    is_sales_manager: false,
+                    is_operation_manager: false,
+                    is_branch_account: false,
+                    is_backdoor: false,
+                    is_active: true
+                  });
+                  setShowAccountForm(true);
+                }}>
+                  إنشاء حساب جديد
+                </button>
+              )}
             </div>
 
             {showAccountForm && (
@@ -294,30 +325,35 @@ export default function AdminPage() {
                     value={accountForm.branch_id}
                     onChange={(e) => setAccountForm({ ...accountForm, branch_id: e.target.value })}
                     required
+                    disabled={isSalesManager}
                     style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo" }}
                   >
                     <option value="">اختر الفرع</option>
-                    {branches.map(b => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
+                    {branches
+                      .filter(b => isSuperAdmin || b.id === userInfo.branch_id)
+                      .map(b => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
                   </select>
-                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <input
-                      type="checkbox"
-                      checked={accountForm.is_super_admin}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setAccountForm({ 
-                          ...accountForm, 
-                          is_super_admin: checked,
-                          is_sales_manager: checked ? false : accountForm.is_sales_manager,
-                          is_operation_manager: checked ? false : accountForm.is_operation_manager,
-                          is_branch_account: checked ? false : accountForm.is_branch_account
-                        });
-                      }}
-                    />
-                    Super Admin
-                  </label>
+                  {isSuperAdmin && (
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <input
+                        type="checkbox"
+                        checked={accountForm.is_super_admin}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setAccountForm({ 
+                            ...accountForm, 
+                            is_super_admin: checked,
+                            is_sales_manager: checked ? false : accountForm.is_sales_manager,
+                            is_operation_manager: checked ? false : accountForm.is_operation_manager,
+                            is_branch_account: checked ? false : accountForm.is_branch_account
+                          });
+                        }}
+                      />
+                      Super Admin
+                    </label>
+                  )}
                   <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                     <input
                       type="checkbox"
@@ -408,33 +444,37 @@ export default function AdminPage() {
                      "موظف عادي"}
                   </span>
                   <span>
-                    <button 
-                      className="btn-small" 
-                      style={{ backgroundColor: "#007bff", color: "white", marginRight: "0.5rem" }}
-                      onClick={() => {
-                        setEditingAccount(account);
-                        setAccountForm({ 
-                          username: account.username, 
-                          password: "", 
-                          branch_id: account.branch_id.toString(), 
-                          is_super_admin: account.is_super_admin || false,
-                          is_sales_manager: account.is_sales_manager || false,
-                          is_operation_manager: account.is_operation_manager || false,
-                          is_branch_account: account.is_branch_account || false,
-                          is_backdoor: false, // لا نعرض Backdoor
-                          is_active: account.is_active !== undefined ? account.is_active : true
-                        });
-                        setShowAccountForm(true);
-                      }}
-                    >
-                      تعديل
-                    </button>
-                    <button 
-                      className="btn-small btn-danger"
-                      onClick={() => handleDeleteAccount(account.id)}
-                    >
-                      حذف
-                    </button>
+                    {(isSuperAdmin || (isSalesManager && account.branch_id === userInfo.branch_id && !account.is_super_admin && !account.is_backdoor)) && (
+                      <button 
+                        className="btn-small" 
+                        style={{ backgroundColor: "#007bff", color: "white", marginRight: "0.5rem" }}
+                        onClick={() => {
+                          setEditingAccount(account);
+                          setAccountForm({ 
+                            username: account.username, 
+                            password: "", 
+                            branch_id: account.branch_id.toString(), 
+                            is_super_admin: account.is_super_admin || false,
+                            is_sales_manager: account.is_sales_manager || false,
+                            is_operation_manager: account.is_operation_manager || false,
+                            is_branch_account: account.is_branch_account || false,
+                            is_backdoor: false, // لا نعرض Backdoor
+                            is_active: account.is_active !== undefined ? account.is_active : true
+                          });
+                          setShowAccountForm(true);
+                        }}
+                      >
+                        تعديل
+                      </button>
+                    )}
+                    {(isSuperAdmin || (isSalesManager && account.branch_id === userInfo.branch_id && !account.is_super_admin && !account.is_backdoor)) && (
+                      <button 
+                        className="btn-small btn-danger"
+                        onClick={() => handleDeleteAccount(account.id)}
+                      >
+                        حذف
+                      </button>
+                    )}
                   </span>
                 </div>
               ))}

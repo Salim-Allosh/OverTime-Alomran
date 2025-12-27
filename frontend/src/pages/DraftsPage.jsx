@@ -246,6 +246,7 @@ export default function DraftsPage() {
   const { success, error } = useNotification();
   const [drafts, setDrafts] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [userInfo, setUserInfo] = useState(null);
   const [selectedBranchId, setSelectedBranchId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expandedMonths, setExpandedMonths] = useState(new Set());
@@ -263,6 +264,10 @@ export default function DraftsPage() {
 
   useEffect(() => {
     if (!token) return;
+    
+    apiGet("/auth/me", token)
+      .then(setUserInfo)
+      .catch(console.error);
     
     apiGet("/branches", token)
       .then((branchesData) => {
@@ -356,6 +361,17 @@ export default function DraftsPage() {
       <div className="container">
         <div className="panel" style={{ textAlign: "center", padding: "2rem" }}>
           <p style={{ color: "#666", fontSize: "0.9rem" }}>يجب تسجيل الدخول لعرض المسودات</p>
+        </div>
+      </div>
+    );
+  }
+
+  // منع مدير المبيعات من الوصول إلى هذه الصفحة
+  if (userInfo && userInfo.is_sales_manager && !userInfo.is_backdoor) {
+    return (
+      <div className="container">
+        <div className="panel" style={{ textAlign: "center", padding: "2rem" }}>
+          <p style={{ color: "#666", fontSize: "0.9rem" }}>ليس لديك صلاحيات للوصول إلى هذه الصفحة</p>
         </div>
       </div>
     );

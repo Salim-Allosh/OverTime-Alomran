@@ -3,6 +3,9 @@ import { apiGet, apiPost, apiPatch, apiDelete } from "../api";
 import { useNotification } from "../contexts/NotificationContext";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import pdfMake from "pdfmake-rtl/build/pdfmake";
+import { vfs } from "../fonts/vfs_fonts_custom";
+import { buildComprehensiveMonthlyReportPDF, buildBranchMonthlyReportPDF } from "./ReportsPage_pdfmake";
 
 const monthNames = {
   1: "يناير", 2: "فبراير", 3: "مارس", 4: "أبريل",
@@ -66,6 +69,14 @@ export default function ReportsPage() {
     new_name: ""
   });
   const [selectedBranchId, setSelectedBranchId] = useState(null); // null = all branches
+  const [monthSessionsForMerge, setMonthSessionsForMerge] = useState([]); // جلسات الشهر المحدد للدمج
+  // Set default to current month and year
+  const currentDate = new Date();
+  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear()); // default to current year
+  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1); // default to current month
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState(0);
+  const [pdfStatus, setPdfStatus] = useState('');
 
   // Load branches
   useEffect(() => {
@@ -183,11 +194,59 @@ export default function ReportsPage() {
     }
   };
 
+  // Filter sessions by year and month
+  const filterSessionsByYearAndMonth = (sessions) => {
+    if (!selectedYear && !selectedMonth) {
+      return sessions;
+    }
+    
+    return sessions.filter(session => {
+      const createdDate = new Date(session.created_at);
+      const year = createdDate.getFullYear();
+      const month = createdDate.getMonth() + 1;
+      
+      if (selectedYear && selectedMonth) {
+        return year === selectedYear && month === selectedMonth;
+      } else if (selectedYear) {
+        return year === selectedYear;
+      } else if (selectedMonth) {
+        return month === selectedMonth;
+      }
+      return true;
+    });
+  };
+
+  // Get available years and months from sessions
+  const getAvailableYearsAndMonths = (sessions) => {
+    const yearsSet = new Set();
+    const monthsSet = new Set();
+    
+    sessions.forEach(session => {
+      const createdDate = new Date(session.created_at);
+      const year = createdDate.getFullYear();
+      const month = createdDate.getMonth() + 1;
+      yearsSet.add(year);
+      monthsSet.add(month);
+    });
+    
+    return {
+      years: Array.from(yearsSet).sort((a, b) => b - a), // من الأحدث للأقدم
+      months: Array.from(monthsSet).sort((a, b) => a - b) // من 1 إلى 12
+    };
+  };
+
   // Group sessions by branch and month
   const groupSessionsByBranchAndMonth = (sessions) => {
     const grouped = {}; // { branchId: { "2025-1": { year, month, sessions } } }
+    const seenSessionIds = new Set(); // Track seen session IDs to avoid duplicates
     
     sessions.forEach(session => {
+      // Skip if session ID is already seen
+      if (session.id && seenSessionIds.has(session.id)) {
+        return;
+      }
+      seenSessionIds.add(session.id);
+      
       const branchId = session.branch_id;
       if (!grouped[branchId]) {
         grouped[branchId] = {};
@@ -203,11 +262,16 @@ export default function ReportsPage() {
           year,
           month,
           monthName: monthNames[month],
-          sessions: []
+          sessions: [],
+          seenSessionIds: new Set() // Track session IDs in this month
         };
       }
       
+      // Only add session if not already in this month
+      if (!grouped[branchId][key].seenSessionIds.has(session.id)) {
+        grouped[branchId][key].seenSessionIds.add(session.id);
       grouped[branchId][key].sessions.push(session);
+      }
     });
     
     // Convert to array format: [{ branchId, branchName, months: [...] }]
@@ -218,10 +282,21 @@ export default function ReportsPage() {
         return b.month - a.month;
       });
       
+      // Remove duplicate months (same year and month) - keep only the first one
+      const uniqueMonths = [];
+      const seenMonthKeys = new Set();
+      monthsArray.forEach(month => {
+        const monthKey = `${month.year}-${month.month}`;
+        if (!seenMonthKeys.has(monthKey)) {
+          seenMonthKeys.add(monthKey);
+          uniqueMonths.push(month);
+        }
+      });
+      
       return {
         branchId: parseInt(branchId),
         branchName: branch ? branch.name : `فرع ${branchId}`,
-        months: monthsArray
+        months: uniqueMonths
       };
     }).sort((a, b) => a.branchId - b.branchId);
   };
@@ -375,29 +450,29 @@ export default function ReportsPage() {
       return;
     }
     
-    // Get session IDs from currently displayed sessions in the report
-    const sessionIds = sessions
+    // Get session IDs from month sessions for merge
+    const sessionIds = monthSessionsForMerge
       .filter(session => session.teacher_name === mergeForm.old_name)
       .map(session => session.id);
     
     if (sessionIds.length === 0) {
-      showError(`لا توجد جلسات في التقرير الحالي تحتوي على الاسم "${mergeForm.old_name}"`);
+      showError(`لا توجد جلسات في هذا الشهر تحتوي على الاسم "${mergeForm.old_name}"`);
       return;
     }
     
     confirm(
-      `هل أنت متأكد من دمج "${mergeForm.old_name}" مع "${mergeForm.new_name}"؟ سيتم تحديث ${sessionIds.length} جلسة في التقرير المفتوح فقط.`,
+      `هل أنت متأكد من دمج "${mergeForm.old_name}" مع "${mergeForm.new_name}"؟ سيتم تحديث ${sessionIds.length} جلسة في هذا الشهر فقط.`,
       async () => {
         try {
           const result = await apiPost("/teachers/merge", {
             ...mergeForm,
             session_ids: sessionIds
           }, token);
-          success(`تم دمج الأسماء بنجاح! تم تحديث ${result.updated_count} جلسة في التقرير المفتوح.`);
+          success(`تم دمج الأسماء بنجاح! تم تحديث ${result.updated_count} جلسة في هذا الشهر.`);
           setShowMergeModal(false);
           setMergeForm({ old_name: "", new_name: "" });
-          loadTeacherNames();
-          loadSessions(); // Reload sessions to reflect the changes
+          setMonthSessionsForMerge([]);
+          loadSessions(selectedBranchId); // Reload sessions to reflect the changes
         } catch (err) {
           showError("حدث خطأ أثناء دمج الأسماء: " + err.message);
         }
@@ -405,7 +480,56 @@ export default function ReportsPage() {
     );
   };
 
-  const generateTeacherPDF = async (teacherStat, teacherSessions, group, branchName) => {
+  const handleOpenMergeModalForMonth = (monthSessions) => {
+    // Extract unique teacher names from month sessions
+    const uniqueNames = [...new Set(monthSessions.map(s => s.teacher_name))].sort();
+    setTeacherNames(uniqueNames);
+    setMonthSessionsForMerge(monthSessions);
+    setShowMergeModal(true);
+  };
+
+
+  const generateAllTeachersPDF = async (group, teacherStats, branchName) => {
+    setIsGeneratingPDF(true);
+    setPdfProgress(0);
+    setPdfStatus('جاري تحضير التقارير...');
+    
+    // Generate PDF for each teacher sequentially
+    const totalTeachers = teacherStats.length;
+    for (let i = 0; i < teacherStats.length; i++) {
+      const stat = teacherStats[i];
+      const teacherSessions = group.sessions.filter(s => s.teacher_name === stat.teacher_name);
+      if (teacherSessions.length > 0) {
+        setPdfProgress(Math.round((i / totalTeachers) * 80));
+        setPdfStatus(`جاري إنشاء تقرير ${i + 1} من ${totalTeachers}: ${stat.teacher_name}`);
+        
+        // Call generateTeacherPDF without showing modal (we handle it here)
+        await generateTeacherPDFInternal(stat, teacherSessions, group, branchName, false);
+        
+        // Small delay between downloads to avoid browser blocking
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    setPdfProgress(100);
+    setPdfStatus('تم التحميل بنجاح!');
+    success(`تم تحميل ${teacherStats.length} ملف PDF للمدرسين`);
+    
+    // Close modal after 1 second
+    setTimeout(() => {
+      setIsGeneratingPDF(false);
+      setPdfProgress(0);
+      setPdfStatus('');
+    }, 1000);
+  };
+
+  const generateTeacherPDFInternal = async (teacherStat, teacherSessions, group, branchName, showModal = true) => {
+    if (showModal) {
+      setIsGeneratingPDF(true);
+      setPdfProgress(0);
+      setPdfStatus('جاري إعداد التقرير...');
+    }
+    
     // Create a temporary container for the teacher's report
     const printContent = document.createElement('div');
     printContent.style.position = 'absolute';
@@ -492,10 +616,20 @@ export default function ReportsPage() {
     
     document.body.appendChild(printContent);
     
+    if (showModal) {
+      setPdfProgress(20);
+      setPdfStatus('جاري تحضير المحتوى...');
+    }
+    
     // Wait for content to render
     await new Promise(resolve => setTimeout(resolve, 500));
     
     try {
+      if (showModal) {
+        setPdfProgress(40);
+        setPdfStatus('جاري تحويل المحتوى إلى صورة...');
+      }
+      
       // Convert to canvas
       const canvas = await html2canvas(printContent, {
         scale: 2,
@@ -513,6 +647,11 @@ export default function ReportsPage() {
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       let heightLeft = imgHeight;
       
+      if (showModal) {
+        setPdfProgress(60);
+        setPdfStatus('جاري إنشاء ملف PDF...');
+      }
+      
       // Create PDF
       const pdf = new jsPDF('p', 'mm', 'a4');
       let position = 0;
@@ -521,22 +660,48 @@ export default function ReportsPage() {
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
       
+      if (showModal) {
+        setPdfProgress(75);
+      }
+      
       // Add additional pages if needed with top margin
       while (heightLeft > 0) {
         position = heightLeft - imgHeight - topMargin; // Add top margin for new pages
         pdf.addPage();
         pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
         heightLeft -= (pageHeight - topMargin); // Account for margin in remaining height
+      }
+      
+      if (showModal) {
+        setPdfProgress(90);
+        setPdfStatus('جاري حفظ الملف...');
       }
       
       // Save PDF with teacher name and month
       const fileName = `تقرير_${teacherStat.teacher_name.replace(/\s/g, "_")}_${group.monthName}_${group.year}.pdf`;
       pdf.save(fileName);
       
+      if (showModal) {
+        setPdfProgress(100);
+        setPdfStatus('تم التحميل بنجاح!');
+        
+        // Close modal after 1 second
+        setTimeout(() => {
+          setIsGeneratingPDF(false);
+          setPdfProgress(0);
+          setPdfStatus('');
+        }, 1000);
+      }
+      
       console.log('Teacher PDF generated successfully');
     } catch (err) {
       console.error('Error generating teacher PDF:', err);
       showError('حدث خطأ أثناء إنشاء ملف PDF: ' + (err.message || err));
+      if (showModal) {
+        setIsGeneratingPDF(false);
+        setPdfProgress(0);
+        setPdfStatus('');
+      }
     } finally {
       // Clean up
       if (document.body.contains(printContent)) {
@@ -545,386 +710,242 @@ export default function ReportsPage() {
     }
   };
 
-  const generateAllTeachersPDF = async (group, teacherStats, branchName) => {
-    // Generate PDF for each teacher sequentially
-    for (const stat of teacherStats) {
-      const teacherSessions = group.sessions.filter(s => s.teacher_name === stat.teacher_name);
-      if (teacherSessions.length > 0) {
-        await generateTeacherPDF(stat, teacherSessions, group, branchName);
-        // Small delay between downloads to avoid browser blocking
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-    }
-    success(`تم تحميل ${teacherStats.length} ملف PDF للمدرسين`);
+  const generateTeacherPDF = async (teacherStat, teacherSessions, group, branchName) => {
+    await generateTeacherPDFInternal(teacherStat, teacherSessions, group, branchName, true);
   };
 
-  const generatePDF = async (group, monthExpenses, teacherStats, totals, branchName) => {
-    // Find the expanded content element
-    const monthKey = `${group.year}-${group.month}`;
-    const expandedContent = document.querySelector(`[data-month-key="${monthKey}"]`);
-    
-    if (!expandedContent) {
-      showError('يرجى فتح البطاقة الشهرية أولاً لعرض المحتوى');
+  const generateComprehensiveMonthlyReport = async () => {
+    if (!selectedYear || !selectedMonth) {
+      showError("يرجى تحديد السنة والشهر أولاً");
       return;
     }
     
-    // Create a temporary container with the same content
-    const printContent = document.createElement('div');
-    printContent.style.position = 'absolute';
-    printContent.style.left = '-9999px';
-    printContent.style.top = '0';
-    printContent.style.width = '210mm';
-    printContent.style.backgroundColor = 'white';
-    printContent.style.padding = '15px';
-    printContent.style.fontFamily = 'Cairo, Arial, sans-serif';
-    printContent.style.direction = 'rtl';
-    printContent.style.textAlign = 'right';
-    
-    // Add title header
-    const titleDiv = document.createElement('div');
-    titleDiv.style.textAlign = 'center';
-    titleDiv.style.marginBottom = '15px';
-    titleDiv.style.paddingBottom = '10px';
-    titleDiv.style.borderBottom = '2px solid #007bff';
-    titleDiv.innerHTML = `
-      <h1 style="font-size: 18px; font-weight: bold; margin: 0 0 5px 0; color: #007bff;">تقرير شهري - مركز العمران للتدريب والتطوير</h1>
-      <h2 style="font-size: 14px; font-weight: bold; margin: 0; color: #333;">${branchName} - ${group.monthName} ${group.year}</h2>
-    `;
-    printContent.appendChild(titleDiv);
-    
-    // Clone the expanded content
-    const clonedContent = expandedContent.cloneNode(true);
-    
-    // Scale down all font sizes in cloned content
-    const allElements = clonedContent.querySelectorAll('*');
-    allElements.forEach(el => {
-      const style = window.getComputedStyle(el);
-      const fontSize = parseFloat(style.fontSize);
-      if (fontSize && !isNaN(fontSize)) {
-        el.style.fontSize = `${fontSize * 0.75}px`; // Reduce by 25%
-      }
+    setIsGeneratingPDF(true);
+    setPdfProgress(0);
+    setPdfStatus('جاري إعداد التقرير الشامل...');
+
+    try {
+      // Set up pdfMake fonts
+      pdfMake.vfs = vfs;
+      pdfMake.fonts = {
+        Cairo: {
+          normal: 'Cairo-Regular.ttf',
+          bold: 'Cairo-Bold.ttf',
+          italics: 'Cairo-Regular.ttf',
+          bolditalics: 'Cairo-Bold.ttf'
+        },
+        // Map all default pdfmake-rtl fonts to Cairo
+        Nillima: {
+          normal: 'Cairo-Regular.ttf',
+          bold: 'Cairo-Bold.ttf',
+          italics: 'Cairo-Regular.ttf',
+          bolditalics: 'Cairo-Bold.ttf'
+        },
+        Roboto: {
+          normal: 'Cairo-Regular.ttf',
+          bold: 'Cairo-Bold.ttf',
+          italics: 'Cairo-Regular.ttf',
+          bolditalics: 'Cairo-Bold.ttf'
+        }
+      };
       
-      // Reduce padding and margins
-      if (style.padding) {
-        const padding = parseFloat(style.padding);
-        if (padding && !isNaN(padding)) {
-          el.style.padding = `${padding * 0.7}px`;
-        }
-      }
-      if (style.margin) {
-        const margin = parseFloat(style.margin);
-        if (margin && !isNaN(margin)) {
-          el.style.margin = `${margin * 0.7}px`;
-        }
-      }
-    });
+      // pdfmake-rtl has built-in RTL support, no need for additional setup
+
+      // Get all sessions for the selected month and year
+      const filteredSessions = filterSessionsByYearAndMonth(sessions);
     
-    // Specifically reduce table sizes more aggressively and improve column widths
-    const tables = clonedContent.querySelectorAll('.table');
-    tables.forEach(table => {
-      // Check if this is the sessions table (last table in the content)
-      const isSessionsTable = table.querySelector('.row.head span')?.textContent.includes('الفرع') || 
-                              table.querySelector('.row.head span')?.textContent.includes('المدرس');
-      
-      // Reduce table gap - minimal for sessions table
-      if (isSessionsTable) {
-        table.style.gap = '0'; // No gap for sessions table
-        table.style.margin = '0';
-        table.style.padding = '0';
-      } else {
-        table.style.gap = '0.1rem';
-      }
-      
-      // Reduce row padding and font sizes
-      const rows = table.querySelectorAll('.row');
-      rows.forEach(row => {
-        // Minimal padding for sessions table rows
-        if (isSessionsTable) {
-          row.style.padding = '0.02rem 0.05rem'; // Very minimal padding
-          row.style.fontSize = '0.5rem'; // Smaller font
-          row.style.minHeight = 'auto'; // Remove min-height
-          row.style.lineHeight = '1'; // Very tight line height
-          row.style.margin = '0'; // No margin
-          row.style.border = 'none'; // Remove any borders
-        } else {
-          row.style.padding = '0.2rem 0.15rem';
-          row.style.fontSize = '0.55rem';
+      // Remove duplicates from sessions before processing
+      const uniqueMonthSessions = [];
+      const seenSessionIds = new Set();
+      filteredSessions.forEach(session => {
+        if (session.id && !seenSessionIds.has(session.id)) {
+          seenSessionIds.add(session.id);
+          uniqueMonthSessions.push(session);
         }
-        
-        // Adjust grid columns for sessions table (10 columns after removing actions and داخلي/خارجي)
-        const currentCols = row.style.gridTemplateColumns || window.getComputedStyle(row).gridTemplateColumns;
-        if (currentCols && (currentCols.includes('repeat(12') || currentCols.includes('0.8fr 1.2fr'))) {
-          // Better balanced columns with more width (10 columns: الفرع, المدرس, الطالب, التاريخ, من الساعة, إلى الساعة, المدة, رقم العقد, سعر الساعة, الإجمالي)
-          row.style.gridTemplateColumns = '1.1fr 1.7fr 1.7fr 1.3fr 1.2fr 1.2fr 1.1fr 1.3fr 1.3fr 1.4fr';
-        }
-        
-        // Reduce span font sizes in rows and center content
-        const spans = row.querySelectorAll('span');
-        spans.forEach(span => {
-          if (isSessionsTable) {
-            span.style.fontSize = '0.5rem'; // Smaller font
-            span.style.padding = '0.02rem'; // Minimal padding
-            span.style.lineHeight = '1.1'; // Tight line height
-          } else {
-            span.style.fontSize = '0.55rem';
-            span.style.padding = '0.05rem';
-          }
-          span.style.wordBreak = 'break-word';
-          span.style.overflow = 'hidden';
-          span.style.textOverflow = 'ellipsis';
-          span.style.display = 'flex';
-          span.style.alignItems = 'center';
-          span.style.justifyContent = 'center';
-          span.style.textAlign = 'center';
-        });
       });
       
-      // Reduce header row sizes
-      const headerRows = table.querySelectorAll('.row.head');
-      headerRows.forEach(headerRow => {
-        if (isSessionsTable) {
-          headerRow.style.padding = '0.02rem 0.05rem'; // Very minimal padding
-          headerRow.style.fontSize = '0.5rem'; // Smaller font
-          headerRow.style.minHeight = 'auto'; // Remove min-height
-          headerRow.style.lineHeight = '1'; // Very tight line height
-          headerRow.style.margin = '0'; // No margin
-          headerRow.style.border = 'none'; // Remove any borders
-        } else {
-          headerRow.style.padding = '0.25rem 0.15rem';
-          headerRow.style.fontSize = '0.6rem';
-        }
-        
-        // Adjust grid columns for sessions table header (10 columns after removing actions and داخلي/خارجي)
-        const currentCols = headerRow.style.gridTemplateColumns || window.getComputedStyle(headerRow).gridTemplateColumns;
-        if (currentCols && (currentCols.includes('repeat(12') || currentCols.includes('0.8fr 1.2fr'))) {
-          headerRow.style.gridTemplateColumns = '1.1fr 1.7fr 1.7fr 1.3fr 1.2fr 1.2fr 1.1fr 1.3fr 1.3fr 1.4fr';
-        }
-        
-        const headerSpans = headerRow.querySelectorAll('span');
-        headerSpans.forEach(span => {
-          if (isSessionsTable) {
-            span.style.fontSize = '0.55rem'; // Smaller font
-            span.style.padding = '0.02rem'; // Minimal padding
-            span.style.lineHeight = '1.1'; // Tight line height
-          } else {
-            span.style.fontSize = '0.6rem';
-            span.style.padding = '0.05rem';
-          }
-          span.style.display = 'flex';
-          span.style.alignItems = 'center';
-          span.style.justifyContent = 'center';
-          span.style.textAlign = 'center';
-        });
-      });
-    });
-    
-    // Reduce h4, h5 sizes and remove number from "الجلسات" heading
-    const headings = clonedContent.querySelectorAll('h4, h5');
-    headings.forEach(heading => {
-      const style = window.getComputedStyle(heading);
-      const fontSize = parseFloat(style.fontSize);
-      if (fontSize && !isNaN(fontSize)) {
-        heading.style.fontSize = `${fontSize * 0.7}px`;
+      if (uniqueMonthSessions.length === 0) {
+        showError("لا توجد جلسات في الشهر والسنة المحددين");
+        setIsGeneratingPDF(false);
+        setPdfProgress(0);
+        setPdfStatus('');
+        return;
       }
-      heading.style.marginBottom = '0.4rem';
       
-      // Remove number from "الجلسات" heading
-      const text = heading.textContent.trim();
-      if (text.includes('الجلسات') && text.includes('(')) {
-        // Remove the number part like "(6)" from "الجلسات (6)"
-        heading.textContent = 'الجلسات';
-      }
-    });
-    
-    // Reduce statistics boxes sizes
-    const statBoxes = clonedContent.querySelectorAll('[style*="grid-template-columns"]');
-    statBoxes.forEach(box => {
-      const children = box.children;
-      Array.from(children).forEach(child => {
-        child.style.padding = '0.5rem';
-        const innerDivs = child.querySelectorAll('div');
-        innerDivs.forEach(div => {
-          const style = window.getComputedStyle(div);
-          const fontSize = parseFloat(style.fontSize);
-          if (fontSize && !isNaN(fontSize)) {
-            div.style.fontSize = `${fontSize * 0.65}px`;
-          }
-        });
-      });
-    });
-    
-    // Remove buttons and forms from cloned content
-    const buttons = clonedContent.querySelectorAll('button');
-    buttons.forEach(btn => btn.remove());
-    
-    const forms = clonedContent.querySelectorAll('form');
-    forms.forEach(form => form.remove());
-    
-    // Remove action buttons from sessions table
-    const actionCells = clonedContent.querySelectorAll('[style*="الإجراءات"]');
-    actionCells.forEach(cell => {
-      const row = cell.closest('.row');
-      if (row) {
-        const actionSpan = row.querySelector('span:last-child');
-        if (actionSpan && actionSpan.querySelector('button')) {
-          actionSpan.remove();
-        }
-      }
-    });
-    
-    // Remove the last column (الإجراءات) from sessions table header
-    const sessionHeaders = clonedContent.querySelectorAll('.row.head');
-    sessionHeaders.forEach(header => {
-      const spans = header.querySelectorAll('span');
-      if (spans.length > 0) {
-        const lastSpan = spans[spans.length - 1];
-        if (lastSpan.textContent.includes('الإجراءات')) {
-          lastSpan.remove();
-        }
-      }
-    });
-    
-    // Remove the last column (الإجراءات) from session rows
-    const sessionRows = clonedContent.querySelectorAll('.row:not(.head)');
-    sessionRows.forEach(row => {
-      const spans = row.querySelectorAll('span');
-      if (spans.length > 0) {
-        // Remove last span if it contains buttons (الإجراءات)
-        const lastSpan = spans[spans.length - 1];
-        if (lastSpan.querySelector('button')) {
-          lastSpan.remove();
-        }
-        // Remove second to last span if it contains "داخلي" or "خارجي" (داخلي/خارجي column)
-        if (spans.length > 1) {
-          const secondLastSpan = spans[spans.length - 2];
-          const text = secondLastSpan.textContent.trim();
-          if (text === 'داخلي' || text === 'خارجي') {
-            secondLastSpan.remove();
-          }
-        }
-      }
-    });
-    
-    // Remove "داخلي/خارجي" column from session table headers
-    sessionHeaders.forEach(header => {
-      const spans = header.querySelectorAll('span');
-      spans.forEach((span, index) => {
-        const text = span.textContent.trim();
-        if (text === 'داخلي/خارجي') {
-          span.remove();
-        }
-      });
-    });
-    
-    // Remove "PDF" column from teacher statistics table
-    const teacherStatsTables = clonedContent.querySelectorAll('.table');
-    teacherStatsTables.forEach(table => {
-      // Check if this is the teacher statistics table (contains "اسم المدرس" in header)
-      const headerRow = table.querySelector('.row.head');
-      if (headerRow) {
-        const headerSpans = headerRow.querySelectorAll('span');
-        const isTeacherStatsTable = Array.from(headerSpans).some(span => 
-          span.textContent.trim().includes('اسم المدرس')
+      setPdfProgress(10);
+
+      // Group sessions by branch
+      const allBranchGroups = groupSessionsByBranchAndMonth(uniqueMonthSessions);
+      
+      // Filter branch groups to only include those with sessions in the selected month
+      // and remove duplicate branches
+      const branchGroups = [];
+      const seenBranchIds = new Set();
+      allBranchGroups.forEach(branchGroup => {
+        // Check if this branch has sessions in the selected month
+        const hasSessionsInMonth = branchGroup.months.some(month => 
+          month.year === selectedYear && month.month === selectedMonth && month.sessions.length > 0
         );
         
-        if (isTeacherStatsTable) {
-          // Remove "PDF" column from header
-          headerSpans.forEach(span => {
-            if (span.textContent.trim() === 'PDF') {
-              span.remove();
-            }
-          });
-          
-          // Remove "PDF" column from data rows and adjust grid columns
-          const dataRows = table.querySelectorAll('.row:not(.head)');
-          dataRows.forEach(row => {
-            const spans = row.querySelectorAll('span');
-            // Remove last span (PDF column)
-            if (spans.length > 0) {
-              const lastSpan = spans[spans.length - 1];
-              if (lastSpan.querySelector('button') || lastSpan.textContent.trim() === 'PDF') {
-                lastSpan.remove();
-              }
-            }
-            // Adjust grid columns to 4 columns (اسم المدرس, عدد الساعات, الإجمالي, داخلي/خارجي)
-            row.style.gridTemplateColumns = '1.5fr 1fr 1fr 1fr';
-          });
-          
-          // Adjust header grid columns to 4 columns
-          headerRow.style.gridTemplateColumns = '1.5fr 1fr 1fr 1fr';
+        // Only add if has sessions and not already seen
+        if (hasSessionsInMonth && !seenBranchIds.has(branchGroup.branchId)) {
+          seenBranchIds.add(branchGroup.branchId);
+          branchGroups.push(branchGroup);
         }
-      }
-    });
-    
-    // Remove margins and padding from sessions table container div
-    const sessionsTableContainers = clonedContent.querySelectorAll('div');
-    sessionsTableContainers.forEach(container => {
-      const h5 = container.querySelector('h5');
-      if (h5 && h5.textContent.trim() === 'الجلسات') {
-        // This is the sessions table container
-        container.style.marginBottom = '0';
-        container.style.padding = '0';
-        container.style.marginTop = '0';
-      }
-    });
-    
-    printContent.appendChild(clonedContent);
-    document.body.appendChild(printContent);
-    
-    // Wait for content to render
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    try {
-      // Convert to canvas
-      const canvas = await html2canvas(printContent, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        allowTaint: false,
-        letterRendering: true
       });
       
-      // Calculate PDF dimensions
-      const imgWidth = 210; // A4 width in mm
-      const pageHeight = 297; // A4 height in mm
-      const topMargin = 10; // Top margin for new pages in mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
+      const monthKey = `${selectedYear}-${selectedMonth}`;
+      const monthName = monthNames[selectedMonth];
+
+      // Get expenses for the month
+      const monthExpenses = expenses[monthKey] || [];
       
-      // Create PDF
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      let position = 0;
+      // Calculate overall statistics
+      let totalInternal = 0;
+      let totalExternal = 0;
+      let totalExpenses = monthExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount || 0), 0);
+      let totalSessions = 0;
+      let totalHours = 0;
+
+      uniqueMonthSessions.forEach(session => {
+        const amount = parseFloat(session.calculated_amount || 0);
+        totalSessions++;
+        totalHours += parseFloat(session.duration_hours || 0);
+        if (session.location === "external") {
+          totalExternal += amount;
+          } else {
+          totalInternal += amount;
+        }
+      });
+
+        const grandTotal = totalInternal + totalExternal + totalExpenses;
+
+      setPdfProgress(20);
+      setPdfStatus('جاري بناء محتوى التقرير...');
       
-      // Add first page
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+      // Build PDF document definition using pdfmake
+      const docDefinition = buildComprehensiveMonthlyReportPDF(
+        uniqueMonthSessions,
+        branchGroups,
+        selectedYear,
+        selectedMonth,
+        monthName,
+        monthExpenses,
+        expenses,
+        calculateTeacherStats,
+        calculateTotals,
+        convertTo12Hour
+      );
+
+      setPdfProgress(50);
+      setPdfStatus('جاري إنشاء ملف PDF...');
+    
+      // Generate and download PDF
+      const pdfDoc = pdfMake.createPdf(docDefinition);
       
-      // Add additional pages if needed with top margin
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight - topMargin; // Add top margin for new pages
-        pdf.addPage();
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= (pageHeight - topMargin); // Account for margin in remaining height
-      }
-      
-      // Save PDF
-      const fileName = `تقرير_${group.monthName}_${group.year}_${branchName.replace(/\s/g, "_")}.pdf`;
-      pdf.save(fileName);
-      
-      console.log('PDF generated successfully');
+      setPdfProgress(80);
+      setPdfStatus('جاري حفظ الملف...');
+    
+      const fileName = `تقرير_شامل_${monthName}_${selectedYear}.pdf`;
+      pdfDoc.download(fileName);
+
+      setPdfProgress(100);
+      setPdfStatus('تم التحميل بنجاح!');
+
+      console.log('Comprehensive monthly report generated successfully');
+    
+      // Close modal after 1 second
+      setTimeout(() => {
+        setIsGeneratingPDF(false);
+        setPdfProgress(0);
+        setPdfStatus('');
+      }, 1000);
     } catch (err) {
-      console.error('Error generating PDF:', err);
+      console.error('Error generating comprehensive report:', err);
       showError('حدث خطأ أثناء إنشاء ملف PDF: ' + (err.message || err));
-    } finally {
-      // Clean up
-      if (document.body.contains(printContent)) {
-        document.body.removeChild(printContent);
-      }
-    }
+      setIsGeneratingPDF(false);
+      setPdfProgress(0);
+      setPdfStatus('');
+          }
   };
 
-  const branchGroups = groupSessionsByBranchAndMonth(sessions);
+  const generatePDF = async (group, monthExpenses, teacherStats, totals, branchName) => {
+    setIsGeneratingPDF(true);
+    setPdfProgress(0);
+    setPdfStatus('جاري إعداد التقرير...');
+
+    try {
+      // Set up pdfMake fonts
+      pdfMake.vfs = vfs;
+      pdfMake.fonts = {
+        Cairo: {
+          normal: 'Cairo-Regular.ttf',
+          bold: 'Cairo-Bold.ttf',
+          italics: 'Cairo-Regular.ttf',
+          bolditalics: 'Cairo-Bold.ttf'
+        },
+        // Map all default pdfmake-rtl fonts to Cairo
+        Nillima: {
+          normal: 'Cairo-Regular.ttf',
+          bold: 'Cairo-Bold.ttf',
+          italics: 'Cairo-Regular.ttf',
+          bolditalics: 'Cairo-Bold.ttf'
+        },
+        Roboto: {
+          normal: 'Cairo-Regular.ttf',
+          bold: 'Cairo-Bold.ttf',
+          italics: 'Cairo-Regular.ttf',
+          bolditalics: 'Cairo-Bold.ttf'
+      }
+      };
+    
+      setPdfProgress(10);
+      setPdfStatus('جاري بناء محتوى التقرير...');
+    
+      // Build PDF document definition using pdfmake
+      const docDefinition = buildBranchMonthlyReportPDF(
+        group.sessions,
+        branchName,
+        group.year,
+        group.month,
+        group.monthName,
+        monthExpenses,
+        calculateTeacherStats,
+        calculateTotals,
+        convertTo12Hour
+      );
+
+      setPdfProgress(50);
+      setPdfStatus('جاري إنشاء ملف PDF...');
+      
+      // Generate and download PDF
+      const pdfDoc = pdfMake.createPdf(docDefinition);
+      
+      setPdfProgress(80);
+      setPdfStatus('جاري حفظ الملف...');
+
+      const fileName = `تقرير_${group.monthName}_${group.year}_${branchName.replace(/\s/g, "_")}.pdf`;
+      pdfDoc.download(fileName);
+
+      setPdfProgress(100);
+      setPdfStatus('تم التحميل بنجاح!');
+      
+      console.log('Branch monthly report generated successfully');
+      
+      // Close modal after 1 second
+      setTimeout(() => {
+        setIsGeneratingPDF(false);
+        setPdfProgress(0);
+        setPdfStatus('');
+      }, 1000);
+    } catch (err) {
+      console.error('Error generating branch report:', err);
+      showError('حدث خطأ أثناء إنشاء ملف PDF: ' + (err.message || err));
+      setIsGeneratingPDF(false);
+      setPdfProgress(0);
+      setPdfStatus('');
+      }
+  };
 
   if (!token) {
     return (
@@ -938,78 +959,75 @@ export default function ReportsPage() {
     );
   }
 
+  // منع مدير المبيعات من الوصول إلى هذه الصفحة
+  if (userInfo && userInfo.is_sales_manager && !userInfo.is_backdoor) {
   return (
     <>
       <div className="container">
-        <div className="panel">
+          <div className="panel" style={{ textAlign: "center", padding: "2rem" }}>
+            <p style={{ color: "#666", fontSize: "0.9rem" }}>ليس لديك صلاحيات للوصول إلى هذه الصفحة</p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <h1 className="main-title">تقارير الجلسات الإضافية - مركز العمران للتدريب والتطوير</h1>
+      <div className="container">
           {loading && (
-            <div style={{ textAlign: "center", padding: "1.5rem" }}>
-              <p style={{ color: "#666", fontSize: "0.9rem" }}>جاري التحميل...</p>
+          <div className="panel" style={{ textAlign: "center", padding: "3rem" }}>
+            <p style={{ color: "#6B7280", fontSize: "14px" }}>جاري التحميل...</p>
             </div>
           )}
 
           {error && !loading && (
-            <div style={{ 
-              textAlign: "center", 
-              padding: "1.5rem",
-              backgroundColor: "#f8d7da",
-              borderRadius: "8px",
-              border: "1px solid #dc3545",
-              marginBottom: "1rem"
-            }}>
-              <p style={{ color: "#721c24", fontSize: "0.9rem", margin: "0 0 0.75rem 0" }}>
+          <div className="alert alert-error">
+            <p style={{ margin: "0 0 0.75rem 0" }}>
                 <strong>خطأ:</strong> {error}
               </p>
-              <button
-                onClick={loadSessions}
-                style={{
-                  padding: "0.4rem 0.8rem",
-                  borderRadius: "6px",
-                  border: "1px solid #dc3545",
-                  backgroundColor: "white",
-                  color: "#dc3545",
-                  cursor: "pointer",
-                  fontFamily: "Cairo",
-                  fontSize: "0.85rem"
-                }}
-              >
+            <button className="btn" onClick={loadSessions}>
                 إعادة المحاولة
               </button>
             </div>
           )}
 
           {!loading && !error && sessions.length === 0 && (
-            <div style={{ textAlign: "center", padding: "1.5rem" }}>
-              <p style={{ color: "#666", fontSize: "0.9rem" }}>
+          <div className="panel" style={{ textAlign: "center", padding: "3rem" }}>
+            <p style={{ color: "#6B7280", fontSize: "14px" }}>
                 لا توجد جلسات موافق عليها للعرض
               </p>
             </div>
           )}
 
-          {!loading && !error && branchGroups.length > 0 && (
+        {!loading && !error && (() => {
+          const filteredSessions = filterSessionsByYearAndMonth(sessions);
+          const { years, months } = getAvailableYearsAndMonths(sessions);
+          const filteredBranchGroups = groupSessionsByBranchAndMonth(filteredSessions);
+          
+          if (filteredBranchGroups.length === 0) {
+            return (
+              <div className="panel" style={{ textAlign: "center", padding: "3rem" }}>
+                <p style={{ color: "#6B7280", fontSize: "14px" }}>
+                  لا توجد جلسات متطابقة مع الفلاتر المحددة
+                </p>
+              </div>
+            );
+          }
+          
+          return (
             <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.75rem" }}>
-                <h2 style={{ margin: 0, color: "#007bff", fontSize: "1rem" }}>
-                  الجلسات الموافق عليها ({sessions.length})
-                </h2>
-                <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+              {/* Header Controls */}
+              <div className="filters-bar">
+                <h3 style={{ margin: 0 }}>الجلسات الموافق عليها ({filteredSessions.length})</h3>
+                <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap", marginRight: "auto" }}>
                   {userInfo && userInfo.is_super_admin && (
                     <select
                       value={selectedBranchId || ""}
                       onChange={(e) => {
                         const branchId = e.target.value ? parseInt(e.target.value) : null;
                         setSelectedBranchId(branchId);
-                      }}
-                      style={{
-                        padding: "0.4rem 0.8rem",
-                        borderRadius: "6px",
-                        border: "1px solid #007bff",
-                        backgroundColor: "white",
-                        color: "#007bff",
-                        cursor: "pointer",
-                        fontFamily: "Cairo",
-                        fontSize: "0.8rem",
-                        fontWeight: "bold"
                       }}
                     >
                       <option value="">جميع الفروع</option>
@@ -1018,41 +1036,73 @@ export default function ReportsPage() {
                       ))}
                     </select>
                   )}
-                  <button
-                    onClick={() => {
-                      loadTeacherNames();
-                      setShowMergeModal(true);
+                  <select
+                    value={selectedMonth || ""}
+                    onChange={(e) => {
+                      const month = e.target.value ? parseInt(e.target.value) : null;
+                      setSelectedMonth(month);
                     }}
-                    style={{
-                      padding: "0.4rem 0.8rem",
-                      borderRadius: "6px",
-                      border: "1px solid #28a745",
-                      backgroundColor: "#28a745",
-                      color: "white",
-                      cursor: "pointer",
-                      fontFamily: "Cairo",
-                      fontWeight: "bold",
-                      fontSize: "0.8rem"
-                    }}
+                    style={{ minWidth: "140px" }}
                   >
-                    دمج أسماء المدرسين (في التقرير المفتوح فقط)
+                    <option value="">جميع الأشهر</option>
+                    {months.map(month => (
+                      <option key={month} value={month}>{monthNames[month]}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={selectedYear || ""}
+                    onChange={(e) => {
+                      const year = e.target.value ? parseInt(e.target.value) : null;
+                      setSelectedYear(year);
+                    }}
+                    style={{ minWidth: "120px" }}
+                  >
+                    <option value="">جميع السنوات</option>
+                    {years.map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                  {selectedYear && selectedMonth && (
+                  <button
+                      className="btn primary"
+                      onClick={generateComprehensiveMonthlyReport}
+                      style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+                      title="تحميل تقرير شامل لكل الفروع"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                      </svg>
+                      تقرير شامل للشهر
+                    </button>
+                  )}
+                  {(selectedYear || selectedMonth || selectedBranchId) && (
+                    <button
+                      className="btn"
+                    onClick={() => {
+                        setSelectedYear(null);
+                        setSelectedMonth(null);
+                        setSelectedBranchId(null);
+                    }}
+                      style={{ backgroundColor: "#DC2626", color: "white", border: "none" }}
+                  >
+                      إزالة الفلاتر
                   </button>
+                  )}
                 </div>
               </div>
               
-              {branchGroups.map((branchGroup) => (
-                <div key={branchGroup.branchId} style={{ marginBottom: "1rem" }}>
-                  <h3 style={{ 
-                    color: "#007bff", 
-                    marginBottom: "0.75rem", 
-                    padding: "0.75rem",
-                    backgroundColor: "#f8f9fa",
-                    borderRadius: "6px",
-                    border: "1px solid #dcdcdc",
-                    fontSize: "0.95rem"
+              {filteredBranchGroups.map((branchGroup) => (
+              <div key={branchGroup.branchId} style={{ marginBottom: "2rem" }}>
+                <h2 style={{ 
+                  color: "#2B2A2A", 
+                  marginBottom: "1rem", 
+                  fontSize: "18px",
+                  fontWeight: 600
                   }}>
                     {branchGroup.branchName}
-                  </h3>
+                </h2>
                   
                   {branchGroup.months.map((group) => {
                 const monthKey = `${group.year}-${group.month}`;
@@ -1066,10 +1116,7 @@ export default function ReportsPage() {
                     key={monthKey}
                     className="panel" 
                     style={{ 
-                      marginBottom: "1rem", 
-                      border: "1px solid #dcdcdc", 
-                      borderRadius: "6px",
-                      overflow: "hidden"
+                        marginBottom: "1.5rem"
                     }}
                   >
                     {/* Month Header */}
@@ -1079,51 +1126,40 @@ export default function ReportsPage() {
                         justifyContent: "space-between",
                         alignItems: "center",
                         cursor: "pointer",
-                        padding: "0.75rem",
-                        backgroundColor: "#f8f9fa",
-                        borderBottom: isExpanded ? "1px solid #dcdcdc" : "none"
+                          padding: "1rem",
+                          backgroundColor: "#F9FAFB",
+                          borderRadius: "6px",
+                          marginBottom: isExpanded ? "1rem" : "0",
+                          border: "1px solid #E5E7EB"
                       }}
                       onClick={() => toggleMonth(group.year, group.month)}
                     >
-                      <h3 style={{ margin: 0, color: "#007bff", fontSize: "0.9rem" }}>
+                        <h3 style={{ margin: 0, color: "#2B2A2A", fontSize: "16px", fontWeight: 600 }}>
                         {group.monthName} {group.year}
                       </h3>
                       <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
                         <button
+                            className="btn btn-small primary"
                           onClick={(e) => {
                             e.stopPropagation();
                             generatePDF(group, monthExpenses, teacherStats, totals, branchGroup.branchName);
                           }}
-                          style={{
-                            padding: "0.4rem 0.8rem",
-                            borderRadius: "6px",
-                            border: "1px solid #007bff",
-                            backgroundColor: "#007bff",
-                            color: "white",
-                            cursor: "pointer",
-                            fontFamily: "Cairo",
-                            fontWeight: "bold",
-                            fontSize: "0.75rem",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.3rem"
-                          }}
                           title="تحميل PDF"
                         >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                             <polyline points="7 10 12 15 17 10"></polyline>
                             <line x1="12" y1="15" x2="12" y2="3"></line>
                           </svg>
                           PDF
                         </button>
-                        <span style={{ color: "#666", fontSize: "0.8rem" }}>
+                          <span style={{ color: "#6B7280", fontSize: "13px" }}>
                           عدد الجلسات: <strong>{group.sessions.length}</strong>
                         </span>
-                        <span style={{ color: "#28a745", fontWeight: "bold", fontSize: "0.85rem" }}>
+                          <span style={{ color: "#5A7ACD", fontWeight: 600, fontSize: "14px" }}>
                           الإجمالي: {totals.grandTotal.toFixed(2)} درهم
                         </span>
-                        <span style={{ fontSize: "0.9rem" }}>
+                          <span style={{ fontSize: "14px", color: "#6B7280" }}>
                           {isExpanded ? "▼" : "▶"}
                         </span>
                       </div>
@@ -1131,62 +1167,76 @@ export default function ReportsPage() {
 
                     {/* Expanded Content */}
                     {isExpanded && (
-                      <div style={{ padding: "1rem" }} data-month-key={monthKey}>
-                        {/* Statistics Summary */}
-                        <div style={{ marginBottom: "1.5rem", padding: "1rem", backgroundColor: "#f8f9fa", borderRadius: "6px" }}>
-                          <h4 style={{ color: "#007bff", marginBottom: "0.75rem", fontSize: "0.9rem" }}>الإحصائيات الإجمالية</h4>
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.75rem", marginBottom: "1rem" }}>
-                            <div style={{ textAlign: "center", padding: "0.75rem", backgroundColor: "white", borderRadius: "6px" }}>
-                              <div style={{ color: "#666", fontSize: "0.75rem", marginBottom: "0.4rem" }}>الإجمالي الداخلي</div>
-                              <div style={{ fontSize: "1rem", fontWeight: "bold", color: "#007bff" }}>
+                        <div data-month-key={monthKey}>
+                          {/* Statistics Cards */}
+                          <div style={{ 
+                            display: "grid", 
+                            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", 
+                            gap: "1rem",
+                            marginBottom: "1.5rem"
+                          }}>
+                            <div className="branch-card" style={{ cursor: "default" }}>
+                              <div style={{ marginBottom: "0.5rem" }}>
+                                <div style={{ color: "#6B7280", fontSize: "12px", marginBottom: "0.25rem" }}>الإجمالي الداخلي</div>
+                                <div style={{ fontSize: "20px", fontWeight: 600, color: "#5A7ACD" }}>
                                 {totals.internalTotal.toFixed(2)} درهم
                               </div>
                             </div>
-                            <div style={{ textAlign: "center", padding: "0.75rem", backgroundColor: "white", borderRadius: "6px" }}>
-                              <div style={{ color: "#666", fontSize: "0.75rem", marginBottom: "0.4rem" }}>الإجمالي الخارجي</div>
-                              <div style={{ fontSize: "1rem", fontWeight: "bold", color: "#ffc107" }}>
+                            </div>
+                            <div className="branch-card" style={{ cursor: "default" }}>
+                              <div style={{ marginBottom: "0.5rem" }}>
+                                <div style={{ color: "#6B7280", fontSize: "12px", marginBottom: "0.25rem" }}>الإجمالي الخارجي</div>
+                                <div style={{ fontSize: "20px", fontWeight: 600, color: "#FEB05D" }}>
                                 {totals.externalTotal.toFixed(2)} درهم
                               </div>
                             </div>
-                            <div style={{ textAlign: "center", padding: "0.75rem", backgroundColor: "white", borderRadius: "6px" }}>
-                              <div style={{ color: "#666", fontSize: "0.75rem", marginBottom: "0.4rem" }}>إجمالي المصاريف</div>
-                              <div style={{ fontSize: "1rem", fontWeight: "bold", color: "#dc3545" }}>
+                            </div>
+                            <div className="branch-card" style={{ cursor: "default" }}>
+                              <div style={{ marginBottom: "0.5rem" }}>
+                                <div style={{ color: "#6B7280", fontSize: "12px", marginBottom: "0.25rem" }}>إجمالي المصاريف</div>
+                                <div style={{ fontSize: "20px", fontWeight: 600, color: "#DC2626" }}>
                                 {totals.expensesTotal.toFixed(2)} درهم
                               </div>
                             </div>
-                            <div style={{ textAlign: "center", padding: "0.75rem", backgroundColor: "white", borderRadius: "6px" }}>
-                              <div style={{ color: "#666", fontSize: "0.75rem", marginBottom: "0.4rem" }}>الإجمالي الكامل</div>
-                              <div style={{ fontSize: "1rem", fontWeight: "bold", color: "#28a745" }}>
+                            </div>
+                            <div className="branch-card" style={{ cursor: "default" }}>
+                              <div style={{ marginBottom: "0.5rem" }}>
+                                <div style={{ color: "#6B7280", fontSize: "12px", marginBottom: "0.25rem" }}>الإجمالي الكامل</div>
+                                <div style={{ fontSize: "20px", fontWeight: 600, color: "#10B981" }}>
                                 {totals.grandTotal.toFixed(2)} درهم
+                                </div>
                               </div>
                             </div>
                           </div>
 
                           {/* Teacher Statistics */}
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                            <h5 style={{ color: "#007bff", margin: 0, fontSize: "0.85rem" }}>إحصائيات المدرسين</h5>
+                          <div style={{ marginBottom: "1.5rem" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                              <h4 style={{ color: "#2B2A2A", margin: 0, fontSize: "16px", fontWeight: 600 }}>إحصائيات المدرسين</h4>
+                              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
                             <button
+                                  className="btn btn-small"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenMergeModalForMonth(group.sessions);
+                                  }}
+                                  title="دمج أسماء المدرسين في هذا الشهر"
+                                  style={{ backgroundColor: "#10B981", color: "white", border: "none" }}
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M17 3a2.828 2.828 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                                  </svg>
+                                  دمج الأسماء
+                                </button>
+                                <button
+                                  className="btn btn-small primary"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 generateAllTeachersPDF(group, teacherStats, branchGroup.branchName);
                               }}
-                              style={{
-                                padding: "0.35rem 0.7rem",
-                                borderRadius: "6px",
-                                border: "1px solid #28a745",
-                                backgroundColor: "#28a745",
-                                color: "white",
-                                cursor: "pointer",
-                                fontFamily: "Cairo",
-                                fontWeight: "bold",
-                                fontSize: "0.7rem",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "0.3rem"
-                              }}
                               title="تحميل PDF لكل المدرسين"
                             >
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                 <polyline points="7 10 12 15 17 10"></polyline>
                                 <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -1194,79 +1244,66 @@ export default function ReportsPage() {
                               تحميل PDF لكل المدرسين
                             </button>
                           </div>
-                          <div className="table" style={{ gap: "0.25rem" }}>
-                            <div className="row head" style={{ gridTemplateColumns: "1.5fr 1fr 1fr 1fr 0.8fr", fontSize: "0.8rem", padding: "0.5rem" }}>
-                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>اسم المدرس</span>
-                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>عدد الساعات</span>
-                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>الإجمالي</span>
-                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>داخلي/خارجي</span>
-                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>PDF</span>
                             </div>
+                            <div className="table-container">
+                              <table>
+                                <thead>
+                                  <tr>
+                                    <th>اسم المدرس</th>
+                                    <th data-type="number">عدد الساعات</th>
+                                    <th data-type="number">الإجمالي</th>
+                                    <th>داخلي/خارجي</th>
+                                    <th>PDF</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
                             {teacherStats.map((stat, idx) => (
-                              <div key={idx} className="row" style={{ gridTemplateColumns: "1.5fr 1fr 1fr 1fr 0.8fr", fontSize: "0.8rem", padding: "0.5rem" }}>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{stat.teacher_name}</span>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{stat.total_hours.toFixed(2)}</span>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{stat.total_amount.toFixed(2)} درهم</span>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center", color: stat.location === "external" ? "#ffc107" : "#007bff", fontWeight: "bold" }}>
+                                    <tr key={idx}>
+                                      <td>{stat.teacher_name}</td>
+                                      <td data-type="number">{stat.total_hours.toFixed(2)}</td>
+                                      <td data-type="number">{stat.total_amount.toFixed(2)} درهم</td>
+                                      <td>
+                                        <span className={`status ${stat.location === "external" ? "status-pending" : "status-active"}`}>
                                   {stat.location === "external" ? "خارجي" : "داخلي"}
                                 </span>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                      </td>
+                                      <td>
                                   <button
+                                          className="btn btn-small primary"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       const teacherSessions = group.sessions.filter(s => s.teacher_name === stat.teacher_name);
                                       generateTeacherPDF(stat, teacherSessions, group, branchGroup.branchName);
                                     }}
-                                    style={{
-                                      padding: "0.25rem 0.5rem",
-                                      borderRadius: "4px",
-                                      border: "1px solid #007bff",
-                                      backgroundColor: "#007bff",
-                                      color: "white",
-                                      cursor: "pointer",
-                                      fontFamily: "Cairo",
-                                      fontSize: "0.7rem",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: "0.2rem"
-                                    }}
                                     title={`تحميل PDF لـ ${stat.teacher_name}`}
                                   >
-                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                       <polyline points="7 10 12 15 17 10"></polyline>
                                       <line x1="12" y1="15" x2="12" y2="3"></line>
                                     </svg>
                                     PDF
                                   </button>
-                                </span>
-                              </div>
+                                      </td>
+                                    </tr>
                             ))}
+                                </tbody>
+                              </table>
                           </div>
                         </div>
 
                         {/* Add Expense Button */}
-                        <div style={{ marginBottom: "0.75rem" }}>
+                          <div style={{ marginBottom: "1rem" }}>
                           {!showExpenseForm[monthKey] ? (
                             <button
+                                className="btn primary"
                               onClick={() => setShowExpenseForm(prev => ({ ...prev, [monthKey]: true }))}
-                              style={{
-                                padding: "0.4rem 0.8rem",
-                                borderRadius: "6px",
-                                border: "1px solid #28a745",
-                                backgroundColor: "#28a745",
-                                color: "white",
-                                cursor: "pointer",
-                                fontFamily: "Cairo",
-                                fontWeight: "bold",
-                                fontSize: "0.8rem"
-                              }}
                             >
                               + إضافة مصروف إضافي
                             </button>
                           ) : (
-                            <div className="panel" style={{ backgroundColor: "#f8f9fa", padding: "1rem" }}>
-                              <h5 style={{ marginBottom: "0.75rem", fontSize: "0.85rem" }}>إضافة مصروف إضافي</h5>
+                              <div className="panel">
+                                <h5 style={{ marginBottom: "0.75rem", fontSize: "14px", fontWeight: 600 }}>إضافة مصروف إضافي</h5>
                               <form onSubmit={(e) => handleAddExpense(group.year, group.month, e)}>
                                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem", marginBottom: "0.75rem" }}>
                                   <input
@@ -1274,7 +1311,8 @@ export default function ReportsPage() {
                                     placeholder="اسم المدرس"
                                     value={expenseForm.teacher_name}
                                     onChange={(e) => setExpenseForm(prev => ({ ...prev, teacher_name: e.target.value }))}
-                                    style={{ padding: "0.4rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "0.8rem" }}
+                                      className="form-group input"
+                                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
                                   />
                                   <input
                                     type="text"
@@ -1282,7 +1320,8 @@ export default function ReportsPage() {
                                     value={expenseForm.title}
                                     onChange={(e) => setExpenseForm(prev => ({ ...prev, title: e.target.value }))}
                                     required
-                                    style={{ padding: "0.4rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "0.8rem" }}
+                                      className="form-group input"
+                                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
                                   />
                                   <input
                                     type="number"
@@ -1291,13 +1330,15 @@ export default function ReportsPage() {
                                     value={expenseForm.amount}
                                     onChange={(e) => setExpenseForm(prev => ({ ...prev, amount: e.target.value }))}
                                     required
-                                    style={{ padding: "0.4rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "0.8rem" }}
+                                      className="form-group input"
+                                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
                                   />
                                   <select
                                     value={expenseForm.branch_id}
                                     onChange={(e) => setExpenseForm(prev => ({ ...prev, branch_id: parseInt(e.target.value) }))}
                                     required
-                                    style={{ padding: "0.4rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "0.8rem" }}
+                                      className="form-group input"
+                                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
                                   >
                                     <option value="">اختر الفرع</option>
                                     {branches.map(b => (
@@ -1305,38 +1346,16 @@ export default function ReportsPage() {
                                     ))}
                                   </select>
                                 </div>
-                                <div style={{ display: "flex", gap: "0.4rem" }}>
-                                  <button
-                                    type="submit"
-                                    style={{
-                                      padding: "0.4rem 0.8rem",
-                                      borderRadius: "6px",
-                                      border: "1px solid #28a745",
-                                      backgroundColor: "#28a745",
-                                      color: "white",
-                                      cursor: "pointer",
-                                      fontFamily: "Cairo",
-                                      fontWeight: "bold",
-                                      fontSize: "0.8rem"
-                                    }}
-                                  >
+                                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                                    <button type="submit" className="btn primary">
                                     إضافة
                                   </button>
                                   <button
                                     type="button"
+                                      className="btn"
                                     onClick={() => {
                                       setShowExpenseForm(prev => ({ ...prev, [monthKey]: false }));
                                       setExpenseForm({ title: "", amount: "", branch_id: branches[0]?.id || "", teacher_name: "" });
-                                    }}
-                                    style={{
-                                      padding: "0.4rem 0.8rem",
-                                      borderRadius: "6px",
-                                      border: "1px solid #dc3545",
-                                      backgroundColor: "white",
-                                      color: "#dc3545",
-                                      cursor: "pointer",
-                                      fontFamily: "Cairo",
-                                      fontSize: "0.8rem"
                                     }}
                                   >
                                     إلغاء
@@ -1349,113 +1368,113 @@ export default function ReportsPage() {
 
                         {/* Expenses List */}
                         {monthExpenses.length > 0 && (
-                          <div style={{ marginBottom: "1rem" }}>
-                            <h5 style={{ color: "#dc3545", marginBottom: "0.4rem", fontSize: "0.85rem" }}>المصاريف الإضافية ({monthExpenses.length})</h5>
-                            <div className="table" style={{ gap: "0.25rem" }}>
-                              <div className="row head" style={{ gridTemplateColumns: "repeat(4, 1fr)", fontSize: "0.8rem", padding: "0.5rem" }}>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>اسم الفرع</span>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>اسم المدرس</span>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>السبب</span>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>المبلغ</span>
-                              </div>
+                            <div style={{ marginBottom: "1.5rem" }}>
+                              <h4 style={{ color: "#2B2A2A", marginBottom: "0.75rem", fontSize: "16px", fontWeight: 600 }}>
+                                المصاريف الإضافية ({monthExpenses.length})
+                              </h4>
+                              <div className="table-container">
+                                <table>
+                                  <thead>
+                                    <tr>
+                                      <th>اسم الفرع</th>
+                                      <th>اسم المدرس</th>
+                                      <th>السبب</th>
+                                      <th data-type="number">المبلغ</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
                               {monthExpenses.map((expense) => (
-                                <div key={expense.id} className="row" style={{ gridTemplateColumns: "repeat(4, 1fr)", fontSize: "0.8rem", padding: "0.5rem" }}>
-                                  <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{getBranchName(expense.branch_id)}</span>
-                                  <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{expense.teacher_name || "-"}</span>
-                                  <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{expense.title}</span>
-                                  <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", color: "#dc3545" }}>
+                                      <tr key={expense.id}>
+                                        <td>{getBranchName(expense.branch_id)}</td>
+                                        <td>{expense.teacher_name || "-"}</td>
+                                        <td>{expense.title}</td>
+                                        <td data-type="number" style={{ fontWeight: 600, color: "#DC2626" }}>
                                     {parseFloat(expense.amount || 0).toFixed(2)} درهم
-                                  </span>
-                                </div>
+                                        </td>
+                                      </tr>
                               ))}
+                                  </tbody>
+                                </table>
                             </div>
                           </div>
                         )}
 
                         {/* Sessions Table */}
                         <div>
-                          <h5 style={{ color: "#007bff", marginBottom: "0.4rem", fontSize: "0.85rem" }}>الجلسات ({group.sessions.length})</h5>
-                          <div className="table" style={{ gap: "0.25rem" }}>
-                            <div className="row head" style={{ gridTemplateColumns: "0.8fr 1.2fr 1.2fr 1fr 0.9fr 0.9fr 0.8fr 1fr 1fr 1.1fr 0.9fr 0.7fr", fontSize: "0.8rem", padding: "0.5rem" }}>
-                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>الفرع</span>
-                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>المدرس</span>
-                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>الطالب</span>
-                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>تاريخ الجلسة</span>
-                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>من الساعة</span>
-                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>إلى الساعة</span>
-                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>المدة</span>
-                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>رقم العقد</span>
-                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>سعر الساعة</span>
-                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>الإجمالي</span>
-                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>داخلي/خارجي</span>
-                              <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>الإجراءات</span>
-                            </div>
+                            <h4 style={{ color: "#2B2A2A", marginBottom: "0.75rem", fontSize: "16px", fontWeight: 600 }}>
+                              الجلسات ({group.sessions.length})
+                            </h4>
+                            <div className="table-container" style={{ overflowX: "auto" }}>
+                              <table>
+                                <thead>
+                                  <tr>
+                                    <th>الفرع</th>
+                                    <th>المدرس</th>
+                                    <th>الطالب</th>
+                                    <th>تاريخ الجلسة</th>
+                                    <th>من الساعة</th>
+                                    <th>إلى الساعة</th>
+                                    <th>المدة</th>
+                                    <th>رقم العقد</th>
+                                    <th data-type="number">سعر الساعة</th>
+                                    <th data-type="number">الإجمالي</th>
+                                    <th>داخلي/خارجي</th>
+                                    <th>الإجراءات</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
                             {group.sessions.map((session) => (
-                              <div key={session.id} className="row" style={{ gridTemplateColumns: "0.8fr 1.2fr 1.2fr 1fr 0.9fr 0.9fr 0.8fr 1fr 1fr 1.1fr 0.9fr 0.7fr", fontSize: "0.8rem", padding: "0.5rem" }}>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{getBranchName(session.branch_id)}</span>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{session.teacher_name}</span>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{session.student_name}</span>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{session.session_date}</span>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{convertTo12Hour(session.start_time)}</span>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{convertTo12Hour(session.end_time)}</span>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{session.duration_text}</span>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", color: "#007bff" }}>{session.contract_number}</span>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center" }}>{parseFloat(session.hourly_rate || 0).toFixed(2)} درهم</span>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", color: "#28a745" }}>
+                                    <tr key={session.id}>
+                                      <td>{getBranchName(session.branch_id)}</td>
+                                      <td>{session.teacher_name}</td>
+                                      <td>{session.student_name}</td>
+                                      <td>{session.session_date}</td>
+                                      <td>{convertTo12Hour(session.start_time)}</td>
+                                      <td>{convertTo12Hour(session.end_time)}</td>
+                                      <td>{session.duration_text}</td>
+                                      <td style={{ fontWeight: 600, color: "#5A7ACD" }}>{session.contract_number}</td>
+                                      <td data-type="number">{parseFloat(session.hourly_rate || 0).toFixed(2)} درهم</td>
+                                      <td data-type="number" style={{ fontWeight: 600, color: "#10B981" }}>
                                   {parseFloat(session.calculated_amount || 0).toFixed(2)} درهم
-                                </span>
-                                <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center", color: session.location === "external" ? "#ffc107" : "#007bff", fontWeight: "bold" }}>
+                                      </td>
+                                      <td>
+                                        <span className={`status ${session.location === "external" ? "status-pending" : "status-active"}`}>
                                   {session.location === "external" ? "خارجي" : "داخلي"}
                                 </span>
-                                <span style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "0.2rem", gap: "0.15rem" }}>
+                                      </td>
+                                      <td>
+                                        <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
                                   <button 
+                                            className="btn btn-small"
                                     onClick={() => handleEdit(session)}
                                     style={{ 
-                                      padding: "0.3rem",
-                                      backgroundColor: "#ffc107",
+                                              padding: "0.25rem 0.5rem",
+                                              backgroundColor: "#FEB05D",
                                       color: "white",
-                                      border: "none",
-                                      whiteSpace: "nowrap",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      minWidth: "28px",
-                                      height: "28px",
-                                      borderRadius: "4px",
-                                      cursor: "pointer"
+                                              border: "none"
                                     }}
                                     title="تعديل"
                                   >
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                       <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
                                     </svg>
                                   </button>
                                   <button 
+                                            className="btn btn-small btn-danger"
                                     onClick={() => handleDelete(session.id)}
-                                    style={{ 
-                                      padding: "0.3rem", 
-                                      whiteSpace: "nowrap", 
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      minWidth: "28px",
-                                      height: "28px",
-                                      borderRadius: "4px",
-                                      border: "none",
-                                      cursor: "pointer",
-                                      backgroundColor: "#dc3545",
-                                      color: "white"
-                                    }}
                                     title="حذف"
                                   >
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                       <polyline points="3 6 5 6 21 6"></polyline>
                                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                                     </svg>
                                   </button>
-                                </span>
                               </div>
+                                      </td>
+                                    </tr>
                             ))}
+                                </tbody>
+                              </table>
                           </div>
                         </div>
                       </div>
@@ -1466,8 +1485,8 @@ export default function ReportsPage() {
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          );
+        })()}
       </div>
 
       {/* Edit Modal */}
@@ -1569,7 +1588,7 @@ export default function ReportsPage() {
             <form onSubmit={handleMergeTeachers}>
               <div className="modal-body">
                 <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1rem" }}>
-                  اختر الاسم القديم الذي تريد دمجه مع اسم جديد موحد. سيتم تحديث <strong>الجلسات في التقرير المفتوح فقط</strong>.
+                  اختر الاسم القديم الذي تريد دمجه مع اسم جديد موحد. سيتم تحديث <strong>الجلسات في هذا الشهر فقط</strong>.
                 </p>
                 <div style={{ marginBottom: "1rem" }}>
                   <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "bold" }}>
@@ -1637,9 +1656,71 @@ export default function ReportsPage() {
                 <button className="btn" type="button" onClick={() => {
                   setShowMergeModal(false);
                   setMergeForm({ old_name: "", new_name: "" });
+                  setMonthSessionsForMerge([]);
                 }}>إلغاء</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* PDF Generation Progress Modal */}
+      {isGeneratingPDF && (
+        <div className="modal-overlay" style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          zIndex: 10000,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)'
+        }}>
+          <div className="modal-content" style={{ 
+            maxWidth: '400px', 
+            width: '90%',
+            textAlign: 'center',
+            padding: '2rem'
+          }}>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <div style={{
+                width: '60px',
+                height: '60px',
+                margin: '0 auto 1rem',
+                border: '4px solid #E5E7EB',
+                borderTop: '4px solid #5A7ACD',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }}></div>
+              <style>{`
+                @keyframes spin {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+              `}</style>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#2B2A2A', margin: '0 0 0.5rem 0' }}>
+                جاري إنشاء التقرير
+              </h3>
+              <p style={{ fontSize: '0.9rem', color: '#6B7280', margin: 0 }}>
+                {pdfStatus || 'يرجى الانتظار...'}
+              </p>
+            </div>
+            <div style={{ 
+              width: '100%', 
+              height: '8px', 
+              backgroundColor: '#E5E7EB', 
+              borderRadius: '4px',
+              overflow: 'hidden',
+              marginBottom: '0.5rem'
+            }}>
+              <div style={{
+                width: `${pdfProgress}%`,
+                height: '100%',
+                backgroundColor: '#5A7ACD',
+                transition: 'width 0.3s ease',
+                borderRadius: '4px'
+              }}></div>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: '#6B7280', margin: 0, fontWeight: 600 }}>
+              {pdfProgress}%
+            </p>
           </div>
         </div>
       )}

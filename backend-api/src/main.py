@@ -21,11 +21,13 @@ from sqlalchemy import (
     DECIMAL,
     ForeignKey,
     Boolean,
+    Text,
     create_engine,
     func,
+    case,
 )
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Session, relationship, sessionmaker
+from sqlalchemy.orm import Session, relationship, sessionmaker, joinedload
 import os
 from pathlib import Path
 import logging
@@ -200,11 +202,32 @@ class DailySalesReport(Base):
     report_date = Column(Date, nullable=False, index=True)
     sales_amount = Column(DECIMAL(12, 2), nullable=False)
     number_of_deals = Column(Integer, nullable=False, default=0)
+    daily_calls = Column(Integer, nullable=False, default=0)
+    hot_calls = Column(Integer, nullable=False, default=0)
+    walk_ins = Column(Integer, nullable=False, default=0)
+    branch_leads = Column(Integer, nullable=False, default=0)
+    online_leads = Column(Integer, nullable=False, default=0)
+    extra_leads = Column(Integer, nullable=False, default=0)
+    number_of_visits = Column(Integer, nullable=False, default=0)
     notes = Column(String(1000), nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
     branch = relationship("Branch")
     sales_staff = relationship("SalesStaff")
+    visits = relationship("SalesVisit", back_populates="daily_sales_report", cascade="all, delete-orphan")
+
+
+class SalesVisit(Base):
+    __tablename__ = "sales_visits"
+    id = Column(Integer, primary_key=True, index=True)
+    daily_sales_report_id = Column(Integer, ForeignKey("daily_sales_reports.id"), nullable=False, index=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False, index=True)
+    update_details = Column(Text, nullable=True)
+    visit_order = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    daily_sales_report = relationship("DailySalesReport", back_populates="visits")
+    branch = relationship("Branch")
 
 
 # ---------- SCHEMAS ----------
@@ -1142,28 +1165,64 @@ def create_operation_account(
     db: Session = Depends(get_db),
     user: Optional[OperationAccount] = Depends(get_optional_user),
 ):
-    # Require super admin for normal creation
-    if not user or not user.is_super_admin:
+    if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
-    branch = db.query(Branch).filter(Branch.id == payload.branch_id).first()
-    if not branch:
-        raise HTTPException(status_code=404, detail="Branch not found")
-    hashed = hash_password(payload.password)
-    account = OperationAccount(
-        username=payload.username,
-        password_hash=hashed,
-        branch_id=payload.branch_id,
-        is_super_admin=payload.is_super_admin,
-        is_sales_manager=payload.is_sales_manager,
-        is_operation_manager=payload.is_operation_manager,
-        is_branch_account=payload.is_branch_account,
-        is_backdoor=payload.is_backdoor,
-        is_active=payload.is_active,
-    )
-    db.add(account)
-    db.commit()
-    db.refresh(account)
-    return account
+    
+    # Super admin يمكنه إنشاء أي حساب
+    if user.is_super_admin or user.is_backdoor:
+        branch = db.query(Branch).filter(Branch.id == payload.branch_id).first()
+        if not branch:
+            raise HTTPException(status_code=404, detail="Branch not found")
+        hashed = hash_password(payload.password)
+        account = OperationAccount(
+            username=payload.username,
+            password_hash=hashed,
+            branch_id=payload.branch_id,
+            is_super_admin=payload.is_super_admin,
+            is_sales_manager=payload.is_sales_manager,
+            is_operation_manager=payload.is_operation_manager,
+            is_branch_account=payload.is_branch_account,
+            is_backdoor=payload.is_backdoor,
+            is_active=payload.is_active,
+        )
+        db.add(account)
+        db.commit()
+        db.refresh(account)
+        return account
+    
+    # Sales manager يمكنه إنشاء حسابات لفرعه فقط (وليس super admin)
+    if user.is_sales_manager:
+        # التأكد من أن الحساب الجديد لن يكون super admin
+        if payload.is_super_admin:
+            raise HTTPException(status_code=403, detail="Cannot create super admin account")
+        # التأكد من أن الحساب الجديد لن يكون backdoor
+        if payload.is_backdoor:
+            raise HTTPException(status_code=403, detail="Cannot create backdoor account")
+        # التأكد من أن الحساب الجديد في نفس فرع مدير المبيعات
+        if payload.branch_id != user.branch_id:
+            raise HTTPException(status_code=403, detail="Can only create accounts for your branch")
+        
+        branch = db.query(Branch).filter(Branch.id == payload.branch_id).first()
+        if not branch:
+            raise HTTPException(status_code=404, detail="Branch not found")
+        hashed = hash_password(payload.password)
+        account = OperationAccount(
+            username=payload.username,
+            password_hash=hashed,
+            branch_id=payload.branch_id,
+            is_super_admin=False,  # لا يمكن لمدير المبيعات إنشاء super admin
+            is_sales_manager=payload.is_sales_manager,
+            is_operation_manager=payload.is_operation_manager,
+            is_branch_account=payload.is_branch_account,
+            is_backdoor=False,  # لا يمكن لمدير المبيعات إنشاء backdoor
+            is_active=payload.is_active,
+        )
+        db.add(account)
+        db.commit()
+        db.refresh(account)
+        return account
+    
+    raise HTTPException(status_code=403, detail="Access denied")
 
 
 @app.post("/operation-accounts/bootstrap", response_model=OperationAccountOut)
@@ -1197,8 +1256,23 @@ def list_operation_accounts(
     db: Session = Depends(get_db),
     user: OperationAccount = Depends(get_current_user),
 ):
-    require_super_admin(user)
-    return db.query(OperationAccount).order_by(OperationAccount.id).all()
+    # Super admin يمكنه رؤية جميع الحسابات
+    if user.is_super_admin or user.is_backdoor:
+        return db.query(OperationAccount).order_by(OperationAccount.id).all()
+    
+    # Sales manager يمكنه رؤية حسابات فرعه فقط
+    if user.is_sales_manager:
+        return db.query(OperationAccount).filter(
+            OperationAccount.branch_id == user.branch_id
+        ).order_by(OperationAccount.id).all()
+    
+    # Operation manager يمكنه رؤية حسابات فرعه فقط
+    if user.is_operation_manager:
+        return db.query(OperationAccount).filter(
+            OperationAccount.branch_id == user.branch_id
+        ).order_by(OperationAccount.id).all()
+    
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
 
 @app.patch("/operation-accounts/{account_id}", response_model=OperationAccountOut)
@@ -1208,35 +1282,81 @@ def update_operation_account(
     db: Session = Depends(get_db),
     user: OperationAccount = Depends(get_current_user),
 ):
-    require_super_admin(user)
     account = db.query(OperationAccount).filter(OperationAccount.id == account_id).first()
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
     
-    # Check if username is being changed and if it's already taken
-    if payload.username != account.username:
-        existing = db.query(OperationAccount).filter(
-            OperationAccount.username == payload.username,
-            OperationAccount.id != account_id
-        ).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Username already exists")
+    # Super admin يمكنه تعديل أي حساب
+    if user.is_super_admin or user.is_backdoor:
+        # Check if username is being changed and if it's already taken
+        if payload.username != account.username:
+            existing = db.query(OperationAccount).filter(
+                OperationAccount.username == payload.username,
+                OperationAccount.id != account_id
+            ).first()
+            if existing:
+                raise HTTPException(status_code=400, detail="Username already exists")
+        
+        # Update account
+        account.username = payload.username
+        if payload.password is not None and len(payload.password) >= 6:
+            account.password_hash = hash_password(payload.password)
+        account.branch_id = payload.branch_id
+        account.is_super_admin = payload.is_super_admin
+        account.is_sales_manager = payload.is_sales_manager
+        account.is_operation_manager = payload.is_operation_manager
+        account.is_branch_account = payload.is_branch_account
+        account.is_backdoor = payload.is_backdoor
+        account.is_active = payload.is_active
+        
+        db.commit()
+        db.refresh(account)
+        return account
     
-    # Update account
-    account.username = payload.username
-    if payload.password is not None and len(payload.password) >= 6:
-        account.password_hash = hash_password(payload.password)
-    account.branch_id = payload.branch_id
-    account.is_super_admin = payload.is_super_admin
-    account.is_sales_manager = payload.is_sales_manager
-    account.is_operation_manager = payload.is_operation_manager
-    account.is_branch_account = payload.is_branch_account
-    account.is_backdoor = payload.is_backdoor
-    account.is_active = payload.is_active
+    # Sales manager يمكنه تعديل حسابات فرعه فقط
+    if user.is_sales_manager:
+        # التأكد من أن الحساب في نفس فرع مدير المبيعات
+        if account.branch_id != user.branch_id:
+            raise HTTPException(status_code=403, detail="Can only update accounts in your branch")
+        
+        # لا يمكن لمدير المبيعات تعديل super admin أو backdoor
+        if account.is_super_admin or account.is_backdoor:
+            raise HTTPException(status_code=403, detail="Cannot update super admin or backdoor accounts")
+        
+        # لا يمكن لمدير المبيعات جعل الحساب super admin أو backdoor
+        if payload.is_super_admin or payload.is_backdoor:
+            raise HTTPException(status_code=403, detail="Cannot set super admin or backdoor")
+        
+        # التأكد من أن الحساب سيبقى في نفس فرع مدير المبيعات
+        if payload.branch_id != user.branch_id:
+            raise HTTPException(status_code=403, detail="Can only update accounts in your branch")
+        
+        # Check if username is being changed and if it's already taken
+        if payload.username != account.username:
+            existing = db.query(OperationAccount).filter(
+                OperationAccount.username == payload.username,
+                OperationAccount.id != account_id
+            ).first()
+            if existing:
+                raise HTTPException(status_code=400, detail="Username already exists")
+        
+        # Update account (مع قيود)
+        account.username = payload.username
+        if payload.password is not None and len(payload.password) >= 6:
+            account.password_hash = hash_password(payload.password)
+        account.branch_id = payload.branch_id
+        account.is_super_admin = False  # لا يمكن تغييره
+        account.is_sales_manager = payload.is_sales_manager
+        account.is_operation_manager = payload.is_operation_manager
+        account.is_branch_account = payload.is_branch_account
+        account.is_backdoor = False  # لا يمكن تغييره
+        account.is_active = payload.is_active
+        
+        db.commit()
+        db.refresh(account)
+        return account
     
-    db.commit()
-    db.refresh(account)
-    return account
+    raise HTTPException(status_code=403, detail="Access denied")
 
 
 @app.delete("/operation-accounts/{account_id}")
@@ -1245,13 +1365,27 @@ def delete_operation_account(
     db: Session = Depends(get_db),
     user: OperationAccount = Depends(get_current_user),
 ):
-    require_super_admin(user)
     account = db.query(OperationAccount).filter(OperationAccount.id == account_id).first()
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
-    db.delete(account)
-    db.commit()
-    return {"status": "deleted"}
+    
+    # Super admin يمكنه حذف أي حساب
+    if user.is_super_admin or user.is_backdoor:
+        db.delete(account)
+        db.commit()
+        return {"status": "deleted"}
+    
+    # Sales manager يمكنه حذف حسابات فرعه فقط (وليس super admin أو backdoor)
+    if user.is_sales_manager:
+        if account.branch_id != user.branch_id:
+            raise HTTPException(status_code=403, detail="Can only delete accounts in your branch")
+        if account.is_super_admin or account.is_backdoor:
+            raise HTTPException(status_code=403, detail="Cannot delete super admin or backdoor accounts")
+        db.delete(account)
+        db.commit()
+        return {"status": "deleted"}
+    
+    raise HTTPException(status_code=403, detail="Access denied")
 
 
 # Health
@@ -1787,18 +1921,48 @@ class SalesStaffUpdate(BaseModel):
 
 
 # ========== DAILY SALES REPORT SCHEMAS ==========
+class SalesVisitIn(BaseModel):
+    branch_id: int
+    update_details: Optional[str] = None
+    visit_order: int = 1
+
+
+class SalesVisitOut(SalesVisitIn):
+    id: int
+    daily_sales_report_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SalesVisitUpdate(BaseModel):
+    branch_id: Optional[int] = None
+    update_details: Optional[str] = None
+    visit_order: Optional[int] = None
+
+
 class DailySalesReportIn(BaseModel):
     branch_id: int
     sales_staff_id: int
     report_date: date
     sales_amount: condecimal(max_digits=12, decimal_places=2)
     number_of_deals: int = 0
+    daily_calls: int = 0
+    hot_calls: int = 0
+    walk_ins: int = 0
+    branch_leads: int = 0
+    online_leads: int = 0
+    extra_leads: int = 0
+    number_of_visits: int = 0
     notes: Optional[str] = None
+    visits: Optional[List[SalesVisitIn]] = None
 
 
 class DailySalesReportOut(DailySalesReportIn):
     id: int
     created_at: datetime
+    visits: Optional[List[SalesVisitOut]] = []
 
     class Config:
         from_attributes = True
@@ -1807,6 +1971,13 @@ class DailySalesReportOut(DailySalesReportIn):
 class DailySalesReportUpdate(BaseModel):
     sales_amount: Optional[condecimal(max_digits=12, decimal_places=2)] = None
     number_of_deals: Optional[int] = None
+    daily_calls: Optional[int] = None
+    hot_calls: Optional[int] = None
+    walk_ins: Optional[int] = None
+    branch_leads: Optional[int] = None
+    online_leads: Optional[int] = None
+    extra_leads: Optional[int] = None
+    number_of_visits: Optional[int] = None
     notes: Optional[str] = None
 
 
@@ -1921,8 +2092,32 @@ def create_daily_sales_report(
     if staff.branch_id != payload.branch_id:
         raise HTTPException(status_code=400, detail="موظف المبيعات لا ينتمي لهذا الفرع")
     
-    report = DailySalesReport(**payload.dict())
+    # التحقق من عدم وجود تقرير لنفس الموظف في نفس التاريخ
+    existing_report = db.query(DailySalesReport).filter(
+        DailySalesReport.sales_staff_id == payload.sales_staff_id,
+        DailySalesReport.report_date == payload.report_date
+    ).first()
+    if existing_report:
+        raise HTTPException(status_code=400, detail="يوجد تقرير بالفعل لهذا الموظف في نفس التاريخ")
+    
+    # إنشاء التقرير
+    report_data = payload.dict()
+    visits_data = report_data.pop('visits', [])
+    
+    report = DailySalesReport(**report_data)
     db.add(report)
+    db.flush()  # للحصول على ID التقرير
+    
+    # إضافة الزيارات
+    if visits_data:
+        for visit_data in visits_data:
+            assert_branch_access(user, visit_data['branch_id'])
+            visit = SalesVisit(
+                daily_sales_report_id=report.id,
+                **visit_data
+            )
+            db.add(visit)
+    
     db.commit()
     db.refresh(report)
     return report
@@ -1950,7 +2145,17 @@ def list_daily_sales_reports(
     if date_to:
         query = query.filter(DailySalesReport.report_date <= date_to)
     
-    return query.order_by(DailySalesReport.report_date.desc()).all()
+    # ترتيب التقارير: تقارير اليوم أولاً، ثم باقي التقارير حسب التاريخ
+    today = date.today()
+    reports = query.options(joinedload(DailySalesReport.visits)).order_by(
+        case(
+            (DailySalesReport.report_date == today, 0),  # تقارير اليوم تأتي أولاً (0)
+            else_=1  # باقي التقارير تأتي بعدها (1)
+        ).asc(),  # الترتيب تصاعدي: 0 أولاً ثم 1
+        DailySalesReport.report_date.desc(),  # ثم الترتيب حسب التاريخ تنازلياً
+        DailySalesReport.created_at.desc()  # ثم حسب وقت الإنشاء تنازلياً
+    ).all()
+    return reports
 
 
 @app.get("/daily-sales-reports/{report_id}", response_model=DailySalesReportOut)
@@ -1960,7 +2165,7 @@ def get_daily_sales_report(
     user: OperationAccount = Depends(get_current_user),
 ):
     """الحصول على تقرير مبيعات يومي محدد"""
-    report = db.query(DailySalesReport).filter(DailySalesReport.id == report_id).first()
+    report = db.query(DailySalesReport).options(joinedload(DailySalesReport.visits)).filter(DailySalesReport.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="التقرير غير موجود")
     assert_branch_access(user, report.branch_id)
@@ -2006,5 +2211,98 @@ def delete_daily_sales_report(
     db.delete(report)
     db.commit()
     return {"status": "deleted", "message": "تم حذف التقرير بنجاح"}
+
+
+# ========== SALES VISITS ENDPOINTS ==========
+
+@app.post("/sales-visits", response_model=SalesVisitOut)
+def create_sales_visit(
+    payload: SalesVisitIn,
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: OperationAccount = Depends(get_current_user),
+):
+    """إضافة زيارة لتقرير مبيعات يومي"""
+    require_sales_manager(user)
+    report = db.query(DailySalesReport).filter(DailySalesReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="التقرير غير موجود")
+    assert_branch_access(user, report.branch_id)
+    assert_branch_access(user, payload.branch_id)
+    
+    visit = SalesVisit(
+        daily_sales_report_id=report_id,
+        **payload.dict()
+    )
+    db.add(visit)
+    db.commit()
+    db.refresh(visit)
+    return visit
+
+
+@app.get("/sales-visits/{report_id}", response_model=List[SalesVisitOut])
+def get_sales_visits(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: OperationAccount = Depends(get_current_user),
+):
+    """الحصول على زيارات تقرير مبيعات يومي"""
+    report = db.query(DailySalesReport).filter(DailySalesReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="التقرير غير موجود")
+    assert_branch_access(user, report.branch_id)
+    
+    visits = db.query(SalesVisit).filter(
+        SalesVisit.daily_sales_report_id == report_id
+    ).order_by(SalesVisit.visit_order).all()
+    return visits
+
+
+@app.patch("/sales-visits/{visit_id}", response_model=SalesVisitOut)
+def update_sales_visit(
+    visit_id: int,
+    payload: SalesVisitUpdate,
+    db: Session = Depends(get_db),
+    user: OperationAccount = Depends(get_current_user),
+):
+    """تحديث زيارة"""
+    require_sales_manager(user)
+    visit = db.query(SalesVisit).filter(SalesVisit.id == visit_id).first()
+    if not visit:
+        raise HTTPException(status_code=404, detail="الزيارة غير موجودة")
+    
+    report = db.query(DailySalesReport).filter(DailySalesReport.id == visit.daily_sales_report_id).first()
+    assert_branch_access(user, report.branch_id)
+    
+    if payload.branch_id:
+        assert_branch_access(user, payload.branch_id)
+    
+    update_data = payload.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(visit, field, value)
+    
+    db.commit()
+    db.refresh(visit)
+    return visit
+
+
+@app.delete("/sales-visits/{visit_id}")
+def delete_sales_visit(
+    visit_id: int,
+    db: Session = Depends(get_db),
+    user: OperationAccount = Depends(get_current_user),
+):
+    """حذف زيارة"""
+    require_sales_manager(user)
+    visit = db.query(SalesVisit).filter(SalesVisit.id == visit_id).first()
+    if not visit:
+        raise HTTPException(status_code=404, detail="الزيارة غير موجودة")
+    
+    report = db.query(DailySalesReport).filter(DailySalesReport.id == visit.daily_sales_report_id).first()
+    assert_branch_access(user, report.branch_id)
+    
+    db.delete(visit)
+    db.commit()
+    return {"status": "deleted", "message": "تم حذف الزيارة بنجاح"}
 
 
