@@ -137,6 +137,18 @@ if errorlevel 1 (
     if errorlevel 1 (
         echo.
         echo [WARNING] Failed to push to GitHub
+        echo.
+        echo It seems your local project is different from GitHub history.
+        echo commonly happens if you re-initialized the project.
+        echo.
+        set /p FORCE_PUSH="Do you want to FORCE push (Overwrite GitHub with Local)? (Y/N): "
+        if /i "!FORCE_PUSH!"=="Y" (
+             git push -f origin main
+             if not errorlevel 1 goto :success
+        )
+        
+        echo.
+        echo [WARNING] Push failed or cancelled.
         echo Possible reasons:
         echo - Internet connection missing
         echo - Authentication failed
@@ -172,3 +184,4 @@ echo ========================================
 echo.
 timeout /t 3 >nul
 exit /b 0
+
