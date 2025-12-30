@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 chcp 65001 >nul
 cls
 echo ========================================
@@ -57,8 +58,7 @@ echo Detected changes:
 git status --short
 echo.
 
-:: Check for changes (Modified OR Untracked)
-:: git status --porcelain will output something if there are ANY changes (modified, added, untracked)
+:: Check for changes
 for /f %%i in ('git status --porcelain') do set HAS_CHANGES=1
 if not defined HAS_CHANGES (
     echo [INFO] No new changes to save.
