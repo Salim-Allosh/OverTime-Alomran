@@ -1,0 +1,134 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\Models\Course;
+use App\Models\PaymentMethod;
+use App\Models\Expense;
+use App\Models\OperationAccount;
+use Illuminate\Support\Facades\Hash;
+
+class LookupController extends Controller
+{
+    public function courses()
+    {
+        return Course::all();
+    }
+    
+    public function createCourse(Request $request) 
+    {
+        $validated = $request->validate([
+            'name' => 'required|unique:courses,name',
+            'type' => 'nullable|string'
+        ]);
+        
+        return Course::create($validated);
+    }
+    
+    public function updateCourse(Request $request, $id)
+    {
+        $course = Course::findOrFail($id);
+        
+        $validated = $request->validate([
+            'name' => 'required|unique:courses,name,' . $id,
+            'type' => 'nullable|string'
+        ]);
+        
+        $course->update($validated);
+        return $course;
+    }
+    
+    public function deleteCourse($id)
+    {
+        Course::destroy($id);
+        return response()->noContent();
+    }
+
+    public function paymentMethods()
+    {
+        return PaymentMethod::all();
+    }
+
+    public function createPaymentMethod(Request $request) 
+    {
+        $validated = $request->validate([
+            'name' => 'required|unique:payment_methods,name',
+            'discount_percentage' => 'nullable|numeric|min:0|max:100',
+            'is_active' => 'boolean'
+        ]);
+        
+        return PaymentMethod::create($validated);
+    }
+    
+    public function updatePaymentMethod(Request $request, $id)
+    {
+        $method = PaymentMethod::findOrFail($id);
+        
+        $validated = $request->validate([
+            'name' => 'required|unique:payment_methods,name,' . $id,
+            'discount_percentage' => 'nullable|numeric|min:0|max:100',
+            'is_active' => 'boolean'
+        ]);
+        
+        $method->update($validated);
+        return $method;
+    }
+    
+    public function deletePaymentMethod($id)
+    {
+        PaymentMethod::destroy($id);
+        return response()->noContent();
+    }
+
+    public function expenses(Request $request)
+    {
+        $query = Expense::query();
+        if($request->branch_id) $query->where('branch_id', $request->branch_id);
+        return $query->orderBy('created_at', 'desc')->get();
+    }
+
+    public function createExpense(Request $request)
+    {
+        return Expense::create($request->all());
+    }
+
+    public function updateExpense(Request $request, $id)
+    {
+        $expense = Expense::findOrFail($id);
+        $expense->update($request->all());
+        return $expense;
+    }
+
+    public function deleteExpense($id)
+    {
+        Expense::destroy($id);
+        return response()->noContent();
+    }
+
+    // Account Management
+    public function accountsIndex(Request $request)
+    {
+        $user = $request->user();
+        $query = OperationAccount::query();
+        
+        if (!$user->is_super_admin && !$user->is_backdoor) {
+            $query->where('branch_id', $user->branch_id);
+        }
+        
+        return $query->with('branch')->get();
+    }
+    
+    public function createAccount(Request $request)
+    {
+        $data = $request->all();
+        $data['password_hash'] = Hash::make($data['password']);
+        return OperationAccount::create($data);
+    }
+    
+    public function deleteAccount($id)
+    {
+        OperationAccount::destroy($id);
+        return response()->json(['status' => 'deleted']);
+    }
+}
