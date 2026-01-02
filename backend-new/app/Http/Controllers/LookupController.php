@@ -131,4 +131,20 @@ class LookupController extends Controller
         OperationAccount::destroy($id);
         return response()->json(['status' => 'deleted']);
     }
+
+    public function updateAccount(Request $request, $id)
+    {
+        $account = OperationAccount::findOrFail($id);
+        $data = $request->all();
+        
+        if (!empty($data['password'])) {
+            $data['password_hash'] = Hash::make($data['password']);
+        } else {
+            unset($data['password']); // Don't overwrite if empty
+            unset($data['password_hash']);
+        }
+        
+        $account->update($data);
+        return $account;
+    }
 }

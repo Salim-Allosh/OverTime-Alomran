@@ -37,16 +37,16 @@ export const buildComprehensiveMonthlyReportPDF = (
   // pdfmake-rtl handles RTL automatically, so we just clean the text
   const formatArabicText = (text) => {
     if (!text || typeof text !== 'string') return text;
-    
+
     // Trim only leading and trailing spaces, preserve internal spaces
     let trimmedText = text.trim();
-    
+
     // Normalize multiple spaces to single space
     trimmedText = trimmedText.replace(/\s+/g, ' ');
-    
+
     // Remove all parentheses from the text as requested
     trimmedText = trimmedText.replace(/[()]/g, '');
-    
+
     // Return text as is - pdfmake-rtl will handle RTL automatically
     return trimmedText;
   };
@@ -54,9 +54,9 @@ export const buildComprehensiveMonthlyReportPDF = (
   // Helper function to format numbers with commas every 3 digits
   const formatNumber = (num, decimals = 2) => {
     if (typeof num !== 'number' || isNaN(num)) return num;
-    return num.toLocaleString('en-US', { 
-      minimumFractionDigits: decimals, 
-      maximumFractionDigits: decimals 
+    return num.toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
     });
   };
 
@@ -75,7 +75,7 @@ export const buildComprehensiveMonthlyReportPDF = (
     info: {
       title: 'تقرير شامل شهري'
     },
-    footer: function(currentPage, pageCount) {
+    footer: function (currentPage, pageCount) {
       return {
         text: formatArabicText(`صفحة ${currentPage} من ${pageCount}`),
         alignment: 'center',
@@ -125,10 +125,10 @@ export const buildComprehensiveMonthlyReportPDF = (
           width: '*',
           stack: [
             { text: formatArabicText('الإجمالي الكامل'), style: 'statLabel', alignment: 'center' },
-            { 
-              text: `${formatNumber(grandTotal)} ${formatArabicText('درهم')}`, 
-              style: 'statValue', 
-              color: '#DC2626', 
+            {
+              text: `${formatNumber(grandTotal)} ${formatArabicText('درهم')}`,
+              style: 'statValue',
+              color: '#DC2626',
               alignment: 'center',
               bold: true,
               decoration: 'underline'
@@ -199,7 +199,7 @@ export const buildComprehensiveMonthlyReportPDF = (
             { text: formatArabicText('الإجمالي'), style: 'tableHeader', alignment: 'center' }
           ],
           ...branchGroups.map(branchGroup => {
-            const targetMonth = branchGroup.months.find(month => 
+            const targetMonth = branchGroup.months.find(month =>
               month.year === selectedYear && month.month === selectedMonth
             );
             const branchSessions = targetMonth?.sessions || [];
@@ -259,64 +259,53 @@ export const buildComprehensiveMonthlyReportPDF = (
       text: formatArabicText('التوقيعات والتوثيق'),
       style: 'sectionTitle',
       alignment: 'center',
-      margin: [0, 25, 0, 30],
+      margin: [0, 50, 0, 80],
     },
     {
-      columns: [
-        { text: '', width: 80 },
+      stack: [
+        // First row: العمليات, ادارة الفرع
         {
-          width: '*',
-          stack: [
-            // First row: العمليات, ادارة الفرع
+          columns: [
             {
-              columns: [
-                {
-                  width: '*',
-                  stack: [
-                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 180, y2: 0, lineWidth: 1, lineColor: '#9CA3AF' }], margin: [0, 0, 0, 10] },
-                    { text: formatArabicText('العمليات'), style: 'signatureLabel', alignment: 'center' }
-                  ],
-                  margin: [25, 0, 25, 0]
-                },
-                {
-                  width: '*',
-                  stack: [
-                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 180, y2: 0, lineWidth: 1, lineColor: '#9CA3AF' }], margin: [0, 0, 0, 10] },
-                    { text: formatArabicText('ادارة الفرع'), style: 'signatureLabel', alignment: 'center' }
-                  ],
-                  margin: [25, 0, 25, 0]
-                }
+              width: '*',
+              stack: [
+                { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 200, y2: 0, lineWidth: 1.5, lineColor: '#6B7280' }], alignment: 'center', margin: [0, 0, 0, 15] },
+                { text: formatArabicText('العمليات'), style: 'signatureLabel', alignment: 'center' }
               ],
-              margin: [0, 0, 0, 50]
             },
-            // Second row: المحاسبة, الادارة العامة
             {
-              columns: [
-                {
-                  width: '*',
-                  stack: [
-                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 180, y2: 0, lineWidth: 1, lineColor: '#9CA3AF' }], margin: [0, 0, 0, 10] },
-                    { text: formatArabicText('المحاسبة'), style: 'signatureLabel', alignment: 'center' }
-                  ],
-                  margin: [25, 0, 25, 0]
-                },
-                {
-                  width: '*',
-                  stack: [
-                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 180, y2: 0, lineWidth: 1, lineColor: '#9CA3AF' }], margin: [0, 0, 0, 10] },
-                    { text: formatArabicText('الادارة العامة'), style: 'signatureLabel', alignment: 'center' }
-                  ],
-                  margin: [25, 0, 25, 0]
-                }
+              width: '*',
+              stack: [
+                { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 200, y2: 0, lineWidth: 1.5, lineColor: '#6B7280' }], alignment: 'center', margin: [0, 0, 0, 15] },
+                { text: formatArabicText('ادارة الفرع'), style: 'signatureLabel', alignment: 'center' }
               ],
-              margin: [0, 0, 0, 0]
             }
           ],
-          alignment: 'center'
+          columnGap: 40,
+          margin: [40, 0, 40, 80]
         },
-        { text: '', width: 80 }
-      ],
-      margin: [0, 0, 0, 0]
+        // Second row: المحاسبة, الادارة العامة
+        {
+          columns: [
+            {
+              width: '*',
+              stack: [
+                { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 200, y2: 0, lineWidth: 1.5, lineColor: '#6B7280' }], alignment: 'center', margin: [0, 0, 0, 15] },
+                { text: formatArabicText('المحاسبة'), style: 'signatureLabel', alignment: 'center' }
+              ],
+            },
+            {
+              width: '*',
+              stack: [
+                { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 200, y2: 0, lineWidth: 1.5, lineColor: '#6B7280' }], alignment: 'center', margin: [0, 0, 0, 15] },
+                { text: formatArabicText('الادارة العامة'), style: 'signatureLabel', alignment: 'center' }
+              ],
+            }
+          ],
+          columnGap: 40,
+          margin: [40, 0, 40, 0]
+        }
+      ]
     }
   ];
 
@@ -324,13 +313,13 @@ export const buildComprehensiveMonthlyReportPDF = (
 
   // Add branch pages
   branchGroups.forEach((branchGroup) => {
-    const targetMonth = branchGroup.months.find(month => 
+    const targetMonth = branchGroup.months.find(month =>
       month.year === selectedYear && month.month === selectedMonth
     );
-    
+
     const branchSessions = [];
     const seenSessionIds = new Set();
-    
+
     if (targetMonth && targetMonth.sessions) {
       targetMonth.sessions.forEach(session => {
         if (session.id && !seenSessionIds.has(session.id)) {
@@ -339,11 +328,11 @@ export const buildComprehensiveMonthlyReportPDF = (
         }
       });
     }
-    
+
     if (branchSessions.length === 0) {
       return; // Skip this branch if no sessions
     }
-    
+
     const branchMonthKey = `${selectedYear}-${selectedMonth}`;
     const branchExpenses = expenses[branchMonthKey]?.filter(exp => exp.branch_id === branchGroup.branchId) || [];
     const teacherStats = calculateTeacherStats(branchSessions);
@@ -369,10 +358,10 @@ export const buildComprehensiveMonthlyReportPDF = (
             width: '*',
             stack: [
               { text: formatArabicText('الإجمالي الكامل'), style: 'statLabel', alignment: 'center' },
-              { 
-                text: `${formatNumber(branchTotals.grandTotal)} ${formatArabicText('درهم')}`, 
-                style: 'statValue', 
-                color: '#DC2626', 
+              {
+                text: `${formatNumber(branchTotals.grandTotal)} ${formatArabicText('درهم')}`,
+                style: 'statValue',
+                color: '#DC2626',
                 alignment: 'center',
                 bold: true,
                 decoration: 'underline'
@@ -539,13 +528,13 @@ export const buildComprehensiveMonthlyReportPDF = (
     if (branchSessions.length > 0) {
       const sessionsByTeacher = {};
       const seenSessionIdsInGrouping = new Set();
-      
+
       branchSessions.forEach(session => {
         if (session.id && seenSessionIdsInGrouping.has(session.id)) {
           return;
         }
         seenSessionIdsInGrouping.add(session.id);
-        
+
         const teacherName = session.teacher_name || 'غير محدد';
         if (!sessionsByTeacher[teacherName]) {
           sessionsByTeacher[teacherName] = [];
@@ -565,7 +554,7 @@ export const buildComprehensiveMonthlyReportPDF = (
 
       sortedTeachers.forEach((teacherName, teacherIndex) => {
         const teacherSessions = sessionsByTeacher[teacherName];
-        
+
         branchPageContent.push(
           {
             text: formatArabicText(`${teacherName} ${teacherSessions.length} جلسة`),
@@ -575,67 +564,67 @@ export const buildComprehensiveMonthlyReportPDF = (
           },
           {
             table: {
-            headerRows: 1,
-            widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
-            body: [
-              [
-                { text: formatArabicText('الطالب'), style: 'tableHeader', alignment: 'center' },
-                { text: formatArabicText('تاريخ الجلسة'), style: 'tableHeader', alignment: 'center' },
-                { text: formatArabicText('من الساعة'), style: 'tableHeader', alignment: 'center' },
-                { text: formatArabicText('إلى الساعة'), style: 'tableHeader', alignment: 'center' },
-                { text: formatArabicText('المدة'), style: 'tableHeader', alignment: 'center' },
-                { text: formatArabicText('رقم العقد'), style: 'tableHeader', alignment: 'center' },
-                { text: formatArabicText('سعر الساعة'), style: 'tableHeader', alignment: 'center' },
-                { text: formatArabicText('الإجمالي'), style: 'tableHeader', alignment: 'center' },
-                { text: formatArabicText('النوع'), style: 'tableHeader', alignment: 'center' }
-              ],
-              ...teacherSessions.map(session => [
-                { text: formatArabicText(session.student_name), style: 'tableCell', alignment: 'center' },
-                { text: formatArabicText(session.session_date), style: 'tableCell' },
-                { text: formatArabicText(convertTo12Hour(session.start_time)), style: 'tableCell' },
-                { text: formatArabicText(convertTo12Hour(session.end_time)), style: 'tableCell' },
-                { text: formatArabicText(session.duration_text), style: 'tableCell' },
-                { text: formatArabicText(session.contract_number), style: 'tableCell', bold: true, color: '#5A7ACD' },
-                { text: formatNumber(parseFloat(session.hourly_rate || 0)), style: 'tableCell' },
-                { text: formatArabicText(`${formatNumber(parseFloat(session.calculated_amount || 0))} درهم`), style: 'tableCell', bold: true, color: '#10B981' },
-                { text: formatArabicText(session.location === "external" ? "خارجي" : "داخلي"), style: 'tableCell', color: session.location === "external" ? "#FEB05D" : "#5A7ACD", bold: true }
-              ])
-            ]
-          },
-          layout: {
-            hLineWidth: function (i, node) {
-              if (i === 0 || i === node.table.body.length) {
-                return 0.8;
+              headerRows: 1,
+              widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
+              body: [
+                [
+                  { text: formatArabicText('الطالب'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('تاريخ الجلسة'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('من الساعة'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('إلى الساعة'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('المدة'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('رقم العقد'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('سعر الساعة'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('الإجمالي'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('النوع'), style: 'tableHeader', alignment: 'center' }
+                ],
+                ...teacherSessions.map(session => [
+                  { text: formatArabicText(session.student_name), style: 'tableCell', alignment: 'center' },
+                  { text: formatArabicText(session.session_date), style: 'tableCell' },
+                  { text: formatArabicText(convertTo12Hour(session.start_time)), style: 'tableCell' },
+                  { text: formatArabicText(convertTo12Hour(session.end_time)), style: 'tableCell' },
+                  { text: formatArabicText(session.duration_text), style: 'tableCell' },
+                  { text: formatArabicText(session.contract_number), style: 'tableCell', bold: true, color: '#5A7ACD' },
+                  { text: formatNumber(parseFloat(session.hourly_rate || 0)), style: 'tableCell' },
+                  { text: formatArabicText(`${formatNumber(parseFloat(session.calculated_amount || 0))} درهم`), style: 'tableCell', bold: true, color: '#10B981' },
+                  { text: formatArabicText(session.location === "external" ? "خارجي" : "داخلي"), style: 'tableCell', color: session.location === "external" ? "#FEB05D" : "#5A7ACD", bold: true }
+                ])
+              ]
+            },
+            layout: {
+              hLineWidth: function (i, node) {
+                if (i === 0 || i === node.table.body.length) {
+                  return 0.8;
+                }
+                return 0.3;
+              },
+              vLineWidth: function (i, node) {
+                return 0.3;
+              },
+              hLineColor: function (i, node) {
+                if (i === 0 || i === node.table.body.length) {
+                  return '#5A7ACD';
+                }
+                return '#E5E7EB';
+              },
+              vLineColor: function (i, node) {
+                return '#E5E7EB';
+              },
+              paddingLeft: function (i, node) {
+                return 4;
+              },
+              paddingRight: function (i, node) {
+                return 4;
+              },
+              paddingTop: function (i, node) {
+                return 3;
+              },
+              paddingBottom: function (i, node) {
+                return 3;
               }
-              return 0.3;
             },
-            vLineWidth: function (i, node) {
-              return 0.3;
-            },
-            hLineColor: function (i, node) {
-              if (i === 0 || i === node.table.body.length) {
-                return '#5A7ACD';
-              }
-              return '#E5E7EB';
-            },
-            vLineColor: function (i, node) {
-              return '#E5E7EB';
-            },
-            paddingLeft: function (i, node) {
-              return 4;
-            },
-            paddingRight: function (i, node) {
-              return 4;
-            },
-            paddingTop: function (i, node) {
-              return 3;
-            },
-            paddingBottom: function (i, node) {
-              return 3;
-            }
-          },
-          margin: [0, 0, 0, teacherIndex < sortedTeachers.length - 1 ? 12 : 0],
-          pageBreak: 'avoid'
+            margin: [0, 0, 0, teacherIndex < sortedTeachers.length - 1 ? 12 : 0],
+            pageBreak: 'avoid'
           }
         );
       });
@@ -766,9 +755,9 @@ export const buildBranchMonthlyReportPDF = (
   // Helper function to format numbers with commas every 3 digits
   const formatNumber = (num, decimals = 2) => {
     if (typeof num !== 'number' || isNaN(num)) return num;
-    return num.toLocaleString('en-US', { 
-      minimumFractionDigits: decimals, 
-      maximumFractionDigits: decimals 
+    return num.toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
     });
   };
 
@@ -786,7 +775,7 @@ export const buildBranchMonthlyReportPDF = (
     info: {
       title: `تقرير شهري - ${branchName}`
     },
-    footer: function(currentPage, pageCount) {
+    footer: function (currentPage, pageCount) {
       return {
         text: formatArabicText(`صفحة ${currentPage} من ${pageCount}`),
         alignment: 'center',
@@ -839,10 +828,10 @@ export const buildBranchMonthlyReportPDF = (
           width: '*',
           stack: [
             { text: formatArabicText('الإجمالي الكامل'), style: 'statLabel', alignment: 'center' },
-            { 
-              text: `${formatNumber(branchTotals.grandTotal)} ${formatArabicText('درهم')}`, 
-              style: 'statValue', 
-              color: '#DC2626', 
+            {
+              text: `${formatNumber(branchTotals.grandTotal)} ${formatArabicText('درهم')}`,
+              style: 'statValue',
+              color: '#DC2626',
               alignment: 'center',
               bold: true,
               decoration: 'underline'
@@ -1011,13 +1000,13 @@ export const buildBranchMonthlyReportPDF = (
   if (branchSessions.length > 0) {
     const sessionsByTeacher = {};
     const seenSessionIds = new Set();
-    
+
     branchSessions.forEach(session => {
       if (session.id && seenSessionIds.has(session.id)) {
         return;
       }
       seenSessionIds.add(session.id);
-      
+
       const teacherName = session.teacher_name || 'غير محدد';
       if (!sessionsByTeacher[teacherName]) {
         sessionsByTeacher[teacherName] = [];
@@ -1037,7 +1026,7 @@ export const buildBranchMonthlyReportPDF = (
 
     sortedTeachers.forEach((teacherName, teacherIndex) => {
       const teacherSessions = sessionsByTeacher[teacherName];
-      
+
       docDefinition.content.push(
         {
           text: formatArabicText(`${teacherName} ${teacherSessions.length} جلسة`),

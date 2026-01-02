@@ -12,7 +12,7 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
   const submit = async (e) => {
     e.preventDefault();
     try {
-      const res = await apiPost("/auth/login", { username, password });
+      const res = await authService.login(username, password);
       onLogin(res.access_token);
       setUsername("");
       setPassword("");

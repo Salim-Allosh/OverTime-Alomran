@@ -18,23 +18,12 @@ import StatisticsPage from "./pages/StatisticsPage";
 import { apiGet } from "./api";
 
 export default function App() {
-  const [branches, setBranches] = useState([]);
-
-  useEffect(() => {
-    apiGet("/branches", "")
-      .then(setBranches)
-      .catch((err) => {
-        console.error("Error loading branches:", err);
-        setBranches([]);
-      });
-  }, []);
-
   return (
     <NotificationProvider>
       <BrowserRouter>
         <Layout>
           <Routes>
-            <Route path="/" element={<HomePage branches={branches} />} />
+            <Route path="/" element={<HomePage />} />
             <Route path="/branch/:branchId" element={<BranchPage />} />
             <Route path="/drafts" element={<DraftsPage />} />
             <Route path="/reports" element={<ReportsPage />} />

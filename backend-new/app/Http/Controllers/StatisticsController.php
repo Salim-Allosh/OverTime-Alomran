@@ -21,6 +21,11 @@ class StatisticsController extends Controller
         $branchId = $request->input('branch_id');
         $salesStaffId = $request->input('sales_staff_id');
 
+        $user = $request->user();
+        if (!$user->is_super_admin && !$user->is_backdoor) {
+            $branchId = $user->branch_id;
+        }
+
         // --- 1. total_unique_days (Based on Daily Sales Reports) ---
         $uniqueDaysQuery = DailySalesReport::query();
         if ($year) $uniqueDaysQuery->whereYear('report_date', $year);
@@ -41,6 +46,7 @@ class StatisticsController extends Controller
         if ($branchId) $contractsQuery->where('branch_id', $branchId);
         if ($salesStaffId) $contractsQuery->where('sales_staff_id', $salesStaffId);
 
+
         // We can group by branch to give the "branches_comprehensive" array
         // However, we also need to account for payments in this period.
         // Frontend logic uses: total_monthly_contracts, total_contracts_value, total_paid_amount, total_remaining_amount, total_net_amount
@@ -59,36 +65,80 @@ class StatisticsController extends Controller
         
         // Let's use the simple interpretation first: Aggregates of Contracts created in the filter period.
         
-        $branchStats = $contractsQuery->select(
-            'branch_id',
-            DB::raw('COUNT(*) as total_monthly_contracts'),
-            DB::raw('SUM(total_amount) as total_contracts_value'),
-            DB::raw('SUM(payment_amount) as total_initial_paid'),  // Only initial payment stored in contract
-            DB::raw('SUM(remaining_amount) as total_remaining_amount'),
-            DB::raw('SUM(net_amount) as total_net_amount')
-        )->groupBy('branch_id')->get();
+        // We can group by branch to give the "branches_comprehensive" array
+        // Logic Refactoring based on User Request:
+        // 1. Total Contract Value = Sum(total_amount) WHERE contract_type != 'payment'
+        // 2. Total Paid = Sum(payment_amount) (Initial) + Sum(ContractPayment amount)
+        // 3. Total Remaining = Total Contract Value - Total Paid (Approximate, or sum remaining_amount directly)
+        //    * Better: Sum(remaining_amount) from contracts.
+        // 4. Total Net = Sum(net_amount) based on PAYMENTS.
+        //    * Contract has initial net_amount. ContractPayment has net_amount.
+        // 5. Total Fees = Total Paid - Total Net.
 
-        // Now we need to add "Total Paid" correctly. 
-        // If we strictly follow "Contracts created in this period", then "Total Paid" = initial_payment + subsequent_payments_of_these_contracts.
-        // But extracting subsequent payments for THESE specific contracts efficiently?
+        // Step 1: Get base contracts statistics
+        $contractsStats = $contractsQuery->get();
+
+        $branchStats = [];
         
-        // Let's return the initial paid for now + calculate payments separately if needed.
-        // Wait, `Contract` has `payment_amount` (initial).
-        // Let's fetch all relevant contracts and their payments to get exact numbers? No, too heavy.
-        
-        // For now, I will approximate `total_paid_amount` as `total_amount - remaining_amount` (for the contracts in this period).
-        // valid since remaining_amount is updated.
-        
-        $branchesComprehensive = $branchStats->map(function($stat) {
-            return [
-                'branch_id' => $stat->branch_id,
-                'total_monthly_contracts' => $stat->total_monthly_contracts,
-                'total_contracts_value' => $stat->total_contracts_value,
-                'total_paid_amount' => $stat->total_contracts_value - $stat->total_remaining_amount, // Derived
-                'total_remaining_amount' => $stat->total_remaining_amount,
-                'total_net_amount' => $stat->total_net_amount
-            ];
-        });
+        foreach ($contractsStats as $contract) {
+            $bId = $contract->branch_id;
+            if (!isset($branchStats[$bId])) {
+                $branchStats[$bId] = [
+                    'branch_id' => $bId,
+                    'total_monthly_contracts' => 0,
+                    'total_contracts_value' => 0,
+                    'total_paid_amount' => 0,
+                    'total_remaining_amount' => 0,
+                    'total_net_amount' => 0,
+                    'total_fees' => 0
+                ];
+            }
+
+            // 1. Total Contracts Value: Exclude 'payment' type (if exists) from "Sales Value"
+            // Assuming 'payment' type or similar indicates a standalone payment record not a new sale.
+            // If contract_type is 'payment', we skip adding to total_contracts_value, but we might count it in payments?
+            // User said: "if contract type is payment do not count value again in total".
+            if ($contract->contract_type !== 'payment') {
+                $branchStats[$bId]['total_monthly_contracts']++;
+                $branchStats[$bId]['total_contracts_value'] += $contract->total_amount;
+                $branchStats[$bId]['total_remaining_amount'] += $contract->remaining_amount; // Remaining is usually attached to the main contract
+            }
+
+            // 2. Total Paid & Net
+            // Logic Fix: Avoid double counting. 
+            // The ContractPayment table ("payments" relation) is the ledger.
+            // We sum strictly from the related payments.
+            
+            $paymentsSum = 0;
+            $netSum = 0;
+            
+            foreach ($contract->payments as $payment) {
+                $paymentsSum += $payment->payment_amount;
+                $netSum += $payment->net_amount;
+            }
+
+            // Fallback: If no payment records exist but the contract has a recorded `payment_amount` (Migration/Legacy case),
+            // and we haven't counted anything yet, we might consider adding it.
+            // However, based on "Systematic Data", we expect payment records.
+            // To be safe against double counting: If we found payments, we trust the payments sum.
+            // If we found NO payments, but contract says it has paid amount?
+            if ($contractsStats->isEmpty() && $contract->payment_amount > 0) {
+                 // decide whether to trust contract header. 
+                 // For now, let's rely on the ledger (ContractPayment). 
+                 // If the seeded data has payment records, this loop works.
+            }
+
+            $branchStats[$bId]['total_paid_amount'] += $paymentsSum;
+            $branchStats[$bId]['total_net_amount'] += $netSum;
+        }
+
+        // Calculate Fees: Paid - Net
+        foreach ($branchStats as &$stat) {
+            $stat['total_fees'] = $stat['total_paid_amount'] - $stat['total_net_amount'];
+        }
+        unset($stat); // CRITICAL: Sever reference to prevent overwriting in later loops
+
+        $branchesComprehensive = array_values($branchStats);
 
 
         // --- 3. daily_reports_details ---
@@ -103,6 +153,7 @@ class StatisticsController extends Controller
             DB::raw('SUM(hot_calls) as total_hot_calls'),
             DB::raw('SUM(branch_leads) as total_branch_leads'),
             DB::raw('SUM(online_leads) as total_online_leads'),
+            DB::raw('SUM(extra_leads) as total_extra_leads'),
             DB::raw('SUM(number_of_visits) as total_visits')
         )->first();
         
@@ -121,6 +172,7 @@ class StatisticsController extends Controller
             'total_hot_calls' => (int)$dailyStats->total_hot_calls,
             'total_branch_leads' => (int)$dailyStats->total_branch_leads,
             'total_online_leads' => (int)$dailyStats->total_online_leads,
+            'total_extra_leads' => (int)$dailyStats->total_extra_leads,
             'total_visits' => (int)$dailyStats->total_visits,
             'total_discounted' => $discountValue
         ];
@@ -310,6 +362,31 @@ class StatisticsController extends Controller
              ];
         }
 
+        // --- 8. visits_details ---
+        $visitsQuery = DailySalesReport::with(['visits', 'salesStaff', 'branch']);
+        if ($year) $visitsQuery->whereYear('report_date', $year);
+        if ($month) $visitsQuery->whereMonth('report_date', $month);
+        if ($branchId) $visitsQuery->where('branch_id', $branchId);
+        if ($salesStaffId) $visitsQuery->where('sales_staff_id', $salesStaffId);
+
+        $reportsWithVisits = $visitsQuery->get();
+        $visitsDetails = [];
+
+        foreach ($reportsWithVisits as $report) {
+            foreach ($report->visits as $visit) {
+                $visitsDetails[] = [
+                    'date' => $report->report_date,
+                    'sales_staff_name' => $report->salesStaff->name ?? '',
+                    'branch_name' => $report->branch->name ?? '',
+                    'customer_name' => $visit->customer_name ?? 'N/A', // Assuming visits have customer_name or we use update_details
+                    'details' => $visit->update_details ?? '-',
+                    'visit_time' => $visit->visit_time ?? '-'
+                ];
+            }
+        }
+
+        \Illuminate\Support\Facades\Log::info('Final Branch Stats:', $branchesComprehensive);
+
         return response()->json([
             'total_unique_days' => $totalUniqueDays,
             'branches_comprehensive' => $branchesComprehensive,
@@ -317,7 +394,8 @@ class StatisticsController extends Controller
             'payment_methods_details' => $paymentMethodsDetails,
             'sales_staff_details' => $salesStaffDetails,
             'incomplete_payment_contracts' => $incompleteContracts,
-            'course_registration_details' => $courseDetails
+            'course_registration_details' => $courseDetails,
+            'visits_details' => $visitsDetails
         ]);
     }
 }

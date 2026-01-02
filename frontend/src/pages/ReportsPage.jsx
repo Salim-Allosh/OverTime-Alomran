@@ -16,12 +16,12 @@ const monthNames = {
 // Convert 24-hour time to 12-hour format with AM/PM
 function convertTo12Hour(time24) {
   if (!time24 || time24 === "-") return "-";
-  
+
   try {
     const [hours, minutes] = time24.split(":");
     const hour = parseInt(hours, 10);
     const min = minutes || "00";
-    
+
     if (hour === 0) {
       return `12:${min} صباحاً`;
     } else if (hour === 12) {
@@ -142,11 +142,11 @@ export default function ReportsPage() {
   // Load expenses for all months
   useEffect(() => {
     if (!token || sessions.length === 0) return;
-    
+
     const loadExpenses = async () => {
       const branchGroups = groupSessionsByBranchAndMonth(sessions);
       const expensesData = {};
-      
+
       for (const branchGroup of branchGroups) {
         for (const group of branchGroup.months) {
           const monthKey = `${group.year}-${group.month}`;
@@ -161,10 +161,10 @@ export default function ReportsPage() {
           }
         }
       }
-      
+
       setExpenses(expensesData);
     };
-    
+
     loadExpenses();
   }, [sessions, token]);
 
@@ -177,11 +177,11 @@ export default function ReportsPage() {
       console.log("[Reports] Loaded sessions:", data);
       const sessionsData = Array.isArray(data) ? data : [];
       setSessions(sessionsData);
-      
+
       // Load teacher names from the loaded sessions
       const uniqueNames = [...new Set(sessionsData.map(s => s.teacher_name))].sort();
       setTeacherNames(uniqueNames);
-      
+
       // Auto-expand current month
       if (sessionsData.length > 0) {
         const now = new Date();
@@ -203,12 +203,12 @@ export default function ReportsPage() {
     if (!selectedYear && !selectedMonth) {
       return sessions;
     }
-    
+
     return sessions.filter(session => {
       const createdDate = new Date(session.created_at);
       const year = createdDate.getFullYear();
       const month = createdDate.getMonth() + 1;
-      
+
       if (selectedYear && selectedMonth) {
         return year === selectedYear && month === selectedMonth;
       } else if (selectedYear) {
@@ -224,7 +224,7 @@ export default function ReportsPage() {
   const getAvailableYearsAndMonths = (sessions) => {
     const yearsSet = new Set();
     const monthsSet = new Set();
-    
+
     sessions.forEach(session => {
       const createdDate = new Date(session.created_at);
       const year = createdDate.getFullYear();
@@ -232,7 +232,7 @@ export default function ReportsPage() {
       yearsSet.add(year);
       monthsSet.add(month);
     });
-    
+
     return {
       years: Array.from(yearsSet).sort((a, b) => b - a), // من الأحدث للأقدم
       months: Array.from(monthsSet).sort((a, b) => a - b) // من 1 إلى 12
@@ -243,24 +243,24 @@ export default function ReportsPage() {
   const groupSessionsByBranchAndMonth = (sessions) => {
     const grouped = {}; // { branchId: { "2025-1": { year, month, sessions } } }
     const seenSessionIds = new Set(); // Track seen session IDs to avoid duplicates
-    
+
     sessions.forEach(session => {
       // Skip if session ID is already seen
       if (session.id && seenSessionIds.has(session.id)) {
         return;
       }
       seenSessionIds.add(session.id);
-      
+
       const branchId = session.branch_id;
       if (!grouped[branchId]) {
         grouped[branchId] = {};
       }
-      
+
       const createdDate = new Date(session.created_at);
       const year = createdDate.getFullYear();
       const month = createdDate.getMonth() + 1;
       const key = `${year}-${month}`;
-      
+
       if (!grouped[branchId][key]) {
         grouped[branchId][key] = {
           year,
@@ -270,14 +270,14 @@ export default function ReportsPage() {
           seenSessionIds: new Set() // Track session IDs in this month
         };
       }
-      
+
       // Only add session if not already in this month
       if (!grouped[branchId][key].seenSessionIds.has(session.id)) {
         grouped[branchId][key].seenSessionIds.add(session.id);
-      grouped[branchId][key].sessions.push(session);
+        grouped[branchId][key].sessions.push(session);
       }
     });
-    
+
     // Convert to array format: [{ branchId, branchName, months: [...] }]
     return Object.entries(grouped).map(([branchId, months]) => {
       const branch = branches.find(b => b.id === parseInt(branchId));
@@ -285,7 +285,7 @@ export default function ReportsPage() {
         if (a.year !== b.year) return b.year - a.year;
         return b.month - a.month;
       });
-      
+
       // Remove duplicate months (same year and month) - keep only the first one
       const uniqueMonths = [];
       const seenMonthKeys = new Set();
@@ -296,7 +296,7 @@ export default function ReportsPage() {
           uniqueMonths.push(month);
         }
       });
-      
+
       return {
         branchId: parseInt(branchId),
         branchName: branch ? branch.name : `فرع ${branchId}`,
@@ -308,7 +308,7 @@ export default function ReportsPage() {
   // Calculate teacher statistics
   const calculateTeacherStats = (sessions) => {
     const stats = {};
-    
+
     sessions.forEach(session => {
       const teacher = session.teacher_name;
       if (!stats[teacher]) {
@@ -318,11 +318,11 @@ export default function ReportsPage() {
           location: session.location || "internal"
         };
       }
-      
+
       stats[teacher].total_hours += parseFloat(session.duration_hours || 0);
       stats[teacher].total_amount += parseFloat(session.calculated_amount || 0);
     });
-    
+
     return Object.entries(stats).map(([teacher, data]) => ({
       teacher_name: teacher,
       ...data
@@ -333,7 +333,7 @@ export default function ReportsPage() {
   const calculateTotals = (sessions, monthExpenses) => {
     let internalTotal = 0;
     let externalTotal = 0;
-    
+
     sessions.forEach(session => {
       const amount = parseFloat(session.calculated_amount || 0);
       if (session.location === "external") {
@@ -342,10 +342,10 @@ export default function ReportsPage() {
         internalTotal += amount;
       }
     });
-    
+
     const expensesTotal = monthExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount || 0), 0);
     const grandTotal = internalTotal + externalTotal + expensesTotal;
-    
+
     return {
       internalTotal,
       externalTotal,
@@ -367,23 +367,24 @@ export default function ReportsPage() {
     });
   };
 
-  const handleAddExpense = async (year, month, e) => {
+  const handleAddExpense = async (year, month, branchId, e) => {
     e.preventDefault();
     const key = `${year}-${month}`;
-    
+
     try {
       const expense = await apiPost("/expenses", {
         ...expenseForm,
         month,
-        year
+        year,
+        branch_id: branchId
       }, token);
-      
+
       setExpenses(prev => ({
         ...prev,
         [key]: [...(prev[key] || []), expense]
       }));
-      
-      setExpenseForm({ title: "", amount: "", branch_id: branches[0]?.id || "", teacher_name: "" });
+
+      setExpenseForm({ title: "", amount: "", branch_id: "", teacher_name: "" });
       setShowExpenseForm(prev => ({ ...prev, [key]: false }));
     } catch (err) {
       showError("حدث خطأ أثناء إضافة المصروف: " + err.message);
@@ -415,7 +416,7 @@ export default function ReportsPage() {
   const handleUpdate = async (e) => {
     e.preventDefault();
     if (!editingSession) return;
-    
+
     try {
       await apiPatch(`/sessions/${editingSession.id}`, editForm, token);
       success("تم تحديث الجلسة بنجاح!");
@@ -448,22 +449,22 @@ export default function ReportsPage() {
       showError("يرجى اختيار الاسم القديم والاسم الجديد");
       return;
     }
-    
+
     if (mergeForm.old_name === mergeForm.new_name) {
       showError("الاسم القديم والاسم الجديد لا يمكن أن يكونا متطابقين");
       return;
     }
-    
+
     // Get session IDs from month sessions for merge
     const sessionIds = monthSessionsForMerge
       .filter(session => session.teacher_name === mergeForm.old_name)
       .map(session => session.id);
-    
+
     if (sessionIds.length === 0) {
       showError(`لا توجد جلسات في هذا الشهر تحتوي على الاسم "${mergeForm.old_name}"`);
       return;
     }
-    
+
     confirm(
       `هل أنت متأكد من دمج "${mergeForm.old_name}" مع "${mergeForm.new_name}"؟ سيتم تحديث ${sessionIds.length} جلسة في هذا الشهر فقط.`,
       async () => {
@@ -497,7 +498,7 @@ export default function ReportsPage() {
     setIsGeneratingPDF(true);
     setPdfProgress(0);
     setPdfStatus('جاري تحضير التقارير...');
-    
+
     // Generate PDF for each teacher sequentially
     const totalTeachers = teacherStats.length;
     for (let i = 0; i < teacherStats.length; i++) {
@@ -506,19 +507,19 @@ export default function ReportsPage() {
       if (teacherSessions.length > 0) {
         setPdfProgress(Math.round((i / totalTeachers) * 80));
         setPdfStatus(`جاري إنشاء تقرير ${i + 1} من ${totalTeachers}: ${stat.teacher_name}`);
-        
+
         // Call generateTeacherPDF without showing modal (we handle it here)
         await generateTeacherPDFInternal(stat, teacherSessions, group, branchName, false);
-        
+
         // Small delay between downloads to avoid browser blocking
         await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
-    
+
     setPdfProgress(100);
     setPdfStatus('تم التحميل بنجاح!');
     success(`تم تحميل ${teacherStats.length} ملف PDF للمدرسين`);
-    
+
     // Close modal after 1 second
     setTimeout(() => {
       setIsGeneratingPDF(false);
@@ -533,7 +534,7 @@ export default function ReportsPage() {
       setPdfProgress(0);
       setPdfStatus('جاري إعداد التقرير...');
     }
-    
+
     // Create a temporary container for the teacher's report
     const printContent = document.createElement('div');
     printContent.style.position = 'absolute';
@@ -545,7 +546,7 @@ export default function ReportsPage() {
     printContent.style.fontFamily = 'Cairo, Arial, sans-serif';
     printContent.style.direction = 'rtl';
     printContent.style.textAlign = 'right';
-    
+
     // Add title header
     const titleDiv = document.createElement('div');
     titleDiv.style.textAlign = 'center';
@@ -557,7 +558,7 @@ export default function ReportsPage() {
       <h2 style="font-size: 14px; font-weight: bold; margin: 0; color: #333;">${branchName} - ${teacherStat.teacher_name} - ${group.monthName} ${group.year}</h2>
     `;
     printContent.appendChild(titleDiv);
-    
+
     // Teacher Statistics Summary
     const statsDiv = document.createElement('div');
     statsDiv.style.marginBottom = '15px';
@@ -581,7 +582,7 @@ export default function ReportsPage() {
       </div>
     `;
     printContent.appendChild(statsDiv);
-    
+
     // Sessions Table
     const sessionsTable = document.createElement('div');
     sessionsTable.style.marginBottom = '15px';
@@ -617,23 +618,23 @@ export default function ReportsPage() {
       </div>
     `;
     printContent.appendChild(sessionsTable);
-    
+
     document.body.appendChild(printContent);
-    
+
     if (showModal) {
       setPdfProgress(20);
       setPdfStatus('جاري تحضير المحتوى...');
     }
-    
+
     // Wait for content to render
     await new Promise(resolve => setTimeout(resolve, 500));
-    
+
     try {
       if (showModal) {
         setPdfProgress(40);
         setPdfStatus('جاري تحويل المحتوى إلى صورة...');
       }
-      
+
       // Convert to canvas
       const canvas = await html2canvas(printContent, {
         scale: 2,
@@ -643,31 +644,31 @@ export default function ReportsPage() {
         allowTaint: false,
         letterRendering: true
       });
-      
+
       // Calculate PDF dimensions
       const imgWidth = 210; // A4 width in mm
       const pageHeight = 297; // A4 height in mm
       const topMargin = 10; // Top margin for new pages in mm
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       let heightLeft = imgHeight;
-      
+
       if (showModal) {
         setPdfProgress(60);
         setPdfStatus('جاري إنشاء ملف PDF...');
       }
-      
+
       // Create PDF
       const pdf = new jsPDF('p', 'mm', 'a4');
       let position = 0;
-      
+
       // Add first page
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
-      
+
       if (showModal) {
         setPdfProgress(75);
       }
-      
+
       // Add additional pages if needed with top margin
       while (heightLeft > 0) {
         position = heightLeft - imgHeight - topMargin; // Add top margin for new pages
@@ -675,20 +676,20 @@ export default function ReportsPage() {
         pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
         heightLeft -= (pageHeight - topMargin); // Account for margin in remaining height
       }
-      
+
       if (showModal) {
         setPdfProgress(90);
         setPdfStatus('جاري حفظ الملف...');
       }
-      
+
       // Save PDF with teacher name and month
       const fileName = `تقرير_${teacherStat.teacher_name.replace(/\s/g, "_")}_${group.monthName}_${group.year}.pdf`;
       pdf.save(fileName);
-      
+
       if (showModal) {
         setPdfProgress(100);
         setPdfStatus('تم التحميل بنجاح!');
-        
+
         // Close modal after 1 second
         setTimeout(() => {
           setIsGeneratingPDF(false);
@@ -696,7 +697,7 @@ export default function ReportsPage() {
           setPdfStatus('');
         }, 1000);
       }
-      
+
       console.log('Teacher PDF generated successfully');
     } catch (err) {
       console.error('Error generating teacher PDF:', err);
@@ -723,7 +724,7 @@ export default function ReportsPage() {
       showError("يرجى تحديد السنة والشهر أولاً");
       return;
     }
-    
+
     setIsGeneratingPDF(true);
     setPdfProgress(0);
     setPdfStatus('جاري إعداد التقرير الشامل...');
@@ -752,12 +753,12 @@ export default function ReportsPage() {
           bolditalics: 'Cairo-Bold.ttf'
         }
       };
-      
+
       // pdfmake-rtl has built-in RTL support, no need for additional setup
 
       // Get all sessions for the selected month and year
       const filteredSessions = filterSessionsByYearAndMonth(sessions);
-    
+
       // Remove duplicates from sessions before processing
       const uniqueMonthSessions = [];
       const seenSessionIds = new Set();
@@ -767,7 +768,7 @@ export default function ReportsPage() {
           uniqueMonthSessions.push(session);
         }
       });
-      
+
       if (uniqueMonthSessions.length === 0) {
         showError("لا توجد جلسات في الشهر والسنة المحددين");
         setIsGeneratingPDF(false);
@@ -775,35 +776,35 @@ export default function ReportsPage() {
         setPdfStatus('');
         return;
       }
-      
+
       setPdfProgress(10);
 
       // Group sessions by branch
       const allBranchGroups = groupSessionsByBranchAndMonth(uniqueMonthSessions);
-      
+
       // Filter branch groups to only include those with sessions in the selected month
       // and remove duplicate branches
       const branchGroups = [];
       const seenBranchIds = new Set();
       allBranchGroups.forEach(branchGroup => {
         // Check if this branch has sessions in the selected month
-        const hasSessionsInMonth = branchGroup.months.some(month => 
+        const hasSessionsInMonth = branchGroup.months.some(month =>
           month.year === selectedYear && month.month === selectedMonth && month.sessions.length > 0
         );
-        
+
         // Only add if has sessions and not already seen
         if (hasSessionsInMonth && !seenBranchIds.has(branchGroup.branchId)) {
           seenBranchIds.add(branchGroup.branchId);
           branchGroups.push(branchGroup);
         }
       });
-      
+
       const monthKey = `${selectedYear}-${selectedMonth}`;
       const monthName = monthNames[selectedMonth];
 
       // Get expenses for the month
       const monthExpenses = expenses[monthKey] || [];
-      
+
       // Calculate overall statistics
       let totalInternal = 0;
       let totalExternal = 0;
@@ -817,39 +818,70 @@ export default function ReportsPage() {
         totalHours += parseFloat(session.duration_hours || 0);
         if (session.location === "external") {
           totalExternal += amount;
-          } else {
+        } else {
           totalInternal += amount;
         }
       });
 
-        const grandTotal = totalInternal + totalExternal + totalExpenses;
+      const grandTotal = totalInternal + totalExternal + totalExpenses;
 
       setPdfProgress(20);
       setPdfStatus('جاري بناء محتوى التقرير...');
-      
-      // Build PDF document definition using pdfmake
-      const docDefinition = buildComprehensiveMonthlyReportPDF(
-        uniqueMonthSessions,
-        branchGroups,
-        selectedYear,
-        selectedMonth,
-        monthName,
-        monthExpenses,
-        expenses,
-        calculateTeacherStats,
-        calculateTotals,
-        convertTo12Hour
-      );
+
+      let docDefinition;
+
+      // Special handling for Operation Managers:
+      // They should see the "Branch Report" layout even when clicking "Comprehensive".
+      // This gives them the detailed view for their single branch instead of a summary table.
+      if (userInfo && userInfo.is_operation_manager && !userInfo.is_super_admin && !userInfo.is_backdoor) {
+        if (branchGroups.length === 0) {
+          throw new Error("لا توجد بيانات للفرع الحالي");
+        }
+
+        const branchGroup = branchGroups[0];
+        // Find the specific month data within the branch group
+        const monthGroup = branchGroup.months.find(m => m.year === selectedYear && m.month === selectedMonth);
+
+        if (!monthGroup) {
+          throw new Error("لا توجد بيانات لهذا الشهر");
+        }
+
+        docDefinition = buildBranchMonthlyReportPDF(
+          monthGroup.sessions,
+          branchGroup.branchName,
+          selectedYear,
+          selectedMonth,
+          monthName,
+          monthExpenses,
+          calculateTeacherStats,
+          calculateTotals,
+          convertTo12Hour
+        );
+      } else {
+        // Standard Comprehensive Report (Multi-Branch Summary) for Admins
+        docDefinition = buildComprehensiveMonthlyReportPDF(
+          uniqueMonthSessions,
+          branchGroups,
+          selectedYear,
+          selectedMonth,
+          monthName,
+          monthExpenses,
+          expenses,
+          calculateTeacherStats,
+          calculateTotals,
+          convertTo12Hour
+        );
+      }
 
       setPdfProgress(50);
       setPdfStatus('جاري إنشاء ملف PDF...');
-    
+
       // Generate and download PDF
       const pdfDoc = pdfMake.createPdf(docDefinition);
-      
+
       setPdfProgress(80);
       setPdfStatus('جاري حفظ الملف...');
-    
+
       const fileName = `تقرير_شامل_${monthName}_${selectedYear}.pdf`;
       pdfDoc.download(fileName);
 
@@ -857,7 +889,7 @@ export default function ReportsPage() {
       setPdfStatus('تم التحميل بنجاح!');
 
       console.log('Comprehensive monthly report generated successfully');
-    
+
       // Close modal after 1 second
       setTimeout(() => {
         setIsGeneratingPDF(false);
@@ -870,7 +902,7 @@ export default function ReportsPage() {
       setIsGeneratingPDF(false);
       setPdfProgress(0);
       setPdfStatus('');
-          }
+    }
   };
 
   const generatePDF = async (group, monthExpenses, teacherStats, totals, branchName) => {
@@ -900,12 +932,12 @@ export default function ReportsPage() {
           bold: 'Cairo-Bold.ttf',
           italics: 'Cairo-Regular.ttf',
           bolditalics: 'Cairo-Bold.ttf'
-      }
+        }
       };
-    
+
       setPdfProgress(10);
       setPdfStatus('جاري بناء محتوى التقرير...');
-    
+
       // Build PDF document definition using pdfmake
       const docDefinition = buildBranchMonthlyReportPDF(
         group.sessions,
@@ -921,10 +953,10 @@ export default function ReportsPage() {
 
       setPdfProgress(50);
       setPdfStatus('جاري إنشاء ملف PDF...');
-      
+
       // Generate and download PDF
       const pdfDoc = pdfMake.createPdf(docDefinition);
-      
+
       setPdfProgress(80);
       setPdfStatus('جاري حفظ الملف...');
 
@@ -933,9 +965,9 @@ export default function ReportsPage() {
 
       setPdfProgress(100);
       setPdfStatus('تم التحميل بنجاح!');
-      
+
       console.log('Branch monthly report generated successfully');
-      
+
       // Close modal after 1 second
       setTimeout(() => {
         setIsGeneratingPDF(false);
@@ -948,7 +980,7 @@ export default function ReportsPage() {
       setIsGeneratingPDF(false);
       setPdfProgress(0);
       setPdfStatus('');
-      }
+    }
   };
 
   if (!token) {
@@ -965,9 +997,9 @@ export default function ReportsPage() {
 
   // منع مدير المبيعات من الوصول إلى هذه الصفحة
   if (userInfo && userInfo.is_sales_manager && !userInfo.is_backdoor) {
-  return (
-    <>
-      <div className="container">
+    return (
+      <>
+        <div className="container">
           <div className="panel" style={{ textAlign: "center", padding: "2rem" }}>
             <p style={{ color: "#666", fontSize: "0.9rem" }}>ليس لديك صلاحيات للوصول إلى هذه الصفحة</p>
           </div>
@@ -979,36 +1011,36 @@ export default function ReportsPage() {
   return (
     <>
       <div className="container">
-          {loading && (
+        {loading && (
           <div className="panel" style={{ textAlign: "center", padding: "3rem" }}>
             <p style={{ color: "#6B7280", fontSize: "14px" }}>جاري التحميل...</p>
-            </div>
-          )}
+          </div>
+        )}
 
-          {error && !loading && (
+        {error && !loading && (
           <div className="alert alert-error">
             <p style={{ margin: "0 0 0.75rem 0" }}>
-                <strong>خطأ:</strong> {error}
-              </p>
+              <strong>خطأ:</strong> {error}
+            </p>
             <button className="btn" onClick={loadSessions}>
-                إعادة المحاولة
-              </button>
-            </div>
-          )}
+              إعادة المحاولة
+            </button>
+          </div>
+        )}
 
-          {!loading && !error && sessions.length === 0 && (
+        {!loading && !error && sessions.length === 0 && (
           <div className="panel" style={{ textAlign: "center", padding: "3rem" }}>
             <p style={{ color: "#6B7280", fontSize: "14px" }}>
-                لا توجد جلسات موافق عليها للعرض
-              </p>
-            </div>
-          )}
+              لا توجد جلسات موافق عليها للعرض
+            </p>
+          </div>
+        )}
 
         {!loading && !error && (() => {
           const filteredSessions = filterSessionsByYearAndMonth(sessions);
           const { years, months } = getAvailableYearsAndMonths(sessions);
           const filteredBranchGroups = groupSessionsByBranchAndMonth(filteredSessions);
-          
+
           if (filteredBranchGroups.length === 0) {
             return (
               <div className="panel" style={{ textAlign: "center", padding: "3rem" }}>
@@ -1018,7 +1050,7 @@ export default function ReportsPage() {
               </div>
             );
           }
-          
+
           return (
             <div>
               {/* Header Controls */}
@@ -1066,7 +1098,7 @@ export default function ReportsPage() {
                     ))}
                   </select>
                   {selectedYear && selectedMonth && (
-                  <button
+                    <button
                       className="btn primary"
                       onClick={generateComprehensiveMonthlyReport}
                       style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
@@ -1083,406 +1115,396 @@ export default function ReportsPage() {
                   {(selectedYear || selectedMonth || selectedBranchId) && (
                     <button
                       className="btn"
-                    onClick={() => {
+                      onClick={() => {
                         setSelectedYear(null);
                         setSelectedMonth(null);
                         setSelectedBranchId(null);
-                    }}
+                      }}
                       style={{ backgroundColor: "#DC2626", color: "white", border: "none" }}
-                  >
+                    >
                       إزالة الفلاتر
-                  </button>
+                    </button>
                   )}
                 </div>
               </div>
-              
+
               {filteredBranchGroups.map((branchGroup) => (
-              <div key={branchGroup.branchId} style={{ marginBottom: "2rem" }}>
-                <h2 style={{ 
-                  color: "#2B2A2A", 
-                  marginBottom: "1rem", 
-                  fontSize: "18px",
-                  fontWeight: 600
+                <div key={branchGroup.branchId} style={{ marginBottom: "2rem" }}>
+                  <h2 style={{
+                    color: "#2B2A2A",
+                    marginBottom: "1rem",
+                    fontSize: "18px",
+                    fontWeight: 600
                   }}>
                     {branchGroup.branchName}
-                </h2>
-                  
+                  </h2>
+
                   {branchGroup.months.map((group) => {
-                const monthKey = `${group.year}-${group.month}`;
-                const isExpanded = expandedMonths.has(monthKey);
-                const monthExpenses = expenses[monthKey] || [];
-                const teacherStats = calculateTeacherStats(group.sessions);
-                const totals = calculateTotals(group.sessions, monthExpenses);
-                
-                return (
-                  <div 
-                    key={monthKey}
-                    className="panel" 
-                    style={{ 
-                        marginBottom: "1.5rem"
-                    }}
-                  >
-                    {/* Month Header */}
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        cursor: "pointer",
-                          padding: "1rem",
-                          backgroundColor: "#F9FAFB",
-                          borderRadius: "6px",
-                          marginBottom: isExpanded ? "1rem" : "0",
-                          border: "1px solid #E5E7EB"
-                      }}
-                      onClick={() => toggleMonth(group.year, group.month)}
-                    >
-                        <h3 style={{ margin: 0, color: "#2B2A2A", fontSize: "16px", fontWeight: 600 }}>
-                        {group.monthName} {group.year}
-                      </h3>
-                      <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-                        <button
-                            className="btn btn-small primary"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            generatePDF(group, monthExpenses, teacherStats, totals, branchGroup.branchName);
+                    const monthKey = `${group.year}-${group.month}`;
+                    const isExpanded = expandedMonths.has(monthKey);
+                    // Filter expenses for this specific branch only
+                    const allMonthExpenses = expenses[monthKey] || [];
+                    const monthExpenses = allMonthExpenses.filter(e => e.branch_id === branchGroup.branchId);
+                    const teacherStats = calculateTeacherStats(group.sessions);
+                    const totals = calculateTotals(group.sessions, monthExpenses);
+
+                    return (
+                      <div
+                        key={monthKey}
+                        className="panel"
+                        style={{
+                          marginBottom: "1.5rem"
+                        }}
+                      >
+                        {/* Month Header */}
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            cursor: "pointer",
+                            padding: "1rem",
+                            backgroundColor: "#F9FAFB",
+                            borderRadius: "6px",
+                            marginBottom: isExpanded ? "1rem" : "0",
+                            border: "1px solid #E5E7EB"
                           }}
-                          title="تحميل PDF"
+                          onClick={() => toggleMonth(group.year, group.month)}
                         >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <polyline points="7 10 12 15 17 10"></polyline>
-                            <line x1="12" y1="15" x2="12" y2="3"></line>
-                          </svg>
-                          PDF
-                        </button>
-                          <span style={{ color: "#6B7280", fontSize: "13px" }}>
-                          عدد الجلسات: <strong>{group.sessions.length}</strong>
-                        </span>
-                          <span style={{ color: "#5A7ACD", fontWeight: 600, fontSize: "14px" }}>
-                          الإجمالي: {totals.grandTotal.toFixed(2)} درهم
-                        </span>
-                          <span style={{ fontSize: "14px", color: "#6B7280" }}>
-                          {isExpanded ? "▼" : "▶"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Expanded Content */}
-                    {isExpanded && (
-                        <div data-month-key={monthKey}>
-                          {/* Statistics Cards */}
-                          <div style={{ 
-                            display: "grid", 
-                            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", 
-                            gap: "1rem",
-                            marginBottom: "1.5rem"
-                          }}>
-                            <div className="branch-card" style={{ cursor: "default" }}>
-                              <div style={{ marginBottom: "0.5rem" }}>
-                                <div style={{ color: "#6B7280", fontSize: "12px", marginBottom: "0.25rem" }}>الإجمالي الداخلي</div>
-                                <div style={{ fontSize: "20px", fontWeight: 600, color: "#5A7ACD" }}>
-                                {totals.internalTotal.toFixed(2)} درهم
-                              </div>
-                            </div>
-                            </div>
-                            <div className="branch-card" style={{ cursor: "default" }}>
-                              <div style={{ marginBottom: "0.5rem" }}>
-                                <div style={{ color: "#6B7280", fontSize: "12px", marginBottom: "0.25rem" }}>الإجمالي الخارجي</div>
-                                <div style={{ fontSize: "20px", fontWeight: 600, color: "#FEB05D" }}>
-                                {totals.externalTotal.toFixed(2)} درهم
-                              </div>
-                            </div>
-                            </div>
-                            <div className="branch-card" style={{ cursor: "default" }}>
-                              <div style={{ marginBottom: "0.5rem" }}>
-                                <div style={{ color: "#6B7280", fontSize: "12px", marginBottom: "0.25rem" }}>إجمالي المصاريف</div>
-                                <div style={{ fontSize: "20px", fontWeight: 600, color: "#DC2626" }}>
-                                {totals.expensesTotal.toFixed(2)} درهم
-                              </div>
-                            </div>
-                            </div>
-                            <div className="branch-card" style={{ cursor: "default" }}>
-                              <div style={{ marginBottom: "0.5rem" }}>
-                                <div style={{ color: "#6B7280", fontSize: "12px", marginBottom: "0.25rem" }}>الإجمالي الكامل</div>
-                                <div style={{ fontSize: "20px", fontWeight: 600, color: "#10B981" }}>
-                                {totals.grandTotal.toFixed(2)} درهم
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Teacher Statistics */}
-                          <div style={{ marginBottom: "1.5rem" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
-                              <h4 style={{ color: "#2B2A2A", margin: 0, fontSize: "16px", fontWeight: 600 }}>إحصائيات المدرسين</h4>
-                              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                          <h3 style={{ margin: 0, color: "#2B2A2A", fontSize: "16px", fontWeight: 600 }}>
+                            {group.monthName} {group.year}
+                          </h3>
+                          <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
                             <button
-                                  className="btn btn-small"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpenMergeModalForMonth(group.sessions);
-                                  }}
-                                  title="دمج أسماء المدرسين في هذا الشهر"
-                                  style={{ backgroundColor: "#10B981", color: "white", border: "none" }}
-                                >
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M17 3a2.828 2.828 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-                                  </svg>
-                                  دمج الأسماء
-                                </button>
-                                <button
-                                  className="btn btn-small primary"
+                              className="btn btn-small primary"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                generateAllTeachersPDF(group, teacherStats, branchGroup.branchName);
+                                generatePDF(group, monthExpenses, teacherStats, totals, branchGroup.branchName);
                               }}
-                              title="تحميل PDF لكل المدرسين"
+                              title="تحميل PDF"
                             >
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                 <polyline points="7 10 12 15 17 10"></polyline>
                                 <line x1="12" y1="15" x2="12" y2="3"></line>
                               </svg>
-                              تحميل PDF لكل المدرسين
+                              PDF
                             </button>
+                            <span style={{ color: "#6B7280", fontSize: "13px" }}>
+                              عدد الجلسات: <strong>{group.sessions.length}</strong>
+                            </span>
+                            <span style={{ color: "#5A7ACD", fontWeight: 600, fontSize: "14px" }}>
+                              الإجمالي: {totals.grandTotal.toFixed(2)} درهم
+                            </span>
+                            <span style={{ fontSize: "14px", color: "#6B7280" }}>
+                              {isExpanded ? "▼" : "▶"}
+                            </span>
                           </div>
+                        </div>
+
+                        {/* Expanded Content */}
+                        {isExpanded && (
+                          <div data-month-key={monthKey}>
+                            {/* Statistics Cards */}
+                            <div style={{
+                              display: "grid",
+                              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                              gap: "1rem",
+                              marginBottom: "1.5rem"
+                            }}>
+                              <div className="branch-card" style={{ cursor: "default" }}>
+                                <div style={{ marginBottom: "0.5rem" }}>
+                                  <div style={{ color: "#6B7280", fontSize: "12px", marginBottom: "0.25rem" }}>الإجمالي الداخلي</div>
+                                  <div style={{ fontSize: "20px", fontWeight: 600, color: "#5A7ACD" }}>
+                                    {totals.internalTotal.toFixed(2)} درهم
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="branch-card" style={{ cursor: "default" }}>
+                                <div style={{ marginBottom: "0.5rem" }}>
+                                  <div style={{ color: "#6B7280", fontSize: "12px", marginBottom: "0.25rem" }}>الإجمالي الخارجي</div>
+                                  <div style={{ fontSize: "20px", fontWeight: 600, color: "#FEB05D" }}>
+                                    {totals.externalTotal.toFixed(2)} درهم
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="branch-card" style={{ cursor: "default" }}>
+                                <div style={{ marginBottom: "0.5rem" }}>
+                                  <div style={{ color: "#6B7280", fontSize: "12px", marginBottom: "0.25rem" }}>إجمالي المصاريف</div>
+                                  <div style={{ fontSize: "20px", fontWeight: 600, color: "#DC2626" }}>
+                                    {totals.expensesTotal.toFixed(2)} درهم
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="branch-card" style={{ cursor: "default" }}>
+                                <div style={{ marginBottom: "0.5rem" }}>
+                                  <div style={{ color: "#6B7280", fontSize: "12px", marginBottom: "0.25rem" }}>الإجمالي الكامل</div>
+                                  <div style={{ fontSize: "20px", fontWeight: 600, color: "#10B981" }}>
+                                    {totals.grandTotal.toFixed(2)} درهم
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                            <div className="table-container">
-                              <table>
-                                <thead>
-                                  <tr>
-                                    <th>اسم المدرس</th>
-                                    <th data-type="number">عدد الساعات</th>
-                                    <th data-type="number">الإجمالي</th>
-                                    <th>داخلي/خارجي</th>
-                                    <th>PDF</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                            {teacherStats.map((stat, idx) => (
-                                    <tr key={idx}>
-                                      <td>{stat.teacher_name}</td>
-                                      <td data-type="number">{stat.total_hours.toFixed(2)}</td>
-                                      <td data-type="number">{stat.total_amount.toFixed(2)} درهم</td>
-                                      <td>
-                                        <span className={`status ${stat.location === "external" ? "status-pending" : "status-active"}`}>
-                                  {stat.location === "external" ? "خارجي" : "داخلي"}
-                                </span>
-                                      </td>
-                                      <td>
+
+                            {/* Teacher Statistics */}
+                            <div style={{ marginBottom: "1.5rem" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                                <h4 style={{ color: "#2B2A2A", margin: 0, fontSize: "16px", fontWeight: 600 }}>إحصائيات المدرسين</h4>
+                                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
                                   <button
-                                          className="btn btn-small primary"
+                                    className="btn btn-small"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      const teacherSessions = group.sessions.filter(s => s.teacher_name === stat.teacher_name);
-                                      generateTeacherPDF(stat, teacherSessions, group, branchGroup.branchName);
+                                      handleOpenMergeModalForMonth(group.sessions);
                                     }}
-                                    title={`تحميل PDF لـ ${stat.teacher_name}`}
+                                    title="دمج أسماء المدرسين في هذا الشهر"
+                                    style={{ backgroundColor: "#10B981", color: "white", border: "none" }}
                                   >
-                                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M17 3a2.828 2.828 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                                    </svg>
+                                    دمج الأسماء
+                                  </button>
+                                  <button
+                                    className="btn btn-small primary"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      generateAllTeachersPDF(group, teacherStats, branchGroup.branchName);
+                                    }}
+                                    title="تحميل PDF لكل المدرسين"
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                       <polyline points="7 10 12 15 17 10"></polyline>
                                       <line x1="12" y1="15" x2="12" y2="3"></line>
                                     </svg>
-                                    PDF
-                                  </button>
-                                      </td>
-                                    </tr>
-                            ))}
-                                </tbody>
-                              </table>
-                          </div>
-                        </div>
-
-                        {/* Add Expense Button */}
-                          <div style={{ marginBottom: "1rem" }}>
-                          {!showExpenseForm[monthKey] ? (
-                            <button
-                                className="btn primary"
-                              onClick={() => setShowExpenseForm(prev => ({ ...prev, [monthKey]: true }))}
-                            >
-                              + إضافة مصروف إضافي
-                            </button>
-                          ) : (
-                              <div className="panel">
-                                <h5 style={{ marginBottom: "0.75rem", fontSize: "14px", fontWeight: 600 }}>إضافة مصروف إضافي</h5>
-                              <form onSubmit={(e) => handleAddExpense(group.year, group.month, e)}>
-                                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem", marginBottom: "0.75rem" }}>
-                                  <input
-                                    type="text"
-                                    placeholder="اسم المدرس"
-                                    value={expenseForm.teacher_name}
-                                    onChange={(e) => setExpenseForm(prev => ({ ...prev, teacher_name: e.target.value }))}
-                                      className="form-group input"
-                                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
-                                  />
-                                  <input
-                                    type="text"
-                                    placeholder="السبب"
-                                    value={expenseForm.title}
-                                    onChange={(e) => setExpenseForm(prev => ({ ...prev, title: e.target.value }))}
-                                    required
-                                      className="form-group input"
-                                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
-                                  />
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    placeholder="المبلغ"
-                                    value={expenseForm.amount}
-                                    onChange={(e) => setExpenseForm(prev => ({ ...prev, amount: e.target.value }))}
-                                    required
-                                      className="form-group input"
-                                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
-                                  />
-                                  <select
-                                    value={expenseForm.branch_id}
-                                    onChange={(e) => setExpenseForm(prev => ({ ...prev, branch_id: parseInt(e.target.value) }))}
-                                    required
-                                      className="form-group input"
-                                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
-                                  >
-                                    <option value="">اختر الفرع</option>
-                                    {branches.map(b => (
-                                      <option key={b.id} value={b.id}>{b.name}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                                  <div style={{ display: "flex", gap: "0.5rem" }}>
-                                    <button type="submit" className="btn primary">
-                                    إضافة
-                                  </button>
-                                  <button
-                                    type="button"
-                                      className="btn"
-                                    onClick={() => {
-                                      setShowExpenseForm(prev => ({ ...prev, [monthKey]: false }));
-                                      setExpenseForm({ title: "", amount: "", branch_id: branches[0]?.id || "", teacher_name: "" });
-                                    }}
-                                  >
-                                    إلغاء
+                                    تحميل PDF لكل المدرسين
                                   </button>
                                 </div>
-                              </form>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Expenses List */}
-                        {monthExpenses.length > 0 && (
-                            <div style={{ marginBottom: "1.5rem" }}>
-                              <h4 style={{ color: "#2B2A2A", marginBottom: "0.75rem", fontSize: "16px", fontWeight: 600 }}>
-                                المصاريف الإضافية ({monthExpenses.length})
-                              </h4>
+                              </div>
                               <div className="table-container">
                                 <table>
                                   <thead>
                                     <tr>
-                                      <th>اسم الفرع</th>
-                                      <th>اسم المدرس</th>
-                                      <th>السبب</th>
-                                      <th data-type="number">المبلغ</th>
+                                      <th style={{ textAlign: "center" }}>اسم المدرس</th>
+                                      <th style={{ textAlign: "center" }} data-type="number">عدد الساعات</th>
+                                      <th style={{ textAlign: "center" }} data-type="number">الإجمالي</th>
+                                      <th style={{ textAlign: "center" }}>داخلي/خارجي</th>
+                                      <th style={{ textAlign: "center" }}>PDF</th>
                                     </tr>
                                   </thead>
                                   <tbody>
-                              {monthExpenses.map((expense) => (
-                                      <tr key={expense.id}>
-                                        <td>{getBranchName(expense.branch_id)}</td>
-                                        <td>{expense.teacher_name || "-"}</td>
-                                        <td>{expense.title}</td>
-                                        <td data-type="number" style={{ fontWeight: 600, color: "#DC2626" }}>
-                                    {parseFloat(expense.amount || 0).toFixed(2)} درهم
+                                    {teacherStats.map((stat, idx) => (
+                                      <tr key={idx}>
+                                        <td style={{ textAlign: "center" }}>{stat.teacher_name}</td>
+                                        <td style={{ textAlign: "center" }} data-type="number">{stat.total_hours.toFixed(2)}</td>
+                                        <td style={{ textAlign: "center" }} data-type="number">{stat.total_amount.toFixed(2)} درهم</td>
+                                        <td style={{ textAlign: "center" }}>
+                                          <span className={`status ${stat.location === "external" ? "status-pending" : "status-active"}`}>
+                                            {stat.location === "external" ? "خارجي" : "داخلي"}
+                                          </span>
+                                        </td>
+                                        <td style={{ textAlign: "center" }}>
+                                          <button
+                                            className="btn btn-small primary"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const teacherSessions = group.sessions.filter(s => s.teacher_name === stat.teacher_name);
+                                              generateTeacherPDF(stat, teacherSessions, group, branchGroup.branchName);
+                                            }}
+                                            title={`تحميل PDF لـ ${stat.teacher_name}`}
+                                          >
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                              <polyline points="7 10 12 15 17 10"></polyline>
+                                              <line x1="12" y1="15" x2="12" y2="3"></line>
+                                            </svg>
+                                            PDF
+                                          </button>
                                         </td>
                                       </tr>
-                              ))}
+                                    ))}
                                   </tbody>
                                 </table>
+                              </div>
+                            </div>
+
+                            {/* Add Expense Button */}
+                            <div style={{ marginBottom: "1rem" }}>
+                              {!showExpenseForm[monthKey] ? (
+                                <button
+                                  className="btn primary"
+                                  onClick={() => setShowExpenseForm(prev => ({ ...prev, [monthKey]: true }))}
+                                >
+                                  + إضافة مصروف إضافي
+                                </button>
+                              ) : (
+                                <div className="panel">
+                                  <h5 style={{ marginBottom: "0.75rem", fontSize: "14px", fontWeight: 600 }}>إضافة مصروف إضافي</h5>
+                                  <form onSubmit={(e) => handleAddExpense(group.year, group.month, branchGroup.branchId, e)}>
+                                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                                      <input
+                                        type="text"
+                                        placeholder="اسم المدرس"
+                                        value={expenseForm.teacher_name}
+                                        onChange={(e) => setExpenseForm(prev => ({ ...prev, teacher_name: e.target.value }))}
+                                        className="form-group input"
+                                        style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
+                                      />
+                                      <input
+                                        type="text"
+                                        placeholder="السبب"
+                                        value={expenseForm.title}
+                                        onChange={(e) => setExpenseForm(prev => ({ ...prev, title: e.target.value }))}
+                                        required
+                                        className="form-group input"
+                                        style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
+                                      />
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        placeholder="المبلغ"
+                                        value={expenseForm.amount}
+                                        onChange={(e) => setExpenseForm(prev => ({ ...prev, amount: e.target.value }))}
+                                        required
+                                        className="form-group input"
+                                        style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
+                                      />
+                                    </div>
+                                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                                      <button type="submit" className="btn primary">
+                                        إضافة
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="btn"
+                                        onClick={() => {
+                                          setShowExpenseForm(prev => ({ ...prev, [monthKey]: false }));
+                                          setExpenseForm({ title: "", amount: "", branch_id: branches[0]?.id || "", teacher_name: "" });
+                                        }}
+                                      >
+                                        إلغاء
+                                      </button>
+                                    </div>
+                                  </form>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Expenses List */}
+                            {monthExpenses.length > 0 && (
+                              <div style={{ marginBottom: "1.5rem" }}>
+                                <h4 style={{ color: "#2B2A2A", marginBottom: "0.75rem", fontSize: "16px", fontWeight: 600 }}>
+                                  المصاريف الإضافية ({monthExpenses.length})
+                                </h4>
+                                <div className="table-container">
+                                  <table>
+                                    <thead>
+                                      <tr>
+                                        <th style={{ textAlign: "center" }}>اسم الفرع</th>
+                                        <th style={{ textAlign: "center" }}>اسم المدرس</th>
+                                        <th style={{ textAlign: "center" }}>السبب</th>
+                                        <th style={{ textAlign: "center" }} data-type="number">المبلغ</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {monthExpenses.map((expense) => (
+                                        <tr key={expense.id}>
+                                          <td style={{ textAlign: "center" }}>{getBranchName(expense.branch_id)}</td>
+                                          <td style={{ textAlign: "center" }}>{expense.teacher_name || "-"}</td>
+                                          <td style={{ textAlign: "center" }}>{expense.title}</td>
+                                          <td data-type="number" style={{ textAlign: "center", fontWeight: 600, color: "#DC2626" }}>
+                                            {parseFloat(expense.amount || 0).toFixed(2)} درهم
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Sessions Table */}
+                            <div>
+                              <h4 style={{ color: "#2B2A2A", marginBottom: "0.75rem", fontSize: "16px", fontWeight: 600 }}>
+                                الجلسات ({group.sessions.length})
+                              </h4>
+                              <div className="table-container" style={{ overflowX: "auto" }}>
+                                <table>
+                                  <thead>
+                                    <tr>
+                                      <th style={{ textAlign: "center" }}>الفرع</th>
+                                      <th style={{ textAlign: "center" }}>المدرس</th>
+                                      <th style={{ textAlign: "center" }}>الطالب</th>
+                                      <th style={{ textAlign: "center" }}>تاريخ الجلسة</th>
+                                      <th style={{ textAlign: "center" }}>من الساعة</th>
+                                      <th style={{ textAlign: "center" }}>إلى الساعة</th>
+                                      <th style={{ textAlign: "center" }}>المدة</th>
+                                      <th style={{ textAlign: "center" }}>رقم العقد</th>
+                                      <th style={{ textAlign: "center" }} data-type="number">سعر الساعة</th>
+                                      <th style={{ textAlign: "center" }} data-type="number">الإجمالي</th>
+                                      <th style={{ textAlign: "center" }}>داخلي/خارجي</th>
+                                      <th style={{ textAlign: "center" }}>الإجراءات</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {group.sessions.map((session) => (
+                                      <tr key={session.id}>
+                                        <td style={{ textAlign: "center" }}>{getBranchName(session.branch_id)}</td>
+                                        <td style={{ textAlign: "center" }}>{session.teacher_name}</td>
+                                        <td style={{ textAlign: "center" }}>{session.student_name}</td>
+                                        <td style={{ textAlign: "center" }}>{session.session_date}</td>
+                                        <td style={{ textAlign: "center" }}>{convertTo12Hour(session.start_time)}</td>
+                                        <td style={{ textAlign: "center" }}>{convertTo12Hour(session.end_time)}</td>
+                                        <td style={{ textAlign: "center" }}>{session.duration_text}</td>
+                                        <td style={{ textAlign: "center", fontWeight: 600, color: "#5A7ACD" }}>{session.contract_number}</td>
+                                        <td data-type="number" style={{ textAlign: "center" }}>{parseFloat(session.hourly_rate || 0).toFixed(2)} درهم</td>
+                                        <td data-type="number" style={{ textAlign: "center", fontWeight: 600, color: "#10B981" }}>
+                                          {parseFloat(session.calculated_amount || 0).toFixed(2)} درهم
+                                        </td>
+                                        <td style={{ textAlign: "center" }}>
+                                          <span className={`status ${session.location === "external" ? "status-pending" : "status-active"}`}>
+                                            {session.location === "external" ? "خارجي" : "داخلي"}
+                                          </span>
+                                        </td>
+                                        <td style={{ textAlign: "center" }}>
+                                          <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
+                                            <button
+                                              className="btn btn-small"
+                                              onClick={() => handleEdit(session)}
+                                              style={{
+                                                padding: "0.25rem 0.5rem",
+                                                backgroundColor: "#FEB05D",
+                                                color: "white",
+                                                border: "none"
+                                              }}
+                                              title="تعديل"
+                                            >
+                                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                                              </svg>
+                                            </button>
+                                            <button
+                                              className="btn btn-small btn-danger"
+                                              onClick={() => handleDelete(session.id)}
+                                              title="حذف"
+                                            >
+                                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="3 6 5 6 21 6"></polyline>
+                                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                              </svg>
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
                             </div>
                           </div>
                         )}
-
-                        {/* Sessions Table */}
-                        <div>
-                            <h4 style={{ color: "#2B2A2A", marginBottom: "0.75rem", fontSize: "16px", fontWeight: 600 }}>
-                              الجلسات ({group.sessions.length})
-                            </h4>
-                            <div className="table-container" style={{ overflowX: "auto" }}>
-                              <table>
-                                <thead>
-                                  <tr>
-                                    <th>الفرع</th>
-                                    <th>المدرس</th>
-                                    <th>الطالب</th>
-                                    <th>تاريخ الجلسة</th>
-                                    <th>من الساعة</th>
-                                    <th>إلى الساعة</th>
-                                    <th>المدة</th>
-                                    <th>رقم العقد</th>
-                                    <th data-type="number">سعر الساعة</th>
-                                    <th data-type="number">الإجمالي</th>
-                                    <th>داخلي/خارجي</th>
-                                    <th>الإجراءات</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                            {group.sessions.map((session) => (
-                                    <tr key={session.id}>
-                                      <td>{getBranchName(session.branch_id)}</td>
-                                      <td>{session.teacher_name}</td>
-                                      <td>{session.student_name}</td>
-                                      <td>{session.session_date}</td>
-                                      <td>{convertTo12Hour(session.start_time)}</td>
-                                      <td>{convertTo12Hour(session.end_time)}</td>
-                                      <td>{session.duration_text}</td>
-                                      <td style={{ fontWeight: 600, color: "#5A7ACD" }}>{session.contract_number}</td>
-                                      <td data-type="number">{parseFloat(session.hourly_rate || 0).toFixed(2)} درهم</td>
-                                      <td data-type="number" style={{ fontWeight: 600, color: "#10B981" }}>
-                                  {parseFloat(session.calculated_amount || 0).toFixed(2)} درهم
-                                      </td>
-                                      <td>
-                                        <span className={`status ${session.location === "external" ? "status-pending" : "status-active"}`}>
-                                  {session.location === "external" ? "خارجي" : "داخلي"}
-                                </span>
-                                      </td>
-                                      <td>
-                                        <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
-                                  <button 
-                                            className="btn btn-small"
-                                    onClick={() => handleEdit(session)}
-                                    style={{ 
-                                              padding: "0.25rem 0.5rem",
-                                              backgroundColor: "#FEB05D",
-                                      color: "white",
-                                              border: "none"
-                                    }}
-                                    title="تعديل"
-                                  >
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-                                    </svg>
-                                  </button>
-                                  <button 
-                                            className="btn btn-small btn-danger"
-                                    onClick={() => handleDelete(session.id)}
-                                    title="حذف"
-                                  >
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <polyline points="3 6 5 6 21 6"></polyline>
-                                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                    </svg>
-                                  </button>
-                              </div>
-                                      </td>
-                                    </tr>
-                            ))}
-                                </tbody>
-                              </table>
-                          </div>
-                        </div>
                       </div>
-                    )}
-                  </div>
                     );
                   })}
                 </div>
@@ -1501,74 +1523,115 @@ export default function ReportsPage() {
               <button className="modal-close" onClick={() => setShowEditModal(false)}>×</button>
             </div>
             <form onSubmit={handleUpdate}>
-              <div className="modal-body">
-                <div className="grid">
-                  <input 
-                    placeholder="اسم المدرس" 
-                    value={editForm.teacher_name} 
-                    onChange={(e) => setEditForm({ ...editForm, teacher_name: e.target.value })} 
-                    required 
-                  />
-                  <input 
-                    placeholder="اسم الطالب" 
-                    value={editForm.student_name} 
-                    onChange={(e) => setEditForm({ ...editForm, student_name: e.target.value })} 
-                    required 
-                  />
-                  <input 
-                    type="date" 
-                    value={editForm.session_date} 
-                    onChange={(e) => setEditForm({ ...editForm, session_date: e.target.value })} 
-                    required 
-                  />
-                  <input 
-                    type="time" 
-                    placeholder="من الساعة" 
-                    value={editForm.start_time} 
-                    onChange={(e) => setEditForm({ ...editForm, start_time: e.target.value })} 
-                  />
-                  <input 
-                    type="time" 
-                    placeholder="إلى الساعة" 
-                    value={editForm.end_time} 
-                    onChange={(e) => setEditForm({ ...editForm, end_time: e.target.value })} 
-                  />
-                  <input 
-                    type="number" 
-                    step="0.25" 
-                    placeholder="عدد الساعات" 
-                    value={editForm.duration_hours} 
-                    onChange={(e) => setEditForm({ ...editForm, duration_hours: e.target.value })} 
-                    required 
-                  />
-                  <input 
-                    placeholder="نص المدة (مثال: ساعتان)" 
-                    value={editForm.duration_text} 
-                    onChange={(e) => setEditForm({ ...editForm, duration_text: e.target.value })} 
-                    required 
-                  />
-                  <input 
-                    placeholder="رقم العقد" 
-                    value={editForm.contract_number} 
-                    onChange={(e) => setEditForm({ ...editForm, contract_number: e.target.value })} 
-                    required 
-                  />
-                  <input 
-                    type="number" 
-                    step="0.01" 
-                    placeholder="سعر الساعة" 
-                    value={editForm.hourly_rate} 
-                    onChange={(e) => setEditForm({ ...editForm, hourly_rate: e.target.value })} 
-                    required 
-                  />
-                  <select
-                    value={editForm.location}
-                    onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-                    style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "1rem" }}
-                  >
-                    <option value="internal">داخلي</option>
-                    <option value="external">خارجي</option>
-                  </select>
+              <div className="modal-body" style={{ padding: "1.5rem" }}>
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: "1.25rem",
+                  alignItems: "start"
+                }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "0.5rem", display: "block" }}>اسم المدرس</label>
+                    <input
+                      placeholder="اسم المدرس"
+                      value={editForm.teacher_name}
+                      onChange={(e) => setEditForm({ ...editForm, teacher_name: e.target.value })}
+                      required
+                      style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem" }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "0.5rem", display: "block" }}>اسم الطالب</label>
+                    <input
+                      placeholder="اسم الطالب"
+                      value={editForm.student_name}
+                      onChange={(e) => setEditForm({ ...editForm, student_name: e.target.value })}
+                      required
+                      style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem" }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "0.5rem", display: "block" }}>تاريخ الجلسة</label>
+                    <input
+                      type="date"
+                      value={editForm.session_date}
+                      onChange={(e) => setEditForm({ ...editForm, session_date: e.target.value })}
+                      required
+                      style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem" }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "0.5rem", display: "block" }}>الوقت (من - إلى)</label>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <input
+                        type="time"
+                        value={editForm.start_time}
+                        onChange={(e) => setEditForm({ ...editForm, start_time: e.target.value })}
+                        style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem", flex: 1 }}
+                      />
+                      <input
+                        type="time"
+                        value={editForm.end_time}
+                        onChange={(e) => setEditForm({ ...editForm, end_time: e.target.value })}
+                        style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem", flex: 1 }}
+                      />
+                    </div>
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "0.5rem", display: "block" }}>عدد الساعات</label>
+                    <input
+                      type="number"
+                      step="0.25"
+                      placeholder="عدد الساعات"
+                      value={editForm.duration_hours}
+                      onChange={(e) => setEditForm({ ...editForm, duration_hours: e.target.value })}
+                      required
+                      style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem" }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "0.5rem", display: "block" }}>المدة (نص)</label>
+                    <input
+                      placeholder="نص المدة (مثال: ساعتان)"
+                      value={editForm.duration_text}
+                      onChange={(e) => setEditForm({ ...editForm, duration_text: e.target.value })}
+                      required
+                      style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem" }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "0.5rem", display: "block" }}>رقم العقد</label>
+                    <input
+                      placeholder="رقم العقد"
+                      value={editForm.contract_number}
+                      onChange={(e) => setEditForm({ ...editForm, contract_number: e.target.value })}
+                      required
+                      style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem" }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "0.5rem", display: "block" }}>سعر الساعة</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="سعر الساعة"
+                      value={editForm.hourly_rate}
+                      onChange={(e) => setEditForm({ ...editForm, hourly_rate: e.target.value })}
+                      required
+                      style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem" }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0, gridColumn: "1 / -1" }}>
+                    <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "0.5rem", display: "block" }}>الموقع</label>
+                    <select
+                      value={editForm.location}
+                      onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                      style={{ padding: "0.6rem 0.8rem", width: "100%", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "0.95rem" }}
+                    >
+                      <option value="internal">داخلي</option>
+                      <option value="external">خارجي</option>
+                    </select>
+                  </div>
                 </div>
               </div>
               <div className="modal-footer">
@@ -1601,13 +1664,13 @@ export default function ReportsPage() {
                     value={mergeForm.old_name}
                     onChange={(e) => setMergeForm({ ...mergeForm, old_name: e.target.value })}
                     required
-                    style={{ 
-                      width: "100%", 
-                      padding: "0.75rem", 
-                      borderRadius: "8px", 
-                      border: "1px solid #dcdcdc", 
-                      fontFamily: "Cairo", 
-                      fontSize: "0.9rem" 
+                    style={{
+                      width: "100%",
+                      padding: "0.75rem",
+                      borderRadius: "8px",
+                      border: "1px solid #dcdcdc",
+                      fontFamily: "Cairo",
+                      fontSize: "0.9rem"
                     }}
                   >
                     <option value="">اختر الاسم القديم</option>
@@ -1623,12 +1686,12 @@ export default function ReportsPage() {
                   <select
                     value={mergeForm.new_name}
                     onChange={(e) => setMergeForm({ ...mergeForm, new_name: e.target.value })}
-                    style={{ 
-                      width: "100%", 
-                      padding: "0.75rem", 
-                      borderRadius: "8px", 
-                      border: "1px solid #dcdcdc", 
-                      fontFamily: "Cairo", 
+                    style={{
+                      width: "100%",
+                      padding: "0.75rem",
+                      borderRadius: "8px",
+                      border: "1px solid #dcdcdc",
+                      fontFamily: "Cairo",
                       fontSize: "0.9rem",
                       marginBottom: "0.5rem"
                     }}
@@ -1643,13 +1706,13 @@ export default function ReportsPage() {
                     placeholder="أو أدخل اسم جديد موحد"
                     value={mergeForm.new_name && !teacherNames.includes(mergeForm.new_name) ? mergeForm.new_name : ""}
                     onChange={(e) => setMergeForm({ ...mergeForm, new_name: e.target.value })}
-                    style={{ 
-                      width: "100%", 
-                      padding: "0.75rem", 
-                      borderRadius: "8px", 
-                      border: "1px solid #dcdcdc", 
-                      fontFamily: "Cairo", 
-                      fontSize: "0.9rem" 
+                    style={{
+                      width: "100%",
+                      padding: "0.75rem",
+                      borderRadius: "8px",
+                      border: "1px solid #dcdcdc",
+                      fontFamily: "Cairo",
+                      fontSize: "0.9rem"
                     }}
                   />
                 </div>
@@ -1669,15 +1732,15 @@ export default function ReportsPage() {
 
       {/* PDF Generation Progress Modal */}
       {isGeneratingPDF && (
-        <div className="modal-overlay" style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
+        <div className="modal-overlay" style={{
+          display: 'flex',
+          alignItems: 'center',
           justifyContent: 'center',
           zIndex: 10000,
           backgroundColor: 'rgba(0, 0, 0, 0.5)'
         }}>
-          <div className="modal-content" style={{ 
-            maxWidth: '400px', 
+          <div className="modal-content" style={{
+            maxWidth: '400px',
             width: '90%',
             textAlign: 'center',
             padding: '2rem'
@@ -1705,10 +1768,10 @@ export default function ReportsPage() {
                 {pdfStatus || 'يرجى الانتظار...'}
               </p>
             </div>
-            <div style={{ 
-              width: '100%', 
-              height: '8px', 
-              backgroundColor: '#E5E7EB', 
+            <div style={{
+              width: '100%',
+              height: '8px',
+              backgroundColor: '#E5E7EB',
               borderRadius: '4px',
               overflow: 'hidden',
               marginBottom: '0.5rem'

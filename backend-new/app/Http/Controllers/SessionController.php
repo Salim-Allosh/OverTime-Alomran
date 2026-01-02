@@ -20,10 +20,11 @@ class SessionController extends Controller
         $user = $request->user();
         if (!$user->is_super_admin && !$user->is_backdoor) {
              // If local branch user/manager, restrict
-             // Actually existing logic in ReportsPage often passes branch_id manually.
-             // But for safety, restrict if not admin
              if ($user->branch_id) {
                  $query->where('branch_id', $user->branch_id);
+             } else {
+                 // Safety: If no branch assigned and not admin, see nothing.
+                 return response()->json([]);
              }
         }
 

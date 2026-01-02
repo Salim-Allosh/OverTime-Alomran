@@ -10,9 +10,24 @@ class DraftController extends Controller
 {
     public function index(Request $request)
     {
-        $request->validate(['branch_id' => 'required|integer']);
+        $user = $request->user();
+        $query = SessionDraft::query();
 
-        $query = SessionDraft::where('branch_id', $request->branch_id);
+        // Enforce branch separation
+        if (!$user->is_super_admin && !$user->is_backdoor) {
+            if ($user->branch_id) {
+                // Regular user can ONLY see their own branch
+                $query->where('branch_id', $user->branch_id);
+            } else {
+                // If no branch assigned and not admin, show nothing (or handle appropriately)
+                return response()->json([]);
+            }
+        } else {
+            // Super Admin / Backdoor can filter optionally
+            if ($request->has('branch_id')) {
+                $query->where('branch_id', $request->branch_id);
+            }
+        }
 
         if ($request->has('status_filter')) {
             $query->where('status', $request->status_filter);

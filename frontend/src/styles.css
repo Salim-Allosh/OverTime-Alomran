@@ -17,7 +17,7 @@
   --border-color: #E5E7EB;
   --border-dark: #D1D5DB;
   --header-bg: #1e3a5f;
-  
+
   /* Typography */
   --font-family: "Cairo", sans-serif;
   --font-size-h1: 20px;
@@ -26,18 +26,18 @@
   --font-size-body: 13px;
   --font-size-small: 12px;
   --font-size-xs: 11px;
-  
+
   /* Spacing */
   --spacing-xs: 0.25rem;
   --spacing-sm: 0.5rem;
   --spacing-md: 0.75rem;
   --spacing-lg: 1rem;
   --spacing-xl: 1.5rem;
-  
+
   /* Borders */
   --border-radius: 6px;
   --border-width: 1px;
-  
+
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
@@ -52,7 +52,8 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-body, #root {
+body,
+#root {
   margin: 0;
   min-height: 100vh;
   background: var(--bg-primary);
@@ -172,6 +173,7 @@ body, #root {
 }
 
 /* زر تسجيل الدخول/الخروج */
+/* زر تسجيل الدخول/الخروج */
 .header-nav a:last-child {
   border-left: 2px solid rgba(255, 255, 255, 0.15);
   padding-right: var(--spacing-xl);
@@ -181,6 +183,111 @@ body, #root {
 
 .header-nav a:last-child::before {
   display: none;
+}
+
+/* زر القائمة للموبايل */
+.menu-toggle {
+  display: none;
+  background: transparent;
+  border: none;
+  color: white;
+  padding: 0.5rem;
+  cursor: pointer;
+  margin-right: 1rem;
+}
+
+.menu-toggle svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* استجابة الشاشات الصغيرة (Responsive) */
+@media (max-width: 1200px) {
+  .header {
+    flex-wrap: wrap;
+    position: relative;
+    padding: 0.5rem 0;
+  }
+
+  .header-right {
+    width: 100%;
+    min-width: auto;
+    padding: 0.5rem 1rem;
+    border-left: none;
+    background: transparent;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .header-right::after {
+    display: none;
+  }
+
+  .menu-toggle {
+    display: block;
+    order: 2;
+  }
+
+  .header-nav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    flex-direction: column;
+    padding: 0;
+    background: #1e3a5f;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+  }
+
+  .header-nav.active {
+    display: flex;
+    animation: slideDown 0.3s ease-out forwards;
+  }
+
+  .header-nav a {
+    width: 100%;
+    padding: 1rem;
+    border-left: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    justify-content: flex-start;
+  }
+
+  .header-nav a:last-child {
+    border-left: none;
+    border-bottom: none;
+    background: rgba(0, 0, 0, 0.2);
+  }
+
+  .header-nav a::before {
+    bottom: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    top: 0;
+    transform: scaleX(1) scaleY(0);
+    transform-origin: bottom;
+  }
+
+  .header-nav a.active::before {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ============================================
@@ -636,30 +743,31 @@ table tbody td[data-type="text"] {
    PRINT STYLES
    ============================================ */
 @media print {
+
   .header,
   .header-nav,
   .filters-bar,
   .btn {
     display: none !important;
   }
-  
+
   .main-title {
     page-break-after: avoid;
   }
-  
+
   table {
     page-break-inside: auto;
   }
-  
+
   table tr {
     page-break-inside: avoid;
     page-break-after: auto;
   }
-  
+
   body {
     background: white;
   }
-  
+
   .container {
     padding: 0;
   }
@@ -680,10 +788,21 @@ table tbody td[data-type="text"] {
   text-align: center;
 }
 
-.mt-1 { margin-top: var(--spacing-sm); }
-.mt-2 { margin-top: var(--spacing-md); }
-.mb-1 { margin-bottom: var(--spacing-sm); }
-.mb-2 { margin-bottom: var(--spacing-md); }
+.mt-1 {
+  margin-top: var(--spacing-sm);
+}
+
+.mt-2 {
+  margin-top: var(--spacing-md);
+}
+
+.mb-1 {
+  margin-bottom: var(--spacing-sm);
+}
+
+.mb-2 {
+  margin-bottom: var(--spacing-md);
+}
 
 /* ============================================
    FOOTER
@@ -720,6 +839,7 @@ table tbody td[data-type="text"] {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -769,6 +889,7 @@ table tbody td[data-type="text"] {
     transform: translateY(20px);
     opacity: 0;
   }
+
   to {
     transform: translateY(0);
     opacity: 1;
@@ -873,31 +994,31 @@ table tbody td[data-type="text"] {
   .container {
     padding: var(--spacing-md);
   }
-  
+
   .filters-bar {
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .filters-bar select,
   .filters-bar input {
     width: 100%;
   }
-  
+
   table {
     font-size: var(--font-size-small);
   }
-  
+
   table thead th,
   table tbody td {
     padding: var(--spacing-sm) var(--spacing-md);
   }
-  
+
   .modal-content {
     max-width: 95%;
     margin: var(--spacing-md);
   }
-  
+
   .modal-header,
   .modal-body,
   .modal-footer {

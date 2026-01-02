@@ -53,7 +53,7 @@ export default function BranchPage() {
   return (
     <>
       <div className="container" style={{ paddingTop: "1.5rem", paddingBottom: "0" }}>
-        <button 
+        <button
           onClick={() => navigate("/")}
           style={{
             display: "inline-flex",
@@ -86,12 +86,12 @@ export default function BranchPage() {
             e.currentTarget.style.boxShadow = "var(--shadow-sm)";
           }}
         >
-          <svg 
-            viewBox="0 0 24 24" 
-            fill="currentColor" 
+          <svg
+            viewBox="0 0 24 24"
+            fill="currentColor"
             style={{ width: "18px", height: "18px" }}
           >
-            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
           </svg>
           العودة
         </button>
@@ -101,69 +101,74 @@ export default function BranchPage() {
           <h3 style={{ textAlign: "center", marginBottom: "1.25rem" }}>تسجيل جلسة إضافية - {branch.name}</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <input 
-                placeholder="اسم المدرس" 
-                value={form.teacher_name} 
-                onChange={(e) => setForm({ ...form, teacher_name: e.target.value })} 
-                required 
+              <input
+                placeholder="اسم المدرس"
+                value={form.teacher_name}
+                onChange={(e) => setForm({ ...form, teacher_name: e.target.value })}
+                required
                 style={{ width: "100%", padding: "0.5rem 0.75rem" }}
               />
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <input 
-                placeholder="اسم الطالب" 
-                value={form.student_name} 
-                onChange={(e) => setForm({ ...form, student_name: e.target.value })} 
-                required 
+              <input
+                placeholder="اسم الطالب"
+                value={form.student_name}
+                onChange={(e) => setForm({ ...form, student_name: e.target.value })}
+                required
                 style={{ width: "100%", padding: "0.5rem 0.75rem" }}
               />
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <input 
-                type="date" 
-                value={form.session_date} 
-                onChange={(e) => setForm({ ...form, session_date: e.target.value })} 
-                required 
+              <input
+                type="date"
+                value={form.session_date}
+                onChange={(e) => setForm({ ...form, session_date: e.target.value })}
+                required
                 style={{ width: "100%", padding: "0.5rem 0.75rem" }}
               />
             </div>
-            <div style={{ display: "flex", gap: "0.75rem" }}>
-              <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
-                <input 
-                  type="time" 
-                  placeholder="من الساعة" 
-                  value={form.start_time} 
-                  onChange={(e) => setForm({ ...form, start_time: e.target.value })} 
-                  style={{ width: "100%", padding: "0.5rem 0.75rem" }}
-                />
+            <div>
+              <label style={{ fontSize: "14px", fontWeight: "500", color: "#374151", marginBottom: "0.35rem", display: "block" }}>
+                وقت الجلسة (من - إلى)
+              </label>
+              <div style={{ display: "flex", gap: "0.75rem" }}>
+                <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
+                  <input
+                    type="time"
+                    placeholder="من الساعة"
+                    value={form.start_time}
+                    onChange={(e) => setForm({ ...form, start_time: e.target.value })}
+                    style={{ width: "100%", padding: "0.5rem 0.75rem" }}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
+                  <input
+                    type="time"
+                    placeholder="إلى الساعة"
+                    value={form.end_time}
+                    onChange={(e) => setForm({ ...form, end_time: e.target.value })}
+                    style={{ width: "100%", padding: "0.5rem 0.75rem" }}
+                  />
+                </div>
               </div>
-              <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
-                <input 
-                  type="time" 
-                  placeholder="إلى الساعة" 
-                  value={form.end_time} 
-                  onChange={(e) => setForm({ ...form, end_time: e.target.value })} 
-                  style={{ width: "100%", padding: "0.5rem 0.75rem" }}
-                />
-              </div>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <input 
-                type="number" 
-                step="0.25" 
-                placeholder="عدد الساعات" 
-                value={form.duration_hours} 
-                onChange={(e) => setForm({ ...form, duration_hours: e.target.value })} 
-                required 
+              <input
+                type="number"
+                step="0.25"
+                placeholder="عدد الساعات"
+                value={form.duration_hours}
+                onChange={(e) => setForm({ ...form, duration_hours: e.target.value })}
+                required
                 style={{ width: "100%", padding: "0.5rem 0.75rem" }}
               />
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <input 
-                placeholder="نص المدة (مثال: ساعتان)" 
-                value={form.duration_text} 
-                onChange={(e) => setForm({ ...form, duration_text: e.target.value })} 
-                required 
+              <input
+                placeholder="نص المدة (مثال: ساعتان)"
+                value={form.duration_text}
+                onChange={(e) => setForm({ ...form, duration_text: e.target.value })}
+                required
                 style={{ width: "100%", padding: "0.5rem 0.75rem" }}
               />
             </div>

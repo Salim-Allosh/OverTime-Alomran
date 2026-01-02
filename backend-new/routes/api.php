@@ -10,7 +10,8 @@ Route::post('/auth/login', [AuthController::class, 'login'])->name('login');
 
 Route::get('/branches', [BranchController::class, 'index']);
 Route::get('/branches/{id}', [BranchController::class, 'show']);
-Route::post('/drafts', [DraftController::class, 'store']);
+
+
 
 
 
@@ -24,6 +25,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     
     // Branches Management
+    Route::post('/drafts', [DraftController::class, 'store']);
     Route::post('/branches', [BranchController::class, 'store']);
     Route::patch('/branches/{id}', [BranchController::class, 'update']);
     Route::delete('/branches/{id}', [BranchController::class, 'destroy']);
@@ -95,6 +97,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Account Management
     Route::get('/operation-accounts', [App\Http\Controllers\LookupController::class, 'accountsIndex']);
     Route::post('/operation-accounts', [App\Http\Controllers\LookupController::class, 'createAccount']);
+    Route::patch('/operation-accounts/{id}', [App\Http\Controllers\LookupController::class, 'updateAccount']);
     Route::delete('/operation-accounts/{id}', [App\Http\Controllers\LookupController::class, 'deleteAccount']);
 
     // Expenses Alias

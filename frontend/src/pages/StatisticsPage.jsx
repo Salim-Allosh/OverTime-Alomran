@@ -29,7 +29,7 @@ export default function StatisticsPage() {
 
   useEffect(() => {
     if (!token) return;
-    
+
     apiGet("/auth/me", token)
       .then((userData) => {
         setUserInfo(userData);
@@ -38,11 +38,11 @@ export default function StatisticsPage() {
         }
       })
       .catch(console.error);
-    
+
     apiGet("/branches", token)
       .then(setBranches)
       .catch(console.error);
-    
+
     apiGet("/sales-staff", token)
       .then(setSalesStaff)
       .catch(console.error);
@@ -59,7 +59,7 @@ export default function StatisticsPage() {
       if (userInfo && userInfo.is_sales_manager && !userInfo.is_super_admin && userInfo.branch_id) {
         branchId = userInfo.branch_id;
       }
-      
+
       let url = `/statistics/comprehensive?year=${selectedYear}`;
       if (branchId) {
         url += `&branch_id=${branchId}`;
@@ -70,7 +70,7 @@ export default function StatisticsPage() {
       if (selectedMonth) {
         url += `&month=${selectedMonth}`;
       }
-      
+
       const data = await apiGet(url, token);
       setStatistics(data);
     } catch (err) {
@@ -115,12 +115,18 @@ export default function StatisticsPage() {
   // حساب الإحصائيات الإجمالية من branches_comprehensive
   // استخدام total_unique_days من Backend الذي يحسب عدد الأيام الفريدة على مستوى جميع الفروع
   // إذا كان يوجد تقارير في فرعين مختلفين في نفس اليوم، يحسب على أنه يوم واحد
+  // Helper helper to ensure number
+  const safeParse = (val) => {
+    const num = parseFloat(val);
+    return isNaN(num) ? 0 : num;
+  };
+
   const totalDailyReports = statistics.total_unique_days || 0;
-  const totalMonthlyContracts = statistics.branches_comprehensive?.reduce((sum, b) => sum + b.total_monthly_contracts, 0) || 0;
-  const totalContractsValue = statistics.branches_comprehensive?.reduce((sum, b) => sum + parseFloat(b.total_contracts_value), 0) || 0;
-  const totalPaidAmount = statistics.branches_comprehensive?.reduce((sum, b) => sum + parseFloat(b.total_paid_amount), 0) || 0;
-  const totalRemainingAmount = statistics.branches_comprehensive?.reduce((sum, b) => sum + parseFloat(b.total_remaining_amount), 0) || 0;
-  const totalNetAmount = statistics.branches_comprehensive?.reduce((sum, b) => sum + parseFloat(b.total_net_amount), 0) || 0;
+  const totalMonthlyContracts = statistics.branches_comprehensive?.reduce((sum, b) => sum + (parseInt(b.total_monthly_contracts) || 0), 0) || 0;
+  const totalContractsValue = statistics.branches_comprehensive?.reduce((sum, b) => sum + safeParse(b.total_contracts_value), 0) || 0;
+  const totalPaidAmount = statistics.branches_comprehensive?.reduce((sum, b) => sum + safeParse(b.total_paid_amount), 0) || 0;
+  const totalRemainingAmount = statistics.branches_comprehensive?.reduce((sum, b) => sum + safeParse(b.total_remaining_amount), 0) || 0;
+  const totalNetAmount = statistics.branches_comprehensive?.reduce((sum, b) => sum + safeParse(b.total_net_amount), 0) || 0;
 
   const generateStatisticsPDF = async () => {
     setIsGeneratingPDF(true);
@@ -153,7 +159,7 @@ export default function StatisticsPage() {
       };
 
       // Get filter information for title
-      const branchName = selectedBranchId 
+      const branchName = selectedBranchId
         ? branches.find(b => b.id === selectedBranchId)?.name || `فرع ${selectedBranchId}`
         : "جميع الفروع";
       const salesStaffName = selectedSalesStaffId
@@ -186,10 +192,10 @@ export default function StatisticsPage() {
 
       // Generate and download PDF
       const pdfDoc = pdfMake.createPdf(docDefinition);
-      
+
       setPdfProgress(80);
       setPdfStatus('جاري حفظ الملف...');
-    
+
       const fileName = `تقرير_الإحصائيات_${selectedYear}${selectedMonth ? '_' + monthNames[selectedMonth] : ''}${selectedBranchId ? '_' + branchName.replace(/\s/g, '_') : ''}.pdf`;
       pdfDoc.download(fileName);
 
@@ -259,87 +265,64 @@ export default function StatisticsPage() {
       <div className="panel" style={{ marginBottom: "2rem" }}>
         <div className="filters-bar" style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap", justifyContent: "space-between" }}>
           <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
-          {userInfo && userInfo.is_super_admin ? (
-            <select 
-              value={selectedBranchId || ""} 
-              onChange={(e) => {
-                setSelectedBranchId(e.target.value ? parseInt(e.target.value) : null);
-                setSelectedSalesStaffId(null); // إعادة تعيين موظف المبيعات عند تغيير الفرع
-              }}
+            {userInfo && userInfo.is_super_admin ? (
+              <select
+                value={selectedBranchId || ""}
+                onChange={(e) => {
+                  setSelectedBranchId(e.target.value ? parseInt(e.target.value) : null);
+                  setSelectedSalesStaffId(null); // إعادة تعيين موظف المبيعات عند تغيير الفرع
+                }}
+                style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "13px" }}
+              >
+                <option value="">جميع الفروع</option>
+                {branches.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            ) : userInfo && userInfo.is_sales_manager ? (
+              <div style={{ padding: "0.5rem", backgroundColor: "#f5f5f5", borderRadius: "6px", fontSize: "13px", fontWeight: 600 }}>
+                {branches.find(b => b.id === userInfo.branch_id)?.name || `فرع ${userInfo.branch_id}`}
+              </div>
+            ) : null}
+
+            {/* 2. موظف مبيعات */}
+            <select
+              value={selectedSalesStaffId || ""}
+              onChange={(e) => setSelectedSalesStaffId(e.target.value ? parseInt(e.target.value) : null)}
               style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "13px" }}
             >
-              <option value="">جميع الفروع</option>
-              {branches.map(b => (
-                <option key={b.id} value={b.id}>{b.name}</option>
+              <option value="">جميع موظفي المبيعات</option>
+              {salesStaff
+                .filter(staff => !selectedBranchId || staff.branch_id === selectedBranchId)
+                .map(staff => (
+                  <option key={staff.id} value={staff.id}>{staff.name}</option>
+                ))}
+            </select>
+
+            {/* 3. شهر */}
+            <select
+              value={selectedMonth || ""}
+              onChange={(e) => setSelectedMonth(e.target.value ? parseInt(e.target.value) : null)}
+              style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "13px" }}
+            >
+              <option value="">جميع الأشهر</option>
+              {Object.entries(monthNames).map(([num, name]) => (
+                <option key={num} value={num}>{name}</option>
               ))}
             </select>
-          ) : userInfo && userInfo.is_sales_manager ? (
-            <div style={{ padding: "0.5rem", backgroundColor: "#f5f5f5", borderRadius: "6px", fontSize: "13px", fontWeight: 600 }}>
-              {branches.find(b => b.id === userInfo.branch_id)?.name || `فرع ${userInfo.branch_id}`}
-            </div>
-          ) : null}
-          
-          {/* 2. موظف مبيعات */}
-          <select
-            value={selectedSalesStaffId || ""}
-            onChange={(e) => setSelectedSalesStaffId(e.target.value ? parseInt(e.target.value) : null)}
-            style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "13px" }}
-          >
-            <option value="">جميع موظفي المبيعات</option>
-            {salesStaff
-              .filter(staff => !selectedBranchId || staff.branch_id === selectedBranchId)
-              .map(staff => (
-                <option key={staff.id} value={staff.id}>{staff.name}</option>
+
+            {/* 4. سنة */}
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "13px" }}
+            >
+              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                <option key={y} value={y}>{y}</option>
               ))}
-          </select>
-          
-          {/* 3. شهر */}
-          <select
-            value={selectedMonth || ""}
-            onChange={(e) => setSelectedMonth(e.target.value ? parseInt(e.target.value) : null)}
-            style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "13px" }}
-          >
-            <option value="">جميع الأشهر</option>
-            {Object.entries(monthNames).map(([num, name]) => (
-              <option key={num} value={num}>{name}</option>
-            ))}
-          </select>
-          
-          {/* 4. سنة */}
-          <select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-            style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "13px" }}
-          >
-            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+            </select>
           </div>
-          
-          {/* Export PDF Button */}
-          <button
-            onClick={generateStatisticsPDF}
-            className="btn primary"
-            style={{ 
-              padding: "0.6rem 1.2rem", 
-              borderRadius: "6px", 
-              fontFamily: "Cairo", 
-              fontSize: "13px",
-              fontWeight: 600,
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem"
-            }}
-            disabled={isGeneratingPDF}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            {isGeneratingPDF ? 'جاري التصدير...' : 'تصدير PDF'}
-          </button>
+
         </div>
       </div>
 
@@ -381,272 +364,280 @@ export default function StatisticsPage() {
             </div>
             <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "0.25rem" }}>درهم</div>
           </div>
-          {statistics.daily_reports_details?.total_discounted !== undefined && (
-            <div className="stat-card">
-              <div className="stat-label">إجمالي النسبة</div>
-              <div className="stat-value" style={{ color: "#DC3545" }}>
-                {parseFloat(statistics.daily_reports_details.total_discounted).toFixed(2)}
-              </div>
-              <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "0.25rem" }}>درهم</div>
+          <div className="stat-card">
+            <div className="stat-label">إجمالي النسبة</div>
+            <div className="stat-value" style={{ color: "#DC3545" }}>
+              {(totalPaidAmount - totalNetAmount).toFixed(2)}
             </div>
-          )}
+            <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "0.25rem" }}>درهم</div>
+          </div>
         </div>
       </div>
 
       {/* 2. إحصائيات التقارير اليومية */}
-      {statistics.daily_reports_details && (
-        <div className="panel" style={{ marginBottom: "2rem" }}>
-          <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
-            إحصائيات التقارير اليومية
-          </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
-            <div className="stat-card">
-              <div className="stat-label">إجمالي المكالمات</div>
-              <div className="stat-value">{statistics.daily_reports_details.total_calls}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-label">إجمالي الهوت كول</div>
-              <div className="stat-value">{statistics.daily_reports_details.total_hot_calls}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-label">إجمالي ليدز الفرع</div>
-              <div className="stat-value">{statistics.daily_reports_details.total_branch_leads}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-label">إجمالي ليدز الأونلاين</div>
-              <div className="stat-value">{statistics.daily_reports_details.total_online_leads}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-label">إجمالي الزيارات</div>
-              <div className="stat-value">{statistics.daily_reports_details.total_visits}</div>
+      {
+        statistics.daily_reports_details && (
+          <div className="panel" style={{ marginBottom: "2rem" }}>
+            <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
+              إحصائيات التقارير اليومية
+            </h2>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
+              <div className="stat-card">
+                <div className="stat-label">إجمالي المكالمات</div>
+                <div className="stat-value">{statistics.daily_reports_details.total_calls}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-label">إجمالي الهوت كول</div>
+                <div className="stat-value">{statistics.daily_reports_details.total_hot_calls}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-label">إجمالي ليدز الفرع</div>
+                <div className="stat-value">{statistics.daily_reports_details.total_branch_leads}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-label">إجمالي ليدز الأونلاين</div>
+                <div className="stat-value">{statistics.daily_reports_details.total_online_leads}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-label">إجمالي الزيارات</div>
+                <div className="stat-value">{statistics.daily_reports_details.total_visits}</div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* 3. إحصائيات حسب طريقة الدفع */}
-      {statistics.payment_methods_details && statistics.payment_methods_details.length > 0 && (
-        <div className="panel" style={{ marginBottom: "2rem" }}>
-          <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
-            إحصائيات حسب طريقة الدفع
-          </h2>
-          <div className="table-container">
-            <table style={{ width: "100%", fontSize: "13px" }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: "center" }}>طريقة الدفع</th>
-                  <th style={{ textAlign: "center" }}>المبلغ الإجمالي</th>
-                  <th style={{ textAlign: "center" }}>عدد المعاملات</th>
-                  <th style={{ textAlign: "center" }}>المبلغ الصافي</th>
-                </tr>
-              </thead>
-              <tbody>
-                {statistics.payment_methods_details.map(method => (
-                  <tr key={method.payment_method_id}>
-                    <td style={{ fontWeight: 600, textAlign: "center" }}>{method.payment_method_name}</td>
-                    <td style={{ textAlign: "center" }}>{parseFloat(method.total_paid).toFixed(2)} درهم</td>
-                    <td style={{ textAlign: "center" }}>{method.transactions_count}</td>
-                    <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{parseFloat(method.total_net).toFixed(2)} درهم</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* 4. إحصائيات الموظف */}
-      {statistics.sales_staff_details && statistics.sales_staff_details.length > 0 && (
-        <div className="panel" style={{ marginBottom: "2rem" }}>
-          <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
-            إحصائيات الموظف
-          </h2>
-          
-          {/* إحصائيات النشاط اليومي */}
-          <div style={{ marginBottom: "2rem" }}>
-            <h3 style={{ fontSize: "16px", marginBottom: "1rem", fontWeight: 600, color: "#6B7280" }}>إحصائيات النشاط اليومي</h3>
+      {
+        statistics.payment_methods_details && statistics.payment_methods_details.length > 0 && (
+          <div className="panel" style={{ marginBottom: "2rem" }}>
+            <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
+              إحصائيات حسب طريقة الدفع
+            </h2>
             <div className="table-container">
               <table style={{ width: "100%", fontSize: "13px" }}>
                 <thead>
                   <tr>
-                    <th style={{ textAlign: "center" }}>اسم الموظف</th>
-                    <th style={{ textAlign: "center" }}>الفرع</th>
-                    <th style={{ textAlign: "center" }}>عدد المكالمات</th>
-                    <th style={{ textAlign: "center" }}>عدد الزيارات</th>
-                    <th style={{ textAlign: "center" }}>عدد الـ Leads</th>
-                    <th style={{ textAlign: "center" }}>عدد التقارير اليومية</th>
+                    <th style={{ textAlign: "center" }}>طريقة الدفع</th>
+                    <th style={{ textAlign: "center" }}>المبلغ الإجمالي</th>
+                    <th style={{ textAlign: "center" }}>عدد المعاملات</th>
+                    <th style={{ textAlign: "center" }}>المبلغ الصافي</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {statistics.sales_staff_details.map(staff => (
-                    <tr key={staff.staff_id}>
-                      <td style={{ fontWeight: 600, textAlign: "center" }}>{staff.staff_name}</td>
-                      <td style={{ textAlign: "center" }}>{staff.branch_name}</td>
-                      <td style={{ textAlign: "center" }}>{staff.total_calls}</td>
-                      <td style={{ textAlign: "center" }}>{staff.total_visits}</td>
-                      <td style={{ textAlign: "center" }}>{staff.total_leads}</td>
-                      <td style={{ textAlign: "center" }}>{staff.reports_count || 0}</td>
+                  {statistics.payment_methods_details.map(method => (
+                    <tr key={method.payment_method_id}>
+                      <td style={{ fontWeight: 600, textAlign: "center" }}>{method.payment_method_name}</td>
+                      <td style={{ textAlign: "center" }}>{parseFloat(method.total_paid).toFixed(2)} درهم</td>
+                      <td style={{ textAlign: "center" }}>{method.transactions_count}</td>
+                      <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{parseFloat(method.total_net).toFixed(2)} درهم</td>
                     </tr>
                   ))}
-                  {/* صف الإجمالي */}
-                  <tr style={{ backgroundColor: "#F9FAFB", fontWeight: 600 }}>
-                    <td style={{ textAlign: "center" }}>الإجمالي</td>
-                    <td style={{ textAlign: "center" }}>-</td>
-                    <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_calls, 0)}</td>
-                    <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_visits, 0)}</td>
-                    <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_leads, 0)}</td>
-                    <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + (s.reports_count || 0), 0)}</td>
-                  </tr>
                 </tbody>
               </table>
             </div>
           </div>
+        )
+      }
 
-          {/* إحصائيات المبيعات */}
-          <div>
-            <h3 style={{ fontSize: "16px", marginBottom: "1rem", fontWeight: 600, color: "#6B7280" }}>إحصائيات المبيعات</h3>
+      {/* 4. إحصائيات الموظف */}
+      {
+        statistics.sales_staff_details && statistics.sales_staff_details.length > 0 && (
+          <div className="panel" style={{ marginBottom: "2rem" }}>
+            <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
+              إحصائيات الموظف
+            </h2>
+
+            {/* إحصائيات النشاط اليومي */}
+            <div style={{ marginBottom: "2rem" }}>
+              <h3 style={{ fontSize: "16px", marginBottom: "1rem", fontWeight: 600, color: "#6B7280" }}>إحصائيات النشاط اليومي</h3>
+              <div className="table-container">
+                <table style={{ width: "100%", fontSize: "13px" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: "center" }}>اسم الموظف</th>
+                      <th style={{ textAlign: "center" }}>الفرع</th>
+                      <th style={{ textAlign: "center" }}>عدد المكالمات</th>
+                      <th style={{ textAlign: "center" }}>عدد الزيارات</th>
+                      <th style={{ textAlign: "center" }}>عدد الـ Leads</th>
+                      <th style={{ textAlign: "center" }}>عدد التقارير اليومية</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statistics.sales_staff_details.map(staff => (
+                      <tr key={staff.staff_id}>
+                        <td style={{ fontWeight: 600, textAlign: "center" }}>{staff.staff_name}</td>
+                        <td style={{ textAlign: "center" }}>{staff.branch_name}</td>
+                        <td style={{ textAlign: "center" }}>{staff.total_calls}</td>
+                        <td style={{ textAlign: "center" }}>{staff.total_visits}</td>
+                        <td style={{ textAlign: "center" }}>{staff.total_leads}</td>
+                        <td style={{ textAlign: "center" }}>{staff.reports_count || 0}</td>
+                      </tr>
+                    ))}
+                    {/* صف الإجمالي */}
+                    <tr style={{ backgroundColor: "#F9FAFB", fontWeight: 600 }}>
+                      <td style={{ textAlign: "center" }}>الإجمالي</td>
+                      <td style={{ textAlign: "center" }}>-</td>
+                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_calls, 0)}</td>
+                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_visits, 0)}</td>
+                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_leads, 0)}</td>
+                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + (s.reports_count || 0), 0)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* إحصائيات المبيعات */}
+            <div>
+              <h3 style={{ fontSize: "16px", marginBottom: "1rem", fontWeight: 600, color: "#6B7280" }}>إحصائيات المبيعات</h3>
+              <div className="table-container">
+                <table style={{ width: "100%", fontSize: "13px" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: "center" }}>اسم الموظف</th>
+                      <th style={{ textAlign: "center" }}>الفرع</th>
+                      <th style={{ textAlign: "center" }}>إجمالي المبيعات</th>
+                      <th style={{ textAlign: "center" }}>عدد العقود</th>
+                      <th style={{ textAlign: "center" }}>قيمة العقود</th>
+                      <th style={{ textAlign: "center" }}>الصافي</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statistics.sales_staff_details.map(staff => (
+                      <tr key={staff.staff_id}>
+                        <td style={{ fontWeight: 600, textAlign: "center" }}>{staff.staff_name}</td>
+                        <td style={{ textAlign: "center" }}>{staff.branch_name}</td>
+                        <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{parseFloat(staff.total_sales).toFixed(2)} درهم</td>
+                        <td style={{ textAlign: "center" }}>{staff.contracts_count}</td>
+                        <td style={{ fontWeight: 600, textAlign: "center" }}>{parseFloat(staff.contracts_value).toFixed(2)} درهم</td>
+                        <td style={{ fontWeight: 600, color: "#28A745", textAlign: "center" }}>{parseFloat(staff.total_net_amount || 0).toFixed(2)} درهم</td>
+                      </tr>
+                    ))}
+                    {/* صف الإجمالي */}
+                    <tr style={{ backgroundColor: "#F9FAFB", fontWeight: 600 }}>
+                      <td style={{ textAlign: "center" }}>الإجمالي</td>
+                      <td style={{ textAlign: "center" }}>-</td>
+                      <td style={{ color: "#5A7ACD", textAlign: "center" }}>
+                        {statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_sales), 0).toFixed(2)} درهم
+                      </td>
+                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.contracts_count, 0)}</td>
+                      <td style={{ textAlign: "center" }}>
+                        {statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.contracts_value), 0).toFixed(2)} درهم
+                      </td>
+                      <td style={{ color: "#28A745", textAlign: "center" }}>
+                        {statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_net_amount || 0), 0).toFixed(2)} درهم
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* العقود التي مازالت تملك دفعة غير مكتملة */}
+      {
+        statistics.incomplete_payment_contracts && statistics.incomplete_payment_contracts.length > 0 && (
+          <div className="panel" style={{ marginBottom: "2rem" }}>
+            <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
+              العقود التي مازالت تملك دفعة غير مكتملة
+            </h2>
             <div className="table-container">
               <table style={{ width: "100%", fontSize: "13px" }}>
                 <thead>
                   <tr>
-                    <th style={{ textAlign: "center" }}>اسم الموظف</th>
-                    <th style={{ textAlign: "center" }}>الفرع</th>
-                    <th style={{ textAlign: "center" }}>إجمالي المبيعات</th>
-                    <th style={{ textAlign: "center" }}>عدد العقود</th>
-                    <th style={{ textAlign: "center" }}>قيمة العقود</th>
+                    <th>رقم العقد</th>
+                    <th>اسم صاحب العقد</th>
+                    <th>الفرع</th>
+                    <th>موظف المبيعات</th>
+                    <th>الكورس</th>
+                    <th>مصدر التسجيل</th>
+                    <th>القيمة الإجمالية</th>
+                    <th>المدفوع</th>
+                    <th>المتبقي</th>
+                    <th>الصافي</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {statistics.incomplete_payment_contracts.map(contract => (
+                    <tr key={contract.contract_id}>
+                      <td>{contract.contract_number}</td>
+                      <td style={{ fontWeight: 600 }}>{contract.student_name}</td>
+                      <td>{contract.branch_name}</td>
+                      <td>{contract.sales_staff_name}</td>
+                      <td>{contract.course_name}</td>
+                      <td>{contract.registration_source}</td>
+                      <td>{parseFloat(contract.total_amount).toFixed(2)} درهم</td>
+                      <td>{parseFloat(contract.paid_amount).toFixed(2)} درهم</td>
+                      <td style={{ fontWeight: 600, color: "#DC3545" }}>{parseFloat(contract.remaining_amount).toFixed(2)} درهم</td>
+                      <td style={{ fontWeight: 600, color: "#5A7ACD" }}>{parseFloat(contract.net_amount).toFixed(2)} درهم</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      }
+
+      {/* تفاصيل التسجيل في كل نوع كورس */}
+      {
+        statistics.course_registration_details && statistics.course_registration_details.length > 0 && (
+          <div className="panel" style={{ marginBottom: "2rem" }}>
+            <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
+              تفاصيل التسجيل في كل نوع كورس
+            </h2>
+            <div className="table-container">
+              <table style={{ width: "100%", fontSize: "13px" }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "center" }}>اسم الكورس</th>
+                    <th style={{ textAlign: "center" }}>عدد الفروع</th>
+                    <th style={{ textAlign: "center" }}>إجمالي التسجيلات</th>
+                    <th style={{ textAlign: "center" }}>القيمة الإجمالية</th>
+                    <th style={{ textAlign: "center" }}>المدفوع</th>
+                    <th style={{ textAlign: "center" }}>المتبقي</th>
                     <th style={{ textAlign: "center" }}>الصافي</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {statistics.sales_staff_details.map(staff => (
-                    <tr key={staff.staff_id}>
-                      <td style={{ fontWeight: 600, textAlign: "center" }}>{staff.staff_name}</td>
-                      <td style={{ textAlign: "center" }}>{staff.branch_name}</td>
-                      <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{parseFloat(staff.total_sales).toFixed(2)} درهم</td>
-                      <td style={{ textAlign: "center" }}>{staff.contracts_count}</td>
-                      <td style={{ fontWeight: 600, textAlign: "center" }}>{parseFloat(staff.contracts_value).toFixed(2)} درهم</td>
-                      <td style={{ fontWeight: 600, color: "#28A745", textAlign: "center" }}>{parseFloat(staff.total_net_amount || 0).toFixed(2)} درهم</td>
+                  {statistics.course_registration_details.map(course => (
+                    <tr key={course.course_id}>
+                      <td style={{ fontWeight: 600, textAlign: "center" }}>{course.course_name}</td>
+                      <td style={{ textAlign: "center" }}>{course.branches_count}</td>
+                      <td style={{ textAlign: "center" }}>{course.total_registrations}</td>
+                      <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{parseFloat(course.total_value).toFixed(2)} درهم</td>
+                      <td style={{ textAlign: "center" }}>{parseFloat(course.paid_amount).toFixed(2)} درهم</td>
+                      <td style={{ fontWeight: 600, color: "#DC3545", textAlign: "center" }}>{parseFloat(course.remaining_amount).toFixed(2)} درهم</td>
+                      <td style={{ fontWeight: 600, color: "#28A745", textAlign: "center" }}>{parseFloat(course.net_amount).toFixed(2)} درهم</td>
                     </tr>
                   ))}
                   {/* صف الإجمالي */}
                   <tr style={{ backgroundColor: "#F9FAFB", fontWeight: 600 }}>
                     <td style={{ textAlign: "center" }}>الإجمالي</td>
                     <td style={{ textAlign: "center" }}>-</td>
+                    <td style={{ textAlign: "center" }}>{statistics.course_registration_details.reduce((sum, c) => sum + c.total_registrations, 0)}</td>
                     <td style={{ color: "#5A7ACD", textAlign: "center" }}>
-                      {statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_sales), 0).toFixed(2)} درهم
+                      {statistics.course_registration_details.reduce((sum, c) => sum + parseFloat(c.total_value), 0).toFixed(2)} درهم
                     </td>
-                    <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.contracts_count, 0)}</td>
                     <td style={{ textAlign: "center" }}>
-                      {statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.contracts_value), 0).toFixed(2)} درهم
+                      {statistics.course_registration_details.reduce((sum, c) => sum + parseFloat(c.paid_amount), 0).toFixed(2)} درهم
+                    </td>
+                    <td style={{ color: "#DC3545", textAlign: "center" }}>
+                      {statistics.course_registration_details.reduce((sum, c) => sum + parseFloat(c.remaining_amount), 0).toFixed(2)} درهم
                     </td>
                     <td style={{ color: "#28A745", textAlign: "center" }}>
-                      {statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_net_amount || 0), 0).toFixed(2)} درهم
+                      {statistics.course_registration_details.reduce((sum, c) => sum + parseFloat(c.net_amount), 0).toFixed(2)} درهم
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* العقود التي مازالت تملك دفعة غير مكتملة */}
-      {statistics.incomplete_payment_contracts && statistics.incomplete_payment_contracts.length > 0 && (
-        <div className="panel" style={{ marginBottom: "2rem" }}>
-          <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
-            العقود التي مازالت تملك دفعة غير مكتملة
-          </h2>
-          <div className="table-container">
-            <table style={{ width: "100%", fontSize: "13px" }}>
-              <thead>
-                <tr>
-                  <th>رقم العقد</th>
-                  <th>اسم صاحب العقد</th>
-                  <th>الفرع</th>
-                  <th>موظف المبيعات</th>
-                  <th>الكورس</th>
-                  <th>مصدر التسجيل</th>
-                  <th>القيمة الإجمالية</th>
-                  <th>المدفوع</th>
-                  <th>المتبقي</th>
-                  <th>الصافي</th>
-                </tr>
-              </thead>
-              <tbody>
-                {statistics.incomplete_payment_contracts.map(contract => (
-                  <tr key={contract.contract_id}>
-                    <td>{contract.contract_number}</td>
-                    <td style={{ fontWeight: 600 }}>{contract.student_name}</td>
-                    <td>{contract.branch_name}</td>
-                    <td>{contract.sales_staff_name}</td>
-                    <td>{contract.course_name}</td>
-                    <td>{contract.registration_source}</td>
-                    <td>{parseFloat(contract.total_amount).toFixed(2)} درهم</td>
-                    <td>{parseFloat(contract.paid_amount).toFixed(2)} درهم</td>
-                    <td style={{ fontWeight: 600, color: "#DC3545" }}>{parseFloat(contract.remaining_amount).toFixed(2)} درهم</td>
-                    <td style={{ fontWeight: 600, color: "#5A7ACD" }}>{parseFloat(contract.net_amount).toFixed(2)} درهم</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* تفاصيل التسجيل في كل نوع كورس */}
-      {statistics.course_registration_details && statistics.course_registration_details.length > 0 && (
-        <div className="panel" style={{ marginBottom: "2rem" }}>
-          <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
-            تفاصيل التسجيل في كل نوع كورس
-          </h2>
-          <div className="table-container">
-            <table style={{ width: "100%", fontSize: "13px" }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: "center" }}>اسم الكورس</th>
-                  <th style={{ textAlign: "center" }}>عدد الفروع</th>
-                  <th style={{ textAlign: "center" }}>إجمالي التسجيلات</th>
-                  <th style={{ textAlign: "center" }}>القيمة الإجمالية</th>
-                  <th style={{ textAlign: "center" }}>المدفوع</th>
-                  <th style={{ textAlign: "center" }}>المتبقي</th>
-                  <th style={{ textAlign: "center" }}>الصافي</th>
-                </tr>
-              </thead>
-              <tbody>
-                {statistics.course_registration_details.map(course => (
-                  <tr key={course.course_id}>
-                    <td style={{ fontWeight: 600, textAlign: "center" }}>{course.course_name}</td>
-                    <td style={{ textAlign: "center" }}>{course.branches_count}</td>
-                    <td style={{ textAlign: "center" }}>{course.total_registrations}</td>
-                    <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{parseFloat(course.total_value).toFixed(2)} درهم</td>
-                    <td style={{ textAlign: "center" }}>{parseFloat(course.paid_amount).toFixed(2)} درهم</td>
-                    <td style={{ fontWeight: 600, color: "#DC3545", textAlign: "center" }}>{parseFloat(course.remaining_amount).toFixed(2)} درهم</td>
-                    <td style={{ fontWeight: 600, color: "#28A745", textAlign: "center" }}>{parseFloat(course.net_amount).toFixed(2)} درهم</td>
-                  </tr>
-                ))}
-                {/* صف الإجمالي */}
-                <tr style={{ backgroundColor: "#F9FAFB", fontWeight: 600 }}>
-                  <td style={{ textAlign: "center" }}>الإجمالي</td>
-                  <td style={{ textAlign: "center" }}>-</td>
-                  <td style={{ textAlign: "center" }}>{statistics.course_registration_details.reduce((sum, c) => sum + c.total_registrations, 0)}</td>
-                  <td style={{ color: "#5A7ACD", textAlign: "center" }}>
-                    {statistics.course_registration_details.reduce((sum, c) => sum + parseFloat(c.total_value), 0).toFixed(2)} درهم
-                  </td>
-                  <td style={{ textAlign: "center" }}>
-                    {statistics.course_registration_details.reduce((sum, c) => sum + parseFloat(c.paid_amount), 0).toFixed(2)} درهم
-                  </td>
-                  <td style={{ color: "#DC3545", textAlign: "center" }}>
-                    {statistics.course_registration_details.reduce((sum, c) => sum + parseFloat(c.remaining_amount), 0).toFixed(2)} درهم
-                  </td>
-                  <td style={{ color: "#28A745", textAlign: "center" }}>
-                    {statistics.course_registration_details.reduce((sum, c) => sum + parseFloat(c.net_amount), 0).toFixed(2)} درهم
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }

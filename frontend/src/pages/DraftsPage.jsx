@@ -11,12 +11,12 @@ const monthNames = {
 // Convert 24-hour time to 12-hour format with AM/PM
 function convertTo12Hour(time24) {
   if (!time24 || time24 === "-") return "-";
-  
+
   try {
     const [hours, minutes] = time24.split(":");
     const hour = parseInt(hours, 10);
     const min = minutes || "00";
-    
+
     if (hour === 0) {
       return `12:${min} صباحاً`;
     } else if (hour === 12) {
@@ -49,12 +49,12 @@ function DraftRow({ draft, branchName, branchDefaultRate, onApprove, onReject, o
   if (draft.status !== "pending") {
     return (
       <tr>
-        <td>{branchName}</td>
         <td>{draft.teacher_name}</td>
         <td>{draft.student_name}</td>
         <td>{draft.session_date}</td>
         <td>{convertTo12Hour(draft.start_time)}</td>
         <td>{convertTo12Hour(draft.end_time)}</td>
+        <td>{draft.duration_hours}</td>
         <td>{draft.duration_text}</td>
         <td>-</td>
         <td>-</td>
@@ -71,12 +71,12 @@ function DraftRow({ draft, branchName, branchDefaultRate, onApprove, onReject, o
   return (
     <>
       <tr>
-        <td>{branchName}</td>
         <td>{draft.teacher_name}</td>
         <td>{draft.student_name}</td>
         <td>{draft.session_date}</td>
         <td>{convertTo12Hour(draft.start_time)}</td>
         <td>{convertTo12Hour(draft.end_time)}</td>
+        <td>{draft.duration_hours}</td>
         <td>{draft.duration_text}</td>
         <td>
           <input
@@ -84,10 +84,10 @@ function DraftRow({ draft, branchName, branchDefaultRate, onApprove, onReject, o
             placeholder="رقم العقد"
             value={contractNumber}
             onChange={(e) => setContractNumber(e.target.value)}
-            style={{ 
-              width: "100%", 
-              padding: "0.4rem 0.5rem", 
-              borderRadius: "var(--border-radius)", 
+            style={{
+              width: "100%",
+              padding: "0.4rem 0.5rem",
+              borderRadius: "var(--border-radius)",
               border: "1px solid var(--border-color)",
               fontFamily: "var(--font-family)",
               fontSize: "var(--font-size-small)"
@@ -101,10 +101,10 @@ function DraftRow({ draft, branchName, branchDefaultRate, onApprove, onReject, o
             placeholder="سعر الساعة"
             value={hourlyRate}
             onChange={(e) => setHourlyRate(e.target.value)}
-            style={{ 
-              width: "100%", 
-              padding: "0.4rem 0.5rem", 
-              borderRadius: "var(--border-radius)", 
+            style={{
+              width: "100%",
+              padding: "0.4rem 0.5rem",
+              borderRadius: "var(--border-radius)",
               border: "1px solid var(--border-color)",
               fontFamily: "var(--font-family)",
               fontSize: "var(--font-size-small)"
@@ -115,10 +115,10 @@ function DraftRow({ draft, branchName, branchDefaultRate, onApprove, onReject, o
           <select
             value={location}
             onChange={(e) => setLocation(e.target.value)}
-            style={{ 
-              width: "100%", 
-              padding: "0.4rem 0.5rem", 
-              borderRadius: "var(--border-radius)", 
+            style={{
+              width: "100%",
+              padding: "0.4rem 0.5rem",
+              borderRadius: "var(--border-radius)",
               border: "1px solid var(--border-color)",
               fontFamily: "var(--font-family)",
               fontSize: "var(--font-size-small)"
@@ -130,8 +130,8 @@ function DraftRow({ draft, branchName, branchDefaultRate, onApprove, onReject, o
         </td>
         <td>
           <div style={{ display: "flex", gap: "0.4rem", justifyContent: "center", alignItems: "center" }}>
-            <button 
-              className="btn-small" 
+            <button
+              className="btn-small"
               onClick={() => {
                 if (contractNumber && hourlyRate) {
                   onApprove(draft.id, contractNumber, parseFloat(hourlyRate), location);
@@ -142,8 +142,8 @@ function DraftRow({ draft, branchName, branchDefaultRate, onApprove, onReject, o
                   showError("يرجى إدخال رقم العقد وسعر الساعة");
                 }
               }}
-              style={{ 
-                padding: "0.4rem 0.6rem", 
+              style={{
+                padding: "0.4rem 0.6rem",
                 backgroundColor: "#28a745",
                 color: "white",
                 border: "none",
@@ -161,10 +161,10 @@ function DraftRow({ draft, branchName, branchDefaultRate, onApprove, onReject, o
               </svg>
               موافقة
             </button>
-            <button 
-              className="btn-small" 
+            <button
+              className="btn-small"
               onClick={() => onEdit(draft)}
-              style={{ 
+              style={{
                 padding: "0.4rem 0.6rem",
                 backgroundColor: "#ffc107",
                 color: "white",
@@ -184,11 +184,11 @@ function DraftRow({ draft, branchName, branchDefaultRate, onApprove, onReject, o
               </svg>
               تعديل
             </button>
-            <button 
-              className="btn-small" 
+            <button
+              className="btn-small"
               onClick={() => setShowRejectForm(true)}
-              style={{ 
-                padding: "0.4rem 0.6rem", 
+              style={{
+                padding: "0.4rem 0.6rem",
                 backgroundColor: "#dc3545",
                 color: "white",
                 border: "none",
@@ -210,15 +210,15 @@ function DraftRow({ draft, branchName, branchDefaultRate, onApprove, onReject, o
           </div>
         </td>
       </tr>
-      
+
       {showRejectForm && (
         <tr>
-          <td colSpan="11" style={{ padding: "1rem", backgroundColor: "#fff0f0" }}>
+          <td colSpan="12" style={{ padding: "1rem", backgroundColor: "#fff0f0" }}>
             <div className="panel" style={{ margin: 0, padding: "1rem" }}>
               <h4 style={{ fontSize: "var(--font-size-h3)", marginBottom: "0.75rem" }}>رفض المسودة</h4>
               <div style={{ marginBottom: "0.75rem" }}>
-                <input 
-                  placeholder="سبب الرفض" 
+                <input
+                  placeholder="سبب الرفض"
                   value={rejectionReason}
                   onChange={(e) => setRejectionReason(e.target.value)}
                   required
@@ -233,8 +233,8 @@ function DraftRow({ draft, branchName, branchDefaultRate, onApprove, onReject, o
                 />
               </div>
               <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button 
-                  className="btn" 
+                <button
+                  className="btn"
                   style={{ backgroundColor: "#dc3545", color: "white" }}
                   onClick={() => {
                     if (rejectionReason) {
@@ -279,7 +279,7 @@ export default function DraftsPage() {
 
   useEffect(() => {
     if (!token) return;
-    
+
     apiGet("/auth/me", token)
       .then((data) => {
         setUserInfo(data);
@@ -289,7 +289,7 @@ export default function DraftsPage() {
         }
       })
       .catch(console.error);
-    
+
     apiGet("/branches", token)
       .then((branchesData) => {
         setBranches(branchesData);
@@ -301,21 +301,14 @@ export default function DraftsPage() {
   const loadDraftsForBranches = async (branchesList) => {
     setLoading(true);
     try {
+      let endpoint = "/drafts";
       if (selectedBranchId) {
-        const data = await apiGet(`/drafts?branch_id=${selectedBranchId}`, token);
-        setDrafts(data);
-      } else {
-        const allDrafts = [];
-        for (const branch of branchesList) {
-          try {
-            const data = await apiGet(`/drafts?branch_id=${branch.id}`, token);
-            allDrafts.push(...data);
-          } catch (error) {
-            console.error(`Error loading drafts for branch ${branch.id}:`, error);
-          }
-        }
-        setDrafts(allDrafts);
+        endpoint = `/drafts?branch_id=${selectedBranchId}`;
       }
+
+      const data = await apiGet(endpoint, token);
+      // Ensure data is array
+      setDrafts(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error loading drafts:", error);
       setDrafts([]);
@@ -326,8 +319,8 @@ export default function DraftsPage() {
 
   const handleApprove = async (draftId, contractNumber, hourlyRate, location) => {
     try {
-      await apiPost(`/drafts/${draftId}/approve`, { 
-        contract_number: contractNumber, 
+      await apiPost(`/drafts/${draftId}/approve`, {
+        contract_number: contractNumber,
         hourly_rate: hourlyRate,
         location: location || "internal"
       }, token);
@@ -365,7 +358,7 @@ export default function DraftsPage() {
   const handleUpdate = async (e) => {
     e.preventDefault();
     if (!editingDraft) return;
-    
+
     try {
       await apiPatch(`/drafts/${editingDraft.id}`, editForm, token);
       success("تم تحديث المسودة بنجاح!");
@@ -427,7 +420,7 @@ export default function DraftsPage() {
       const year = created.getFullYear();
       const month = created.getMonth() + 1;
       const key = `${year}-${month}`;
-      
+
       if (!grouped[key]) {
         grouped[key] = {
           year,
@@ -438,7 +431,7 @@ export default function DraftsPage() {
       }
       grouped[key].drafts.push(draft);
     });
-    
+
     // Sort by year and month (newest first)
     return Object.values(grouped).sort((a, b) => {
       if (a.year !== b.year) return b.year - a.year;
@@ -457,16 +450,46 @@ export default function DraftsPage() {
     setExpandedMonths(newExpanded);
   };
 
-  const monthlyGroups = groupDraftsByMonth(drafts);
-  
-  // Expand current month by default
+  // Group drafts by branch, then by month
+  const getBranchGroups = () => {
+    const groups = {};
+
+    drafts.forEach(draft => {
+      if (!groups[draft.branch_id]) {
+        groups[draft.branch_id] = {
+          branchId: draft.branch_id,
+          branchName: getBranchName(draft.branch_id),
+          drafts: []
+        };
+      }
+      groups[draft.branch_id].drafts.push(draft);
+    });
+
+    return Object.values(groups).map(group => ({
+      ...group,
+      monthlyGroups: groupDraftsByMonth(group.drafts)
+    })).sort((a, b) => a.branchName.localeCompare(b.branchName));
+  };
+
+  const branchGroups = getBranchGroups();
+
+  // Expand current month by default (modified logic)
   useEffect(() => {
-    if (monthlyGroups.length > 0) {
+    if (branchGroups.length > 0) {
       const currentMonth = new Date().getMonth() + 1;
       const currentYear = new Date().getFullYear();
       const currentKey = `${currentYear}-${currentMonth}`;
-      if (monthlyGroups.some(g => `${g.year}-${g.month}` === currentKey)) {
-        setExpandedMonths(new Set([currentKey]));
+
+      const shouldExpand = branchGroups.some(bg =>
+        bg.monthlyGroups.some(mg => `${mg.year}-${mg.month}` === currentKey)
+      );
+
+      if (shouldExpand) {
+        setExpandedMonths(prev => {
+          const newSet = new Set(prev);
+          newSet.add(currentKey);
+          return newSet;
+        });
       }
     }
   }, [drafts.length]);
@@ -478,8 +501,8 @@ export default function DraftsPage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
             <h3 style={{ fontSize: "1rem", margin: 0 }}>مسودات الجلسات الإضافية</h3>
             {userInfo && !userInfo.is_operation_manager && (
-              <select 
-                value={selectedBranchId || ""} 
+              <select
+                value={selectedBranchId || ""}
                 onChange={(e) => setSelectedBranchId(e.target.value ? parseInt(e.target.value) : null)}
                 style={{ padding: "0.4rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "0.85rem" }}
               >
@@ -497,70 +520,85 @@ export default function DraftsPage() {
             <p style={{ textAlign: "center", color: "#666", padding: "1.5rem", fontSize: "0.9rem" }}>لا توجد مسودات حالياً</p>
           ) : (
             <div>
-              {monthlyGroups.map((group) => {
-                const monthKey = `${group.year}-${group.month}`;
-                const isExpanded = expandedMonths.has(monthKey);
-                
-                return (
-                  <div key={monthKey} style={{ marginBottom: "1rem" }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        padding: "0.75rem",
-                        backgroundColor: "#f8f9fa",
-                        borderRadius: "6px",
-                        marginBottom: "0.4rem",
-                        cursor: "pointer",
-                        border: "1px solid #dcdcdc"
-                      }}
-                      onClick={() => toggleMonth(group.year, group.month)}
-                    >
-                      <h4 style={{ margin: 0, fontSize: "0.9rem" }}>
-                        {group.monthName} {group.year} ({group.drafts.length} مسودة)
-                      </h4>
-                      <span>{isExpanded ? "▼" : "▶"}</span>
-                    </div>
-                    
-                    {isExpanded && (
-                      <div className="table-container">
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>الفرع</th>
-                              <th>المدرس</th>
-                              <th>الطالب</th>
-                              <th>التاريخ</th>
-                              <th>من الساعة</th>
-                              <th>إلى الساعة</th>
-                              <th>المدة</th>
-                              <th>رقم العقد</th>
-                              <th>سعر الساعة</th>
-                              <th>داخلي/خارجي</th>
-                              <th>الإجراءات</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {group.drafts.map((d) => (
-                              <DraftRow 
-                                key={d.id} 
-                                draft={d} 
-                                branchName={getBranchName(d.branch_id)}
-                                branchDefaultRate={getBranchDefaultRate(d.branch_id)}
-                                onApprove={handleApprove}
-                                onReject={handleReject}
-                                onUpdate={handleUpdate}
-                                onEdit={handleEdit}
-                              />
-                            ))}
-                          </tbody>
-                        </table>
+              {branchGroups.map((branchGroup) => (
+                <div key={branchGroup.branchId} style={{ marginBottom: "2rem" }}>
+                  <h4 style={{
+                    color: "#2B2A2A",
+                    marginBottom: "1rem",
+                    fontSize: "1rem",
+                    fontWeight: 600,
+                    borderBottom: "2px solid #eee",
+                    paddingBottom: "0.5rem"
+                  }}>
+                    {branchGroup.branchName}
+                  </h4>
+
+                  {branchGroup.monthlyGroups.map((group) => {
+                    const monthKey = `${group.year}-${group.month}-${branchGroup.branchId}`; // Unique key per branch-month
+                    const isExpanded = expandedMonths.has(group.year + '-' + group.month) || expandedMonths.has(monthKey); // Allow global expand or local
+
+                    return (
+                      <div key={monthKey} style={{ marginBottom: "1rem" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "0.75rem",
+                            backgroundColor: "#f8f9fa",
+                            borderRadius: "6px",
+                            marginBottom: "0.4rem",
+                            cursor: "pointer",
+                            border: "1px solid #dcdcdc"
+                          }}
+                          onClick={() => toggleMonth(group.year, group.month)}
+                        >
+                          <h4 style={{ margin: 0, fontSize: "0.9rem" }}>
+                            {group.monthName} {group.year} ({group.drafts.length} مسودة)
+                          </h4>
+                          <span>{isExpanded ? "▼" : "▶"}</span>
+                        </div>
+
+                        {isExpanded && (
+                          <div className="table-container">
+                            <table>
+                              <thead>
+                                <tr>
+                                  <th>المدرس</th>
+                                  <th>الطالب</th>
+                                  <th>التاريخ</th>
+                                  <th>من الساعة</th>
+                                  <th>إلى الساعة</th>
+                                  <th>المدة (ساعات)</th>
+                                  <th>المدة (نص)</th>
+                                  <th>رقم العقد</th>
+                                  <th>سعر الساعة</th>
+                                  <th>داخلي/خارجي</th>
+                                  <th>الإجراءات</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {group.drafts.map((d) => (
+                                  <DraftRow
+                                    key={d.id}
+                                    draft={d}
+                                    branchName={getBranchName(d.branch_id)}
+                                    branchDefaultRate={getBranchDefaultRate(d.branch_id)}
+                                    onApprove={handleApprove}
+                                    onReject={handleReject}
+                                    onUpdate={handleUpdate}
+                                    onEdit={handleEdit}
+                                  />
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -569,79 +607,89 @@ export default function DraftsPage() {
       {/* Edit Modal */}
       {showEditModal && editingDraft && (
         <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px" }}>
-            <div className="modal-header" style={{ padding: "0.75rem 1rem" }}>
-              <h3 style={{ fontSize: "0.9rem", margin: 0 }}>تعديل المسودة</h3>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "700px" }}>
+            <div className="modal-header" style={{ padding: "1rem 1.5rem" }}>
+              <h3 style={{ fontSize: "1.1rem", margin: 0 }}>تعديل المسودة</h3>
               <button className="modal-close" onClick={() => setShowEditModal(false)}>×</button>
             </div>
             <form onSubmit={handleUpdate}>
-              <div className="modal-body" style={{ padding: "1rem" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+              <div className="modal-body" style={{ padding: "1.5rem" }}>
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: "1.25rem",
+                  alignItems: "start"
+                }}>
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <input 
-                      placeholder="اسم المدرس" 
-                      value={editForm.teacher_name} 
-                      onChange={(e) => setEditForm({ ...editForm, teacher_name: e.target.value })} 
-                      required 
-                      style={{ padding: "0.5rem 0.75rem", fontSize: "var(--font-size-small)" }}
+                    <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "0.5rem", display: "block" }}>اسم المدرس</label>
+                    <input
+                      placeholder="اسم المدرس"
+                      value={editForm.teacher_name}
+                      onChange={(e) => setEditForm({ ...editForm, teacher_name: e.target.value })}
+                      required
+                      style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem" }}
                     />
                   </div>
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <input 
-                      placeholder="اسم الطالب" 
-                      value={editForm.student_name} 
-                      onChange={(e) => setEditForm({ ...editForm, student_name: e.target.value })} 
-                      required 
-                      style={{ padding: "0.5rem 0.75rem", fontSize: "var(--font-size-small)" }}
+                    <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "0.5rem", display: "block" }}>اسم الطالب</label>
+                    <input
+                      placeholder="اسم الطالب"
+                      value={editForm.student_name}
+                      onChange={(e) => setEditForm({ ...editForm, student_name: e.target.value })}
+                      required
+                      style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem" }}
                     />
                   </div>
+
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <input 
-                      type="date" 
-                      value={editForm.session_date} 
-                      onChange={(e) => setEditForm({ ...editForm, session_date: e.target.value })} 
-                      required 
-                      style={{ padding: "0.5rem 0.75rem", fontSize: "var(--font-size-small)" }}
+                    <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "0.5rem", display: "block" }}>تاريخ الجلسة</label>
+                    <input
+                      type="date"
+                      value={editForm.session_date}
+                      onChange={(e) => setEditForm({ ...editForm, session_date: e.target.value })}
+                      required
+                      style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem" }}
                     />
                   </div>
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
-                    <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                      <input 
-                        type="time" 
-                        placeholder="من الساعة" 
-                        value={editForm.start_time} 
-                        onChange={(e) => setEditForm({ ...editForm, start_time: e.target.value })} 
-                        style={{ padding: "0.5rem 0.75rem", fontSize: "var(--font-size-small)" }}
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "0.5rem", display: "block" }}>الوقت (من - إلى)</label>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <input
+                        type="time"
+                        value={editForm.start_time}
+                        onChange={(e) => setEditForm({ ...editForm, start_time: e.target.value })}
+                        style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem", flex: 1 }}
+                      />
+                      <input
+                        type="time"
+                        value={editForm.end_time}
+                        onChange={(e) => setEditForm({ ...editForm, end_time: e.target.value })}
+                        style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem", flex: 1 }}
                       />
                     </div>
-                    <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                      <input 
-                        type="time" 
-                        placeholder="إلى الساعة" 
-                        value={editForm.end_time} 
-                        onChange={(e) => setEditForm({ ...editForm, end_time: e.target.value })} 
-                        style={{ padding: "0.5rem 0.75rem", fontSize: "var(--font-size-small)" }}
-                      />
-                    </div>
                   </div>
+
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <input 
-                      type="number" 
-                      step="0.25" 
-                      placeholder="عدد الساعات" 
-                      value={editForm.duration_hours} 
-                      onChange={(e) => setEditForm({ ...editForm, duration_hours: e.target.value })} 
-                      required 
-                      style={{ padding: "0.5rem 0.75rem", fontSize: "var(--font-size-small)" }}
+                    <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "0.5rem", display: "block" }}>المدة (ساعات)</label>
+                    <input
+                      type="number"
+                      step="0.25"
+                      placeholder="مثال: 1.5"
+                      value={editForm.duration_hours}
+                      onChange={(e) => setEditForm({ ...editForm, duration_hours: e.target.value })}
+                      required
+                      style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem" }}
                     />
                   </div>
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <input 
-                      placeholder="نص المدة (مثال: ساعتان)" 
-                      value={editForm.duration_text} 
-                      onChange={(e) => setEditForm({ ...editForm, duration_text: e.target.value })} 
-                      required 
-                      style={{ padding: "0.5rem 0.75rem", fontSize: "var(--font-size-small)" }}
+                    <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "0.5rem", display: "block" }}>المدة (نص)</label>
+                    <input
+                      placeholder="مثال: ساعة ونصف"
+                      value={editForm.duration_text}
+                      onChange={(e) => setEditForm({ ...editForm, duration_text: e.target.value })}
+                      required
+                      style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem" }}
                     />
                   </div>
                 </div>

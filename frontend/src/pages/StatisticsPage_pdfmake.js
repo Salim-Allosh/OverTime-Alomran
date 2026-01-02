@@ -26,9 +26,9 @@ export const buildStatisticsPDF = (
   // Helper function to format numbers with commas
   const formatNumber = (num, decimals = 2) => {
     if (typeof num !== 'number' || isNaN(num)) return num;
-    return num.toLocaleString('en-US', { 
-      minimumFractionDigits: decimals, 
-      maximumFractionDigits: decimals 
+    return num.toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
     });
   };
 
@@ -46,7 +46,7 @@ export const buildStatisticsPDF = (
     info: {
       title: 'تقرير الإحصائيات الشامل'
     },
-    footer: function(currentPage, pageCount) {
+    footer: function (currentPage, pageCount) {
       return {
         text: formatArabicText(`صفحة ${currentPage} من ${pageCount}`),
         alignment: 'center',
@@ -282,6 +282,14 @@ export const buildStatisticsPDF = (
           {
             width: '*',
             stack: [
+              { text: formatArabicText('إجمالي ليدز إضافي'), style: 'statLabel', alignment: 'center' },
+              { text: formatNumber(statistics.daily_reports_details.total_extra_leads, 0), style: 'statValue', color: '#17a2b8', alignment: 'center' }
+            ],
+            margin: [3, 0, 3, 5]
+          },
+          {
+            width: '*',
+            stack: [
               { text: formatArabicText('إجمالي الهوت كول'), style: 'statLabel', alignment: 'center' },
               { text: formatNumber(statistics.daily_reports_details.total_hot_calls, 0), style: 'statValue', color: '#ffc107', alignment: 'center' }
             ],
@@ -414,7 +422,7 @@ export const buildStatisticsPDF = (
             return 0.8;
           }
           return 0.3;
-          },
+        },
         vLineWidth: function (i, node) {
           return 0.3;
         },
@@ -680,6 +688,48 @@ export const buildStatisticsPDF = (
       }
     ];
     docDefinition.content.push(...courseDetailsContent);
+  }
+
+  // Visits Details Table
+  if (statistics.visits_details && statistics.visits_details.length > 0) {
+    const visitsContent = [
+      {
+        text: formatArabicText('تفاصيل الزيارات'),
+        style: 'sectionTitle',
+        margin: [0, 20, 0, 10]
+      },
+      {
+        table: {
+          headerRows: 1,
+          widths: ['auto', 'auto', 'auto', 'auto', '*'],
+          body: [
+            [
+              { text: formatArabicText('التاريخ'), style: 'tableHeader', alignment: 'center' },
+              { text: formatArabicText('الفرع'), style: 'tableHeader', alignment: 'center' },
+              { text: formatArabicText('الموظف'), style: 'tableHeader', alignment: 'center' },
+              { text: formatArabicText('رقم الزيارة'), style: 'tableHeader', alignment: 'center' },
+              { text: formatArabicText('التفاصيل'), style: 'tableHeader', alignment: 'center' }
+            ],
+            ...statistics.visits_details.map(visit => [
+              { text: visit.date, style: 'tableCell', alignment: 'center' },
+              { text: formatArabicText(visit.branch), style: 'tableCell', alignment: 'center' },
+              { text: formatArabicText(visit.sales_staff), style: 'tableCell', alignment: 'center' },
+              { text: visit.visit_order, style: 'tableCell', alignment: 'center' },
+              { text: formatArabicText(visit.details), style: 'tableCell', alignment: 'right' }
+            ])
+          ]
+        },
+        layout: {
+          hLineWidth: function (i, node) { return (i === 0 || i === node.table.body.length) ? 0.8 : 0.3; },
+          vLineWidth: function (i, node) { return 0.3; },
+          hLineColor: function (i, node) { return (i === 0 || i === node.table.body.length) ? '#5A7ACD' : '#E5E7EB'; },
+          vLineColor: function (i, node) { return '#E5E7EB'; },
+          paddingTop: function (i) { return 4; },
+          paddingBottom: function (i) { return 4; }
+        }
+      }
+    ];
+    docDefinition.content.push(...visitsContent);
   }
 
   // If super admin and showing all branches, add detailed pages for each branch

@@ -78,7 +78,7 @@ export default function DailySalesReportsPage() {
 
   useEffect(() => {
     if (!token) return;
-    
+
     apiGet("/auth/me", token)
       .then((userData) => {
         setUserInfo(userData);
@@ -93,19 +93,19 @@ export default function DailySalesReportsPage() {
         }
       })
       .catch(console.error);
-    
+
     apiGet("/branches", token)
       .then(setBranches)
       .catch(console.error);
-    
+
     apiGet("/courses", token)
       .then(setCourses)
       .catch(console.error);
-    
+
     apiGet("/payment-methods", token)
       .then(setPaymentMethods)
       .catch(console.error);
-    
+
     // تحميل التقارير دائماً لعرضها في البطاقة اليومية
     loadReports();
     // تحميل العقود دائماً لعرضها في البطاقة اليومية
@@ -151,7 +151,7 @@ export default function DailySalesReportsPage() {
       const params = [];
       if (selectedBranchId) params.push(`branch_id=${selectedBranchId}`);
       if (params.length > 0) url += "?" + params.join("&");
-      
+
       const data = await apiGet(url, token);
       console.log("[DailySalesReports] Loaded reports:", data);
       setReports(Array.isArray(data) ? data : []);
@@ -164,25 +164,25 @@ export default function DailySalesReportsPage() {
   // Filter reports by year, month, and sales staff
   const filterReportsByYearAndMonth = (reportsList) => {
     let filtered = reportsList;
-    
+
     // Filter by sales staff
     if (selectedSalesStaffId) {
       filtered = filtered.filter(report => report.sales_staff_id === selectedSalesStaffId);
     }
-    
+
     // Filter by year and month
     if (!selectedYear && !selectedMonth) {
       return filtered;
     }
-    
+
     filtered = filtered.filter(report => {
       if (!report.report_date) return false;
       const reportDate = new Date(report.report_date);
       if (isNaN(reportDate.getTime())) return false;
-      
+
       const year = reportDate.getFullYear();
       const month = reportDate.getMonth() + 1;
-      
+
       if (selectedYear && selectedMonth) {
         return year === selectedYear && month === selectedMonth;
       } else if (selectedYear) {
@@ -192,7 +192,7 @@ export default function DailySalesReportsPage() {
       }
       return true;
     });
-    
+
     console.log("[DailySalesReports] Filtering reports:", {
       total: reportsList.length,
       filtered: filtered.length,
@@ -200,7 +200,7 @@ export default function DailySalesReportsPage() {
       selectedMonth,
       selectedSalesStaffId
     });
-    
+
     return filtered;
   };
 
@@ -208,7 +208,7 @@ export default function DailySalesReportsPage() {
   const getAvailableYearsAndMonths = (reportsList) => {
     const yearsSet = new Set();
     const monthsSet = new Set();
-    
+
     reportsList.forEach(report => {
       const reportDate = new Date(report.report_date);
       const year = reportDate.getFullYear();
@@ -216,7 +216,7 @@ export default function DailySalesReportsPage() {
       yearsSet.add(year);
       monthsSet.add(month);
     });
-    
+
     return {
       years: Array.from(yearsSet).sort((a, b) => b - a),
       months: Array.from(monthsSet).sort((a, b) => a - b)
@@ -226,18 +226,18 @@ export default function DailySalesReportsPage() {
   // Group reports by branch and month
   const groupReportsByBranchAndMonth = (reportsList) => {
     const grouped = {};
-    
+
     reportsList.forEach(report => {
       const branchId = report.branch_id;
       if (!grouped[branchId]) {
         grouped[branchId] = {};
       }
-      
+
       const reportDate = new Date(report.report_date);
       const year = reportDate.getFullYear();
       const month = reportDate.getMonth() + 1;
       const key = `${year}-${month}`;
-      
+
       if (!grouped[branchId][key]) {
         grouped[branchId][key] = {
           year,
@@ -246,10 +246,10 @@ export default function DailySalesReportsPage() {
           reports: []
         };
       }
-      
+
       grouped[branchId][key].reports.push(report);
     });
-    
+
     // Convert to array format: [{ branchId, branchName, months: [...] }]
     return Object.entries(grouped).map(([branchId, months]) => {
       const branch = branches.find(b => b.id === parseInt(branchId));
@@ -257,7 +257,7 @@ export default function DailySalesReportsPage() {
         if (a.year !== b.year) return b.year - a.year;
         return b.month - a.month;
       });
-      
+
       return {
         branchId: parseInt(branchId),
         branchName: branch ? branch.name : `فرع ${branchId}`,
@@ -295,17 +295,17 @@ export default function DailySalesReportsPage() {
   // Filter contracts by year, month, branch, sales staff, and search query
   const filterContractsByYearAndMonth = (contractsList) => {
     let filtered = contractsList;
-    
+
     // Filter by branch
     if (selectedContractBranchId) {
       filtered = filtered.filter(contract => contract.branch_id === selectedContractBranchId);
     }
-    
+
     // Filter by sales staff
     if (selectedContractSalesStaffId) {
       filtered = filtered.filter(contract => contract.sales_staff_id === selectedContractSalesStaffId);
     }
-    
+
     // Filter by year and month (use contract_date if available, otherwise created_at)
     if (selectedContractYear || selectedContractMonth) {
       filtered = filtered.filter(contract => {
@@ -314,10 +314,10 @@ export default function DailySalesReportsPage() {
         if (!dateToUse) return false;
         const contractDate = new Date(dateToUse);
         if (isNaN(contractDate.getTime())) return false;
-        
+
         const year = contractDate.getFullYear();
         const month = contractDate.getMonth() + 1;
-        
+
         if (selectedContractYear && selectedContractMonth) {
           return year === selectedContractYear && month === selectedContractMonth;
         } else if (selectedContractYear) {
@@ -328,7 +328,7 @@ export default function DailySalesReportsPage() {
         return true;
       });
     }
-    
+
     // Filter by search query
     if (contractSearchQuery && contractSearchQuery.trim() !== "") {
       const searchLower = contractSearchQuery.toLowerCase().trim();
@@ -336,15 +336,15 @@ export default function DailySalesReportsPage() {
         // Search in student name
         const studentName = (contract.student_name || "").toLowerCase();
         if (studentName.includes(searchLower)) return true;
-        
+
         // Search in contract number
         const contractNumber = (contract.contract_number || "").toLowerCase();
         if (contractNumber.includes(searchLower)) return true;
-        
+
         // Search in client phone
         const clientPhone = (contract.client_phone || "").toLowerCase();
         if (clientPhone.includes(searchLower)) return true;
-        
+
         // Search in sales staff name
         if (contract.sales_staff_id) {
           const staff = salesStaff.find(s => s.id === contract.sales_staff_id);
@@ -353,11 +353,11 @@ export default function DailySalesReportsPage() {
             if (staffName.includes(searchLower)) return true;
           }
         }
-        
+
         return false;
       });
     }
-    
+
     return filtered;
   };
 
@@ -365,7 +365,7 @@ export default function DailySalesReportsPage() {
   const getAvailableContractYearsAndMonths = (contractsList) => {
     const yearsSet = new Set();
     const monthsSet = new Set();
-    
+
     contractsList.forEach(contract => {
       // استخدام contract_date إذا كان موجوداً، وإلا استخدام created_at
       const dateToUse = contract.contract_date || contract.created_at;
@@ -377,7 +377,7 @@ export default function DailySalesReportsPage() {
       yearsSet.add(year);
       monthsSet.add(month);
     });
-    
+
     return {
       years: Array.from(yearsSet).sort((a, b) => b - a),
       months: Array.from(monthsSet).sort((a, b) => a - b)
@@ -387,39 +387,39 @@ export default function DailySalesReportsPage() {
   // Group contracts by branch and month
   const groupContractsByBranchAndMonth = (contractsList) => {
     const grouped = {};
-    
+
     if (!contractsList || contractsList.length === 0) {
       return [];
     }
-    
+
     contractsList.forEach(contract => {
       if (!contract || !contract.branch_id) {
         console.warn("[DailySalesReports] Invalid contract:", contract);
         return;
       }
-      
+
       // استخدام contract_date إذا كان موجوداً، وإلا استخدام created_at
       const dateToUse = contract.contract_date || contract.created_at;
       if (!dateToUse) {
         console.warn("[DailySalesReports] Contract has no date:", contract);
         return;
       }
-      
+
       const branchId = contract.branch_id;
       if (!grouped[branchId]) {
         grouped[branchId] = {};
       }
-      
+
       const contractDate = new Date(dateToUse);
       if (isNaN(contractDate.getTime())) {
         console.warn("[DailySalesReports] Invalid contract date:", dateToUse);
         return;
       }
-      
+
       const year = contractDate.getFullYear();
       const month = contractDate.getMonth() + 1;
       const key = `${year}-${month}`;
-      
+
       if (!grouped[branchId][key]) {
         grouped[branchId][key] = {
           year,
@@ -428,10 +428,10 @@ export default function DailySalesReportsPage() {
           contracts: []
         };
       }
-      
+
       grouped[branchId][key].contracts.push(contract);
     });
-    
+
     // Convert to array format: [{ branchId, branchName, months: [...] }]
     return Object.entries(grouped).map(([branchId, months]) => {
       const branch = branches.find(b => b.id === parseInt(branchId));
@@ -439,7 +439,7 @@ export default function DailySalesReportsPage() {
         if (a.year !== b.year) return b.year - a.year;
         return b.month - a.month;
       });
-      
+
       return {
         branchId: parseInt(branchId),
         branchName: branch ? branch.name : `فرع ${branchId}`,
@@ -454,7 +454,7 @@ export default function DailySalesReportsPage() {
       const params = [];
       if (selectedContractBranchId) params.push(`branch_id=${selectedContractBranchId}`);
       if (params.length > 0) url += "?" + params.join("&");
-      
+
       const data = await apiGet(url, token);
       console.log("[DailySalesReports] Loaded contracts:", data);
       if (Array.isArray(data) && data.length > 0) {
@@ -479,23 +479,23 @@ export default function DailySalesReportsPage() {
         reportDate: reportDate,
         reportDateType: typeof reportDate
       });
-      
+
       // تحويل التاريخ إلى تنسيق YYYY-MM-DD للتأكد من التطابق
       const dateStr = typeof reportDate === 'string' ? reportDate : reportDate.split('T')[0];
       console.log("  [checkDuplicateReport] Step A2: Date string extracted:", dateStr);
-      
+
       // البحث عن تقارير يومية (daily-sales-reports) في نفس التاريخ - وليس عقود
       const url = `/daily-sales-reports?date_from=${dateStr}&date_to=${dateStr}`;
       console.log("  [checkDuplicateReport] Step A3: API URL:", url);
       console.log("  [checkDuplicateReport] Step A4: Making GET request to fetch reports...");
-      
+
       const data = await apiGet(url, token);
-      
+
       console.log("  [checkDuplicateReport] Step A5: API response received");
       console.log("  [checkDuplicateReport] Step A5.1: Response type:", typeof data);
       console.log("  [checkDuplicateReport] Step A5.2: Is array?", Array.isArray(data));
       console.log("  [checkDuplicateReport] Step A5.3: Total reports found:", Array.isArray(data) ? data.length : "N/A (not an array)");
-      
+
       if (Array.isArray(data) && data.length > 0) {
         console.log("  [checkDuplicateReport] Step A5.4: First report sample:", {
           id: data[0].id,
@@ -508,29 +508,29 @@ export default function DailySalesReportsPage() {
           has_walk_ins: data[0].hasOwnProperty('walk_ins')
         });
       }
-      
+
       console.log("  [checkDuplicateReport] Step A6: Starting comparison loop...");
       console.log("  [checkDuplicateReport] Step A6.1: Search criteria:", {
         searchStaffId: salesStaffId,
         searchStaffIdType: typeof salesStaffId,
         searchDate: dateStr
       });
-      
+
       // البحث عن تقرير يومي (daily sales report) لنفس الموظف في نفس التاريخ
       let existingReport = null;
-      
+
       if (Array.isArray(data) && data.length > 0) {
         console.log("  [checkDuplicateReport] Step A6.2: Array has", data.length, "items, starting comparison...");
         existingReport = data.find((r, index) => {
           console.log(`  [checkDuplicateReport] Step A6.2.${index + 1}: Checking report #${index + 1} (ID: ${r.id})`);
-          
+
           // التأكد من أن r هو تقرير يومي وليس عقد
           if (!r.hasOwnProperty('report_date') || !r.hasOwnProperty('sales_staff_id')) {
             console.log(`  [checkDuplicateReport] Step A6.2.${index + 1}.1: ❌ Skipping - missing report_date or sales_staff_id`);
             console.log(`  [checkDuplicateReport] Step A6.2.${index + 1}.1: Report object keys:`, Object.keys(r));
             return false;
           }
-          
+
           console.log(`  [checkDuplicateReport] Step A6.2.${index + 1}.2: Report has required fields`);
           console.log(`  [checkDuplicateReport] Step A6.2.${index + 1}.3: Report values:`, {
             report_sales_staff_id: r.sales_staff_id,
@@ -538,53 +538,53 @@ export default function DailySalesReportsPage() {
             report_report_date: r.report_date,
             report_report_date_type: typeof r.report_date
           });
-          
+
           // تحويل sales_staff_id إلى رقم للمقارنة
           const reportStaffId = typeof r.sales_staff_id === 'number' ? r.sales_staff_id : parseInt(r.sales_staff_id);
           const searchStaffId = typeof salesStaffId === 'number' ? salesStaffId : parseInt(salesStaffId);
-          
+
           console.log(`  [checkDuplicateReport] Step A6.2.${index + 1}.4: Staff ID comparison:`, {
             reportStaffId: reportStaffId,
             searchStaffId: searchStaffId,
             staffMatch: reportStaffId === searchStaffId
           });
-          
+
           // مقارنة sales_staff_id و report_date
           const reportDateStr = typeof r.report_date === 'string' ? r.report_date.split('T')[0] : String(r.report_date).split('T')[0];
           const staffMatch = reportStaffId === searchStaffId;
           const dateMatch = reportDateStr === dateStr;
           const match = staffMatch && dateMatch;
-          
+
           console.log(`  [checkDuplicateReport] Step A6.2.${index + 1}.5: Date comparison:`, {
             reportDateStr: reportDateStr,
             searchDateStr: dateStr,
             dateMatch: dateMatch
           });
-          
+
           console.log(`  [checkDuplicateReport] Step A6.2.${index + 1}.6: Final match result:`, {
             staffMatch: staffMatch,
             dateMatch: dateMatch,
             overallMatch: match
           });
-          
+
           if (match) {
             console.error(`  [checkDuplicateReport] Step A6.2.${index + 1}.7: ❌❌❌ MATCH FOUND! This report is a duplicate:`, r);
           } else {
             console.log(`  [checkDuplicateReport] Step A6.2.${index + 1}.7: ✅ No match - different staff or date`);
           }
-          
+
           return match;
         });
       } else {
         console.log("  [checkDuplicateReport] Step A6.2: Array is empty or not an array, no reports to check");
       }
-      
+
       // existingReport will be undefined if find() doesn't find anything, or null if data is not an array
       // We need to check if it's a valid object (not null and not undefined)
       // existingReport will be undefined if find() doesn't find anything, or null if data is not an array
       // We need to check if it's a valid object (not null and not undefined)
       const isDuplicate = existingReport != null; // Using != instead of !== to catch both null and undefined
-      
+
       console.log("  [checkDuplicateReport] Step A7: Final result:", {
         isDuplicate: isDuplicate,
         existingReport: existingReport,
@@ -593,14 +593,14 @@ export default function DailySalesReportsPage() {
         existingReportIsUndefined: existingReport === undefined,
         dataLength: Array.isArray(data) ? data.length : "N/A"
       });
-      
+
       if (isDuplicate) {
         console.error("  [checkDuplicateReport] ❌❌❌ DUPLICATE FOUND!");
         console.error("  [checkDuplicateReport] Duplicate report details:", existingReport);
       } else {
         console.log("  [checkDuplicateReport] ✅✅✅ NO DUPLICATE - Safe to create");
       }
-      
+
       console.log("  [checkDuplicateReport] ========== END: Duplicate Check ==========");
       return isDuplicate;
     } catch (err) {
@@ -613,7 +613,7 @@ export default function DailySalesReportsPage() {
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    
+
     console.log("=".repeat(80));
     console.log("[DailySalesReports] ========== START: Creating Daily Sales Report ==========");
     console.log("[DailySalesReports] Step 1: Form data:", {
@@ -626,11 +626,11 @@ export default function DailySalesReportsPage() {
       hot_calls: form.hot_calls,
       walk_ins: form.walk_ins
     });
-    
+
     // حساب عدد الزيارات تلقائياً من form.visits
     const actualVisitsCount = form.visits ? form.visits.filter(v => v.branch_id && v.branch_id.trim() !== "").length : 0;
     console.log("[DailySalesReports] Step 2: Calculated visits count:", actualVisitsCount);
-    
+
     // Check for duplicate DAILY SALES REPORT (not contract)
     if (form.sales_staff_id && form.report_date) {
       console.log("[DailySalesReports] Step 3: Starting duplicate check...");
@@ -639,11 +639,11 @@ export default function DailySalesReportsPage() {
         sales_staff_id_parsed: parseInt(form.sales_staff_id),
         report_date_raw: form.report_date
       });
-      
+
       const isDuplicate = await checkDuplicateReport(parseInt(form.sales_staff_id), form.report_date);
-      
+
       console.log("[DailySalesReports] Step 3.2: Duplicate check result:", isDuplicate);
-      
+
       if (isDuplicate) {
         console.error("[DailySalesReports] ❌ DUPLICATE FOUND - Stopping creation");
         console.error("[DailySalesReports] This means a report already exists for:");
@@ -657,7 +657,7 @@ export default function DailySalesReportsPage() {
     } else {
       console.warn("[DailySalesReports] Step 3: Skipping duplicate check - missing sales_staff_id or report_date");
     }
-    
+
     try {
       console.log("[DailySalesReports] Step 4: Preparing payload for API call...");
       const payload = {
@@ -680,7 +680,7 @@ export default function DailySalesReportsPage() {
           visit_order: idx + 1
         }))
       };
-      
+
       console.log("[DailySalesReports] Step 4.1: Payload prepared:", payload);
       console.log("[DailySalesReports] Step 4.2: Payload details:", {
         sales_staff_id: payload.sales_staff_id,
@@ -689,14 +689,14 @@ export default function DailySalesReportsPage() {
         report_date_type: typeof payload.report_date,
         visits_count: payload.visits.length
       });
-      
+
       console.log("[DailySalesReports] Step 5: Sending POST request to /daily-sales-reports...");
       const response = await apiPost("/daily-sales-reports", payload, token);
-      
+
       console.log("[DailySalesReports] Step 6: ✅ Report created successfully:", response);
       console.log("[DailySalesReports] ========== END: Report Created Successfully ==========");
       console.log("=".repeat(80));
-      
+
       success("تم إنشاء التقرير بنجاح!");
       resetForm();
       setShowForm(false);
@@ -714,7 +714,7 @@ export default function DailySalesReportsPage() {
   const handleUpdate = async (e) => {
     e.preventDefault();
     if (!editingReport) return;
-    
+
     try {
       await apiPatch(`/daily-sales-reports/${editingReport.id}`, {
         number_of_deals: form.number_of_deals ? parseInt(form.number_of_deals) : undefined,
@@ -791,26 +791,26 @@ export default function DailySalesReportsPage() {
     e.preventDefault();
     try {
       console.log("[DailySalesReports] Creating contract with form data:", contractForm);
-      
+
       // تحويل الدفعات المتعددة إلى التنسيق الصحيح
       const payments = contractForm.payments && contractForm.payments.length > 0
         ? contractForm.payments
-            .filter(p => p.payment_amount && p.payment_method_id) // فقط الدفعات المكتملة
-            .map(p => ({
-              payment_amount: parseFloat(p.payment_amount),
-              payment_method_id: parseInt(p.payment_method_id),
-              payment_number: p.payment_number || null
-            }))
+          .filter(p => p.payment_amount && p.payment_method_id) // فقط الدفعات المكتملة
+          .map(p => ({
+            payment_amount: parseFloat(p.payment_amount),
+            payment_method_id: parseInt(p.payment_method_id),
+            payment_number: p.payment_number || null
+          }))
         : null;
-      
+
       console.log("[DailySalesReports] Processed payments:", payments);
-      
+
       // التحقق من أن موظف المبيعات مطلوب
       if (!contractForm.sales_staff_id) {
         showError("يجب اختيار موظف المبيعات");
         return;
       }
-      
+
       const payload = {
         ...contractForm,
         branch_id: parseInt(contractForm.branch_id),
@@ -830,9 +830,9 @@ export default function DailySalesReportsPage() {
         payment_number: contractForm.payment_number || null, // للتوافق مع البيانات القديمة
         notes: contractForm.notes || null
       };
-      
+
       console.log("[DailySalesReports] Payload before cleanup:", payload);
-      
+
       // إزالة الحقول غير المطلوبة حسب نوع العقد
       if (contractForm.contract_type === "new") {
         delete payload.shared_branch_id;
@@ -846,19 +846,19 @@ export default function DailySalesReportsPage() {
         delete payload.student_name;
         delete payload.contract_number;
       }
-      
+
       // إزالة الحقول الفارغة
       Object.keys(payload).forEach(key => {
         if (payload[key] === "" || payload[key] === undefined) {
           delete payload[key];
         }
       });
-      
+
       console.log("[DailySalesReports] Final payload to send:", payload);
       console.log("[DailySalesReports] Sending POST request to /contracts");
-      
+
       const response = await apiPost("/contracts", payload, token);
-      
+
       console.log("[DailySalesReports] Contract created successfully:", response);
       success("تم إنشاء العقد بنجاح!");
       resetContractForm();
@@ -878,19 +878,19 @@ export default function DailySalesReportsPage() {
   const handleUpdateContract = async (e) => {
     e.preventDefault();
     if (!editingContract) return;
-    
+
     try {
       // معالجة الدفعات المتعددة (إن وجدت)
       const payments = contractForm.payments && contractForm.payments.length > 0
         ? contractForm.payments
-            .filter(p => p.payment_amount && p.payment_method_id)
-            .map(p => ({
-              payment_amount: parseFloat(p.payment_amount),
-              payment_method_id: parseInt(p.payment_method_id),
-              payment_number: p.payment_number || null
-            }))
+          .filter(p => p.payment_amount && p.payment_method_id)
+          .map(p => ({
+            payment_amount: parseFloat(p.payment_amount),
+            payment_method_id: parseInt(p.payment_method_id),
+            payment_number: p.payment_number || null
+          }))
         : null;
-      
+
       const updateData = {
         ...contractForm,
         branch_id: parseInt(contractForm.branch_id),
@@ -909,7 +909,7 @@ export default function DailySalesReportsPage() {
         payment_number: contractForm.payment_number || null,
         notes: contractForm.notes || null
       };
-      
+
       // إزالة الحقول الفارغة (strings فارغة، undefined، null للقيم الاختيارية)
       Object.keys(updateData).forEach(key => {
         const value = updateData[key];
@@ -923,7 +923,7 @@ export default function DailySalesReportsPage() {
           delete updateData[key];
         }
       });
-      
+
       await apiPatch(`/contracts/${editingContract.id}`, updateData, token);
       success("تم تحديث العقد بنجاح!");
       setShowContractForm(false);
@@ -955,7 +955,7 @@ export default function DailySalesReportsPage() {
     // تعيين تاريخ اليوم كتاريخ افتراضي للعقد إذا لم يكن موجوداً
     const today = new Date();
     const formattedDate = today.toISOString().split('T')[0]; // YYYY-MM-DD format
-    
+
     setContractForm({
       branch_id: contract.branch_id.toString(),
       student_name: contract.student_name,
@@ -972,12 +972,12 @@ export default function DailySalesReportsPage() {
       payment_amount: contract.payment_amount ? contract.payment_amount.toString() : "",
       payment_method_id: contract.payment_method_id ? contract.payment_method_id.toString() : "",
       payment_number: contract.payment_number || "",
-      payments: contract.payments && contract.payments.length > 0 
+      payments: contract.payments && contract.payments.length > 0
         ? contract.payments.map(p => ({
-            payment_amount: p.payment_amount ? p.payment_amount.toString() : "",
-            payment_method_id: p.payment_method_id ? p.payment_method_id.toString() : "",
-            payment_number: p.payment_number || ""
-          }))
+          payment_amount: p.payment_amount ? p.payment_amount.toString() : "",
+          payment_method_id: p.payment_method_id ? p.payment_method_id.toString() : "",
+          payment_number: p.payment_number || ""
+        }))
         : [{ payment_amount: "", payment_method_id: "", payment_number: "" }],
       course_id: contract.course_id ? contract.course_id.toString() : "",
       client_phone: contract.client_phone || "",
@@ -996,7 +996,7 @@ export default function DailySalesReportsPage() {
     } else if (branches.length > 0) {
       defaultBranchId = branches[0].id.toString();
     }
-    
+
     setForm({
       branch_id: defaultBranchId,
       sales_staff_id: "",
@@ -1041,7 +1041,7 @@ export default function DailySalesReportsPage() {
   const handleNumberOfVisitsChange = (value) => {
     const numVisits = parseInt(value) || 0;
     const currentVisits = form.visits.length;
-    
+
     if (numVisits > currentVisits) {
       // إضافة زيارات جديدة
       const newVisits = [...form.visits];
@@ -1066,11 +1066,11 @@ export default function DailySalesReportsPage() {
     } else if (branches.length > 0) {
       defaultBranchId = branches[0].id.toString();
     }
-    
+
     // تعيين تاريخ اليوم كتاريخ افتراضي للعقد
     const today = new Date();
     const formattedDate = today.toISOString().split('T')[0]; // YYYY-MM-DD format
-    
+
     setContractForm({
       branch_id: defaultBranchId,
       student_name: "",
@@ -1150,9 +1150,9 @@ export default function DailySalesReportsPage() {
 
       const formatNumber = (num, decimals = 2) => {
         if (typeof num !== 'number' || isNaN(num)) return num;
-        return num.toLocaleString('en-US', { 
-          minimumFractionDigits: decimals, 
-          maximumFractionDigits: decimals 
+        return num.toLocaleString('en-US', {
+          minimumFractionDigits: decimals,
+          maximumFractionDigits: decimals
         });
       };
 
@@ -1169,7 +1169,7 @@ export default function DailySalesReportsPage() {
         info: {
           title: `تقرير التقارير اليومية - ${group.monthName} ${group.year}`
         },
-        footer: function(currentPage, pageCount) {
+        footer: function (currentPage, pageCount) {
           return {
             text: formatArabicText(`صفحة ${currentPage} من ${pageCount}`),
             alignment: 'center',
@@ -1311,14 +1311,14 @@ export default function DailySalesReportsPage() {
           body: tableBody
         },
         layout: {
-          hLineWidth: function(i, node) { return i === 0 || i === node.table.body.length ? 1 : 0.5; },
-          vLineWidth: function(i, node) { return 0.5; },
-          hLineColor: function(i, node) { return '#E5E7EB'; },
-          vLineColor: function(i, node) { return '#E5E7EB'; },
-          paddingLeft: function(i) { return 4; },
-          paddingRight: function(i) { return 4; },
-          paddingTop: function(i) { return 3; },
-          paddingBottom: function(i) { return 3; }
+          hLineWidth: function (i, node) { return i === 0 || i === node.table.body.length ? 1 : 0.5; },
+          vLineWidth: function (i, node) { return 0.5; },
+          hLineColor: function (i, node) { return '#E5E7EB'; },
+          vLineColor: function (i, node) { return '#E5E7EB'; },
+          paddingLeft: function (i) { return 4; },
+          paddingRight: function (i) { return 4; },
+          paddingTop: function (i) { return 3; },
+          paddingBottom: function (i) { return 3; }
         },
         margin: [0, 0, 0, 15]
       });
@@ -1405,9 +1405,9 @@ export default function DailySalesReportsPage() {
 
       const formatNumber = (num, decimals = 2) => {
         if (typeof num !== 'number' || isNaN(num)) return num;
-        return num.toLocaleString('en-US', { 
-          minimumFractionDigits: decimals, 
-          maximumFractionDigits: decimals 
+        return num.toLocaleString('en-US', {
+          minimumFractionDigits: decimals,
+          maximumFractionDigits: decimals
         });
       };
 
@@ -1424,7 +1424,7 @@ export default function DailySalesReportsPage() {
         info: {
           title: `تقرير العقود - ${group.monthName} ${group.year}`
         },
-        footer: function(currentPage, pageCount) {
+        footer: function (currentPage, pageCount) {
           return {
             text: formatArabicText(`صفحة ${currentPage} من ${pageCount}`),
             alignment: 'center',
@@ -1480,24 +1480,8 @@ export default function DailySalesReportsPage() {
             {
               width: '*',
               stack: [
-                { text: formatArabicText('عدد العقود'), style: 'statLabel', alignment: 'center' },
-                { text: formatNumber(totalContracts), style: 'statValue', alignment: 'center' }
-              ],
-              margin: [3, 0, 3, 5]
-            },
-            {
-              width: '*',
-              stack: [
-                { text: formatArabicText('القيمة الإجمالية'), style: 'statLabel', alignment: 'center' },
-                { text: `${formatNumber(totalAmount)} ${formatArabicText('درهم')}`, style: 'statValue', alignment: 'center' }
-              ],
-              margin: [3, 0, 3, 5]
-            },
-            {
-              width: '*',
-              stack: [
-                { text: formatArabicText('المدفوع'), style: 'statLabel', alignment: 'center' },
-                { text: `${formatNumber(totalPaid)} ${formatArabicText('درهم')}`, style: 'statValue', alignment: 'center' }
+                { text: formatArabicText('الصافي'), style: 'statLabel', alignment: 'center' },
+                { text: `${formatNumber(totalNet)} ${formatArabicText('درهم')}`, style: 'statValue', alignment: 'center' }
               ],
               margin: [3, 0, 3, 5]
             },
@@ -1512,8 +1496,24 @@ export default function DailySalesReportsPage() {
             {
               width: '*',
               stack: [
-                { text: formatArabicText('الصافي'), style: 'statLabel', alignment: 'center' },
-                { text: `${formatNumber(totalNet)} ${formatArabicText('درهم')}`, style: 'statValue', alignment: 'center' }
+                { text: formatArabicText('المدفوع'), style: 'statLabel', alignment: 'center' },
+                { text: `${formatNumber(totalPaid)} ${formatArabicText('درهم')}`, style: 'statValue', alignment: 'center' }
+              ],
+              margin: [3, 0, 3, 5]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('القيمة الإجمالية'), style: 'statLabel', alignment: 'center' },
+                { text: `${formatNumber(totalAmount)} ${formatArabicText('درهم')}`, style: 'statValue', alignment: 'center' }
+              ],
+              margin: [3, 0, 3, 5]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('عدد العقود'), style: 'statLabel', alignment: 'center' },
+                { text: formatNumber(totalContracts), style: 'statValue', alignment: 'center' }
               ],
               margin: [3, 0, 3, 5]
             }
@@ -1531,31 +1531,31 @@ export default function DailySalesReportsPage() {
       // Contracts table
       const tableBody = [
         [
-          { text: formatArabicText('نوع العقد'), style: 'tableHeader', alignment: 'center' },
-          { text: formatArabicText('الصافي'), style: 'tableHeader', alignment: 'center' },
-          { text: formatArabicText('المتبقي'), style: 'tableHeader', alignment: 'center' },
-          { text: formatArabicText('المدفوع'), style: 'tableHeader', alignment: 'center' },
-          { text: formatArabicText('القيمة الإجمالية'), style: 'tableHeader', alignment: 'center' },
-          { text: formatArabicText('موظف المبيعات'), style: 'tableHeader', alignment: 'center' },
-          { text: formatArabicText('رقم الهاتف'), style: 'tableHeader', alignment: 'center' },
+          { text: formatArabicText('رقم العقد'), style: 'tableHeader', alignment: 'center' },
           { text: formatArabicText('اسم العميل'), style: 'tableHeader', alignment: 'center' },
-          { text: formatArabicText('رقم العقد'), style: 'tableHeader', alignment: 'center' }
+          { text: formatArabicText('رقم الهاتف'), style: 'tableHeader', alignment: 'center' },
+          { text: formatArabicText('موظف المبيعات'), style: 'tableHeader', alignment: 'center' },
+          { text: formatArabicText('القيمة الإجمالية'), style: 'tableHeader', alignment: 'center' },
+          { text: formatArabicText('المدفوع'), style: 'tableHeader', alignment: 'center' },
+          { text: formatArabicText('المتبقي'), style: 'tableHeader', alignment: 'center' },
+          { text: formatArabicText('الصافي'), style: 'tableHeader', alignment: 'center' },
+          { text: formatArabicText('نوع العقد'), style: 'tableHeader', alignment: 'center' }
         ]
       ];
 
       group.contracts.forEach(contract => {
-        const contractType = contract.contract_type === "new" ? "جديد" : 
-                            contract.contract_type === "shared" ? "مشترك" : "دفعة قديمة";
+        const contractType = contract.contract_type === "new" ? "جديد" :
+          contract.contract_type === "shared" ? "مشترك" : "دفعة قديمة";
         tableBody.push([
-          { text: formatArabicText(contractType), alignment: 'center', fontSize: 7 },
-          { text: `${formatNumber(parseFloat(contract.net_amount || 0))} ${formatArabicText('درهم')}`, alignment: 'center', fontSize: 7 },
-          { text: `${formatNumber(parseFloat(contract.remaining_amount || 0))} ${formatArabicText('درهم')}`, alignment: 'center', fontSize: 7 },
-          { text: `${formatNumber(parseFloat(contract.payment_amount || 0))} ${formatArabicText('درهم')}`, alignment: 'center', fontSize: 7 },
-          { text: `${formatNumber(parseFloat(contract.total_amount || 0))} ${formatArabicText('درهم')}`, alignment: 'center', fontSize: 7 },
-          { text: formatArabicText(contract.sales_staff_id ? getSalesStaffName(contract.sales_staff_id) : '-'), alignment: 'center', fontSize: 7 },
-          { text: formatArabicText(contract.client_phone || '-'), alignment: 'center', fontSize: 7 },
+          { text: formatArabicText(contract.contract_number || '-'), alignment: 'center', fontSize: 7 },
           { text: formatArabicText(contract.student_name || '-'), alignment: 'center', fontSize: 7 },
-          { text: formatArabicText(contract.contract_number || '-'), alignment: 'center', fontSize: 7 }
+          { text: formatArabicText(contract.client_phone || '-'), alignment: 'center', fontSize: 7 },
+          { text: formatArabicText(contract.sales_staff_id ? getSalesStaffName(contract.sales_staff_id) : '-'), alignment: 'center', fontSize: 7 },
+          { text: `${formatNumber(parseFloat(contract.total_amount || 0))} ${formatArabicText('درهم')}`, alignment: 'center', fontSize: 7 },
+          { text: `${formatNumber(parseFloat(contract.payment_amount || 0))} ${formatArabicText('درهم')}`, alignment: 'center', fontSize: 7 },
+          { text: `${formatNumber(parseFloat(contract.remaining_amount || 0))} ${formatArabicText('درهم')}`, alignment: 'center', fontSize: 7 },
+          { text: `${formatNumber(parseFloat(contract.net_amount || 0))} ${formatArabicText('درهم')}`, alignment: 'center', fontSize: 7 },
+          { text: formatArabicText(contractType), alignment: 'center', fontSize: 7 }
         ]);
       });
 
@@ -1566,14 +1566,14 @@ export default function DailySalesReportsPage() {
           body: tableBody
         },
         layout: {
-          hLineWidth: function(i, node) { return i === 0 || i === node.table.body.length ? 1 : 0.5; },
-          vLineWidth: function(i, node) { return 0.5; },
-          hLineColor: function(i, node) { return '#E5E7EB'; },
-          vLineColor: function(i, node) { return '#E5E7EB'; },
-          paddingLeft: function(i) { return 3; },
-          paddingRight: function(i) { return 3; },
-          paddingTop: function(i) { return 2; },
-          paddingBottom: function(i) { return 2; }
+          hLineWidth: function (i, node) { return i === 0 || i === node.table.body.length ? 1 : 0.5; },
+          vLineWidth: function (i, node) { return 0.5; },
+          hLineColor: function (i, node) { return '#E5E7EB'; },
+          vLineColor: function (i, node) { return '#E5E7EB'; },
+          paddingLeft: function (i) { return 3; },
+          paddingRight: function (i) { return 3; },
+          paddingTop: function (i) { return 2; },
+          paddingBottom: function (i) { return 2; }
         },
         margin: [0, 0, 0, 15]
       });
@@ -1631,362 +1631,573 @@ export default function DailySalesReportsPage() {
   // Generate PDF for today's daily report
   const generateDailyReportPDF = async () => {
     try {
-      // Get today's date in YYYY-MM-DD format
       const today = new Date();
       const todayStr = today.toISOString().split('T')[0];
-      
-      // Get today's reports
+
+      // 1. Fetch Data
       let reportsUrl = `/daily-sales-reports?date_from=${todayStr}&date_to=${todayStr}`;
-      if (selectedBranchId) {
+      // Force all branches for super admin, else respect filter
+      if (selectedBranchId && !userInfo?.is_super_admin) {
         reportsUrl += `&branch_id=${selectedBranchId}`;
       }
       const todayReports = await apiGet(reportsUrl, token);
-      
-      // Get all contracts and filter by today's date (created_at)
+      const reportsArray = Array.isArray(todayReports) ? todayReports : [];
+
       let contractsUrl = "/contracts";
-      if (selectedContractBranchId) {
+      if (selectedContractBranchId && !userInfo?.is_super_admin) {
         contractsUrl += `?branch_id=${selectedContractBranchId}`;
       }
       const allContracts = await apiGet(contractsUrl, token);
       const todayContracts = Array.isArray(allContracts) ? allContracts.filter(contract => {
-        // استخدام contract_date كأولوية، وإلا created_at
         const dateToUse = contract.contract_date || contract.created_at;
         if (!dateToUse) return false;
-        const contractDate = new Date(dateToUse);
-        const contractDateStr = contractDate.toISOString().split('T')[0];
+        const contractDateStr = new Date(dateToUse).toISOString().split('T')[0];
         return contractDateStr === todayStr;
       }) : [];
 
-      // Format Arabic date
+      // 2. Prepare Data Structures
+      // Group Reports by Branch
+      const branchesData = {};
+      // Helper to init branch object
+      const getBranchObj = (id, name) => {
+        if (!branchesData[id]) {
+          branchesData[id] = {
+            id,
+            name,
+            reports: [],
+            contracts: [],
+            stats: {
+              daily_calls: 0, hot_calls: 0, walk_ins: 0,
+              branch_leads: 0, online_leads: 0, extra_leads: 0,
+              visits_count: 0
+            },
+            financials: {
+              net_total: 0,
+              paid_total: 0,
+              remaining_total: 0,
+              total_amount: 0
+            }
+          };
+        }
+        return branchesData[id];
+      };
+
+      // Process Reports
+      reportsArray.forEach(report => {
+        const branchName = report.branch ? report.branch.name : getBranchName(report.branch_id);
+        const branchObj = getBranchObj(report.branch_id, branchName);
+        branchObj.reports.push(report);
+
+        branchObj.stats.daily_calls += parseInt(report.daily_calls) || 0;
+        branchObj.stats.hot_calls += parseInt(report.hot_calls) || 0;
+        branchObj.stats.walk_ins += parseInt(report.walk_ins) || 0;
+        branchObj.stats.branch_leads += parseInt(report.branch_leads) || 0;
+        branchObj.stats.online_leads += parseInt(report.online_leads) || 0;
+        branchObj.stats.extra_leads += parseInt(report.extra_leads) || 0;
+        branchObj.stats.visits_count += parseInt(report.number_of_visits) || 0;
+      });
+
+      // Process Contracts
+      todayContracts.forEach(contract => {
+        const branchName = contract.branch ? contract.branch.name : getBranchName(contract.branch_id);
+        const branchObj = getBranchObj(contract.branch_id, branchName);
+        branchObj.contracts.push(contract);
+
+        branchObj.financials.net_total += parseFloat(contract.net_amount || 0);
+        branchObj.financials.paid_total += parseFloat(contract.payment_amount || 0);
+        branchObj.financials.remaining_total += parseFloat(contract.remaining_amount || 0);
+        branchObj.financials.total_amount += parseFloat(contract.total_amount || 0);
+      });
+
+      const sortedBranches = Object.values(branchesData).sort((a, b) => a.id - b.id);
+
+      // Calculate Grand Totals
+      let grandTotal = {
+        visits_count: 0, extra_leads: 0, online_leads: 0, branch_leads: 0,
+        net_total: 0, paid_total: 0, remaining_total: 0
+      };
+
+      sortedBranches.forEach(b => {
+        grandTotal.visits_count += b.stats.visits_count;
+        grandTotal.extra_leads += b.stats.extra_leads;
+        grandTotal.online_leads += b.stats.online_leads;
+        grandTotal.branch_leads += b.stats.branch_leads;
+
+        grandTotal.net_total += b.financials.net_total;
+        grandTotal.paid_total += b.financials.paid_total;
+        grandTotal.remaining_total += b.financials.remaining_total;
+      });
+
+      // 3. PDF Usage Helpers
       const arabicDate = `${today.getDate()} ${monthNames[today.getMonth() + 1]} ${today.getFullYear()}`;
+      const formatArabicText = (text) => {
+        if (!text || typeof text !== 'string') return text;
+        let trimmedText = text.trim();
+        trimmedText = trimmedText.replace(/\s+/g, ' ');
+        trimmedText = trimmedText.replace(/[()]/g, '');
+        return trimmedText;
+      };
+      const formatNumber = (num, currency = false) => {
+        if (typeof num !== 'number' || isNaN(num)) return num;
+        return num.toLocaleString('en-US') + (currency ? ' درهم' : '');
+      };
 
       pdfMake.vfs = vfs;
       pdfMake.fonts = {
-        Cairo: {
-          normal: 'Cairo-Regular.ttf',
-          bold: 'Cairo-Bold.ttf',
-          italics: 'Cairo-Regular.ttf',
-          bolditalics: 'Cairo-Bold.ttf'
-        },
-        Nillima: {
-          normal: 'Cairo-Regular.ttf',
-          bold: 'Cairo-Bold.ttf',
-          italics: 'Cairo-Regular.ttf',
-          bolditalics: 'Cairo-Bold.ttf'
-        },
-        Roboto: {
-          normal: 'Cairo-Regular.ttf',
-          bold: 'Cairo-Bold.ttf',
-          italics: 'Cairo-Regular.ttf',
-          bolditalics: 'Cairo-Bold.ttf'
-        }
-      };
-
-      const formatArabicText = (text) => {
-        if (!text || typeof text !== 'string') return text;
-        return text.trim().replace(/\s+/g, ' ').replace(/[()]/g, '');
-      };
-
-      const formatNumber = (num, decimals = 2) => {
-        if (typeof num !== 'number' || isNaN(num)) return num;
-        return num.toLocaleString('en-US', { 
-          minimumFractionDigits: decimals, 
-          maximumFractionDigits: decimals 
-        });
-      };
-
-      const getSalesStaffName = (salesStaffId) => {
-        const staff = salesStaff.find(s => s.id === salesStaffId);
-        return staff ? staff.name : '-';
+        Cairo: { normal: 'Cairo-Regular.ttf', bold: 'Cairo-Bold.ttf', italics: 'Cairo-Regular.ttf', bolditalics: 'Cairo-Bold.ttf' },
+        Roboto: { normal: 'Cairo-Regular.ttf', bold: 'Cairo-Bold.ttf', italics: 'Cairo-Regular.ttf', bolditalics: 'Cairo-Bold.ttf' },
+        Nillima: { normal: 'Cairo-Regular.ttf', bold: 'Cairo-Bold.ttf', italics: 'Cairo-Regular.ttf', bolditalics: 'Cairo-Bold.ttf' } // Fix for unknown font request
       };
 
       const docDefinition = {
-        defaultStyle: {
-          font: 'Cairo',
-          fontSize: 9,
-          alignment: 'right'
-        },
+        defaultStyle: { font: 'Cairo', fontSize: 8, alignment: 'right' },
         pageSize: 'A4',
         pageOrientation: 'portrait',
         pageMargins: [30, 50, 30, 50],
         content: [],
         info: {
-          title: `تقرير يومي - ${arabicDate}`
+          title: 'التقرير اليومي الشامل'
         },
-        footer: function(currentPage, pageCount) {
+        footer: function (currentPage, pageCount) {
           return {
             text: formatArabicText(`صفحة ${currentPage} من ${pageCount}`),
             alignment: 'center',
             fontSize: 8,
             color: '#6B7280',
-            margin: [0, 10, 0, 0]
+            margin: [0, 10, 0, 0],
+            direction: 'rtl'
           };
+        },
+        styles: {
+          title: { fontSize: 18, bold: true, color: '#5A7ACD', alignment: 'center', margin: [0, 0, 0, 5] },
+          subtitle: { fontSize: 14, bold: true, color: '#2B2A2A', alignment: 'center', margin: [0, 0, 0, 3] },
+          subtitle2: { fontSize: 12, bold: true, color: '#6B7280', alignment: 'center', margin: [0, 0, 0, 15] },
+          sectionTitle: { fontSize: 12, bold: true, color: '#2B2A2A', margin: [0, 15, 0, 8], alignment: 'right' },
+          statLabel: { fontSize: 8, color: '#6B7280', margin: [0, 0, 0, 3], alignment: 'center' },
+          statValue: { fontSize: 12, bold: true, alignment: 'center', color: '#2B2A2A' },
+          tableHeader: { fontSize: 8, bold: true, fillColor: '#F3F4F6', color: '#1F2937', alignment: 'center', margin: [0, 2, 0, 2] },
+          tableCell: { fontSize: 8, alignment: 'center', color: '#374151', margin: [0, 2, 0, 2] },
+          branchTitle: { fontSize: 14, bold: true, color: '#5A7ACD', alignment: 'center', margin: [0, 20, 0, 5] },
+          branchSubtitle: { fontSize: 10, bold: true, color: '#6B7280', alignment: 'center', margin: [0, 0, 0, 12] }
         }
       };
 
-      // Title page
+      // Header
+      const reportTitle = userInfo?.is_super_admin ? 'التقرير اليومي الشامل' : 'التقرير اليومي';
       docDefinition.content.push(
-        {
-          text: formatArabicText('تقرير يومي شامل'),
-          style: 'title',
-          alignment: 'center',
-          margin: [0, 0, 0, 5]
-        },
-        {
-          text: formatArabicText('مركز العمران للتدريب والتطوير'),
-          style: 'subtitle',
-          alignment: 'center',
-          margin: [0, 0, 0, 3]
-        },
-        {
-          text: formatArabicText(arabicDate),
-          style: 'subtitle2',
-          alignment: 'center',
-          margin: [0, 0, 0, 15]
-        },
-        {
-          canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1.5, lineColor: '#5A7ACD' }],
+        { text: formatArabicText(reportTitle), style: 'title' },
+        { text: formatArabicText('مركز العمران للتدريب والتطوير'), style: 'subtitle' },
+        { text: formatArabicText(`تاريخ التقرير: ${arabicDate}`), style: 'subtitle2' },
+        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1.5, lineColor: '#5A7ACD' }], margin: [0, 0, 0, 15] }
+      );
+
+      // --- SECTION 1: GLOBAL STATISTICS & SUMMARY (SUPER ADMIN ONLY) ---
+      if (userInfo?.is_super_admin) {
+        docDefinition.content.push({ text: formatArabicText('الإحصائيات الإجمالية'), style: 'sectionTitle' });
+
+        docDefinition.content.push({
+          columns: [
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('صافي المبيعات'), style: 'statLabel' },
+                { text: formatArabicText(formatNumber(grandTotal.net_total, true)), style: 'statValue', color: '#5A7ACD' }
+              ],
+              margin: [2, 0, 2, 5]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('إجمالي الزيارات'), style: 'statLabel' },
+                { text: formatNumber(grandTotal.visits_count), style: 'statValue' }
+              ],
+              margin: [2, 0, 2, 5]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('ليدز +'), style: 'statLabel' },
+                { text: formatNumber(grandTotal.extra_leads), style: 'statValue' }
+              ],
+              margin: [2, 0, 2, 5]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('ليدز اونلاين'), style: 'statLabel' },
+                { text: formatNumber(grandTotal.online_leads), style: 'statValue' }
+              ],
+              margin: [2, 0, 2, 5]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('ليدز الفرع'), style: 'statLabel' },
+                { text: formatNumber(grandTotal.branch_leads), style: 'statValue' }
+              ],
+              margin: [2, 0, 2, 5]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('ووك ان'), style: 'statLabel' },
+                { text: formatNumber(grandTotal.walk_ins), style: 'statValue' }
+              ],
+              margin: [2, 0, 2, 5]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('هوت كول'), style: 'statLabel' },
+                { text: formatNumber(grandTotal.hot_calls), style: 'statValue' }
+              ],
+              margin: [2, 0, 2, 5]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('اتصالات'), style: 'statLabel' },
+                { text: formatNumber(grandTotal.daily_calls), style: 'statValue' }
+              ],
+              margin: [2, 0, 2, 5]
+            }
+          ],
           margin: [0, 0, 0, 20]
-        }
-      );
+        });
 
-      // Daily Reports Section
-      const reportsArray = Array.isArray(todayReports) ? todayReports : [];
-      const totalReports = reportsArray.length;
-      const totalDailyCalls = reportsArray.reduce((sum, r) => sum + (parseInt(r.daily_calls) || 0), 0);
-      const totalHotCalls = reportsArray.reduce((sum, r) => sum + (parseInt(r.hot_calls) || 0), 0);
-      const totalWalkIns = reportsArray.reduce((sum, r) => sum + (parseInt(r.walk_ins) || 0), 0);
-      const totalVisits = reportsArray.reduce((sum, r) => sum + (parseInt(r.number_of_visits) || 0), 0);
+        // --- SECTION 2: BRANCH PERFORMANCE SUMMARY (FIRST PAGE) ---
+        docDefinition.content.push({ text: formatArabicText('ملخص أداء الفروع'), style: 'sectionTitle' });
 
-      docDefinition.content.push(
-        {
-          text: formatArabicText('ملخص التقارير اليومية'),
-          style: 'sectionTitle',
-          alignment: 'center',
-          margin: [0, 0, 0, 10]
-        },
-        {
-          columns: [
-            {
-              width: '*',
-              stack: [
-                { text: formatArabicText('عدد التقارير'), style: 'statLabel', alignment: 'center' },
-                { text: formatNumber(totalReports), style: 'statValue', alignment: 'center' }
-              ],
-              margin: [3, 0, 3, 5]
-            },
-            {
-              width: '*',
-              stack: [
-                { text: formatArabicText('إجمالي الاتصالات'), style: 'statLabel', alignment: 'center' },
-                { text: formatNumber(totalDailyCalls), style: 'statValue', alignment: 'center' }
-              ],
-              margin: [3, 0, 3, 5]
-            },
-            {
-              width: '*',
-              stack: [
-                { text: formatArabicText('إجمالي الهوت كول'), style: 'statLabel', alignment: 'center' },
-                { text: formatNumber(totalHotCalls), style: 'statValue', alignment: 'center' }
-              ],
-              margin: [3, 0, 3, 5]
-            },
-            {
-              width: '*',
-              stack: [
-                { text: formatArabicText('إجمالي الووك ان'), style: 'statLabel', alignment: 'center' },
-                { text: formatNumber(totalWalkIns), style: 'statValue', alignment: 'center' }
-              ],
-              margin: [3, 0, 3, 5]
-            },
-            {
-              width: '*',
-              stack: [
-                { text: formatArabicText('إجمالي الزيارات'), style: 'statLabel', alignment: 'center' },
-                { text: formatNumber(totalVisits), style: 'statValue', alignment: 'center' }
-              ],
-              margin: [3, 0, 3, 5]
-            }
-          ],
-          margin: [0, 0, 0, 15]
-        }
-      );
-
-      // Contracts Section
-      const totalContracts = todayContracts.length;
-      const totalAmount = todayContracts.reduce((sum, c) => sum + parseFloat(c.total_amount || 0), 0);
-      const totalPaid = todayContracts.reduce((sum, c) => sum + parseFloat(c.payment_amount || 0), 0);
-      const totalRemaining = todayContracts.reduce((sum, c) => sum + parseFloat(c.remaining_amount || 0), 0);
-      const totalNet = todayContracts.reduce((sum, c) => sum + parseFloat(c.net_amount || 0), 0);
-
-      docDefinition.content.push(
-        {
-          text: formatArabicText('ملخص العقود'),
-          style: 'sectionTitle',
-          alignment: 'center',
-          margin: [0, 20, 0, 10]
-        },
-        {
-          columns: [
-            {
-              width: '*',
-              stack: [
-                { text: formatArabicText('عدد العقود'), style: 'statLabel', alignment: 'center' },
-                { text: formatNumber(totalContracts), style: 'statValue', alignment: 'center' }
-              ],
-              margin: [3, 0, 3, 5]
-            },
-            {
-              width: '*',
-              stack: [
-                { text: formatArabicText('القيمة الإجمالية'), style: 'statLabel', alignment: 'center' },
-                { text: `${formatNumber(totalAmount)} ${formatArabicText('درهم')}`, style: 'statValue', alignment: 'center' }
-              ],
-              margin: [3, 0, 3, 5]
-            },
-            {
-              width: '*',
-              stack: [
-                { text: formatArabicText('المدفوع'), style: 'statLabel', alignment: 'center' },
-                { text: `${formatNumber(totalPaid)} ${formatArabicText('درهم')}`, style: 'statValue', alignment: 'center' }
-              ],
-              margin: [3, 0, 3, 5]
-            },
-            {
-              width: '*',
-              stack: [
-                { text: formatArabicText('المتبقي'), style: 'statLabel', alignment: 'center' },
-                { text: `${formatNumber(totalRemaining)} ${formatArabicText('درهم')}`, style: 'statValue', alignment: 'center' }
-              ],
-              margin: [3, 0, 3, 5]
-            },
-            {
-              width: '*',
-              stack: [
-                { text: formatArabicText('الصافي'), style: 'statLabel', alignment: 'center' },
-                { text: `${formatNumber(totalNet)} ${formatArabicText('درهم')}`, style: 'statValue', alignment: 'center' }
-              ],
-              margin: [3, 0, 3, 5]
-            }
-          ],
-          margin: [0, 0, 0, 15]
-        },
-        {
-          text: formatArabicText('تفاصيل العقود'),
-          style: 'sectionTitle',
-          alignment: 'center',
-          margin: [0, 0, 0, 10]
-        }
-      );
-
-      // Contracts table
-      if (todayContracts.length > 0) {
-        const contractsTableBody = [
+        const branchSummaryBody = [
           [
-            { text: formatArabicText('نوع العقد'), style: 'tableHeader', alignment: 'center' },
-            { text: formatArabicText('الصافي'), style: 'tableHeader', alignment: 'center' },
-            { text: formatArabicText('المتبقي'), style: 'tableHeader', alignment: 'center' },
-            { text: formatArabicText('المدفوع'), style: 'tableHeader', alignment: 'center' },
-            { text: formatArabicText('القيمة الإجمالية'), style: 'tableHeader', alignment: 'center' },
-            { text: formatArabicText('موظف المبيعات'), style: 'tableHeader', alignment: 'center' },
-            { text: formatArabicText('رقم الهاتف'), style: 'tableHeader', alignment: 'center' },
-            { text: formatArabicText('اسم العميل'), style: 'tableHeader', alignment: 'center' },
-            { text: formatArabicText('رقم العقد'), style: 'tableHeader', alignment: 'center' }
+            { text: formatArabicText('صافي المبيعات'), style: 'tableHeader' },
+            { text: formatArabicText('المدفوع'), style: 'tableHeader' },
+            { text: formatArabicText('إجمالي العقود'), style: 'tableHeader' },
+            { text: formatArabicText('الزيارات'), style: 'tableHeader' },
+            { text: formatArabicText('ليدز +'), style: 'tableHeader' },
+            { text: formatArabicText('ليدز اونلاين'), style: 'tableHeader' },
+            { text: formatArabicText('الاتصالات'), style: 'tableHeader' },
+            { text: formatArabicText('الفرع'), style: 'tableHeader' }
           ]
         ];
 
-        todayContracts.forEach(contract => {
-          const contractType = contract.contract_type === "new" ? "جديد" : 
-                              contract.contract_type === "shared" ? "مشترك" : "دفعة قديمة";
-          contractsTableBody.push([
-            { text: formatArabicText(contractType), alignment: 'center', fontSize: 7 },
-            { text: `${formatNumber(parseFloat(contract.net_amount || 0))} ${formatArabicText('درهم')}`, alignment: 'center', fontSize: 7 },
-            { text: `${formatNumber(parseFloat(contract.remaining_amount || 0))} ${formatArabicText('درهم')}`, alignment: 'center', fontSize: 7 },
-            { text: `${formatNumber(parseFloat(contract.payment_amount || 0))} ${formatArabicText('درهم')}`, alignment: 'center', fontSize: 7 },
-            { text: `${formatNumber(parseFloat(contract.total_amount || 0))} ${formatArabicText('درهم')}`, alignment: 'center', fontSize: 7 },
-            { text: formatArabicText(contract.sales_staff_id ? getSalesStaffName(contract.sales_staff_id) : '-'), alignment: 'center', fontSize: 7 },
-            { text: formatArabicText(contract.client_phone || '-'), alignment: 'center', fontSize: 7 },
-            { text: formatArabicText(contract.student_name || '-'), alignment: 'center', fontSize: 7 },
-            { text: formatArabicText(contract.contract_number || '-'), alignment: 'center', fontSize: 7 }
+        sortedBranches.forEach(b => {
+          // Only include branches with activity in the summary
+          if (b.reports.length === 0 && b.contracts.length === 0) return;
+
+          branchSummaryBody.push([
+            { text: formatArabicText(formatNumber(b.financials.net_total)), style: 'tableCell', color: '#5A7ACD', bold: true },
+            { text: formatArabicText(formatNumber(b.financials.paid_total)), style: 'tableCell', color: '#10B981' },
+            { text: formatArabicText(formatNumber(b.financials.total_amount)), style: 'tableCell' },
+            { text: formatNumber(b.stats.visits_count), style: 'tableCell' },
+            { text: formatNumber(b.stats.extra_leads), style: 'tableCell' },
+            { text: formatNumber(b.stats.online_leads), style: 'tableCell' },
+            { text: formatNumber(b.stats.daily_calls), style: 'tableCell' },
+            { text: formatArabicText(b.name), style: 'tableCell', bold: true, fillColor: '#F9FAFB' }
           ]);
         });
 
         docDefinition.content.push({
           table: {
             headerRows: 1,
-            widths: ['*', '*', '*', '*', '*', '*', '*', '*', '*'],
-            body: contractsTableBody
+            widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*', 'auto'],
+            body: branchSummaryBody
           },
           layout: {
-            hLineWidth: function(i, node) { return i === 0 || i === node.table.body.length ? 1 : 0.5; },
-            vLineWidth: function(i, node) { return 0.5; },
-            hLineColor: function(i, node) { return '#E5E7EB'; },
-            vLineColor: function(i, node) { return '#E5E7EB'; },
-            paddingLeft: function(i) { return 3; },
-            paddingRight: function(i) { return 3; },
-            paddingTop: function(i) { return 2; },
-            paddingBottom: function(i) { return 2; }
+            hLineWidth: function (i, node) { return (i === 0 || i === node.table.body.length) ? 0.8 : 0.3; },
+            vLineWidth: function (i, node) { return 0.3; },
+            hLineColor: function (i, node) { return (i === 0 || i === node.table.body.length) ? '#5A7ACD' : '#E5E7EB'; },
+            vLineColor: function (i, node) { return '#E5E7EB'; },
+            paddingLeft: function (i) { return 4; },
+            paddingRight: function (i) { return 4; },
+            paddingTop: function (i) { return 3; },
+            paddingBottom: function (i) { return 3; }
           },
-          margin: [0, 0, 0, 15]
-        });
-      } else {
-        docDefinition.content.push({
-          text: formatArabicText('لا توجد عقود لهذا اليوم'),
-          alignment: 'center',
-          fontSize: 9,
-          color: '#6B7280',
-          margin: [0, 0, 0, 15],
-          italics: true
+          margin: [0, 0, 0, 20]
         });
       }
 
-      // Styles
-      docDefinition.styles = {
-        title: {
-          fontSize: 18,
-          bold: true,
-          color: '#2B2A2A',
-          margin: [0, 0, 0, 5]
-        },
-        subtitle: {
-          fontSize: 14,
-          color: '#5A7ACD',
-          margin: [0, 0, 0, 3]
-        },
-        subtitle2: {
-          fontSize: 12,
-          color: '#6B7280',
-          margin: [0, 0, 0, 15]
-        },
-        sectionTitle: {
-          fontSize: 12,
-          bold: true,
-          color: '#2B2A2A',
-          margin: [0, 0, 0, 10]
-        },
-        statLabel: {
-          fontSize: 9,
-          color: '#6B7280'
-        },
-        statValue: {
-          fontSize: 11,
-          bold: true,
-          color: '#2B2A2A'
-        },
-        tableHeader: {
-          fontSize: 8,
-          bold: true,
-          color: '#FFFFFF',
-          fillColor: '#5A7ACD'
-        }
-      };
 
-      const pdfDoc = pdfMake.createPdf(docDefinition);
-      pdfDoc.download(`تقرير_يومي_${todayStr}.pdf`);
-      success(`تم تحميل التقرير اليومي لـ ${arabicDate}`);
+      // --- PER BRANCH DETAILS ---
+      sortedBranches.forEach((branch, index) => {
+        // Only show branch section if there are reports OR contracts
+        if (branch.reports.length === 0 && branch.contracts.length === 0) return;
+
+        docDefinition.content.push(
+          { text: formatArabicText(branch.name), style: 'branchTitle', pageBreak: (userInfo?.is_super_admin || index > 0) ? 'before' : undefined },
+          { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1.5, lineColor: '#5A7ACD' }], margin: [0, 0, 0, 10] }
+        );
+
+        // Branch Statistics Cards
+        docDefinition.content.push({ text: formatArabicText('ملخص الفرع'), style: 'sectionTitle' });
+
+        // Operational Stats (now including Net Sales)
+        docDefinition.content.push({
+          columns: [
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('صافي المبيعات'), style: 'statLabel' },
+                { text: formatArabicText(formatNumber(branch.financials.net_total, true)), style: 'statValue', color: '#5A7ACD' }
+              ],
+              margin: [1, 0, 1, 0]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('الزيارات'), style: 'statLabel' },
+                { text: formatNumber(branch.stats.visits_count), style: 'statValue' }
+              ],
+              margin: [1, 0, 1, 0]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('ليدز +'), style: 'statLabel' },
+                { text: formatNumber(branch.stats.extra_leads), style: 'statValue' }
+              ],
+              margin: [1, 0, 1, 0]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('ليدز اونلاين'), style: 'statLabel' },
+                { text: formatNumber(branch.stats.online_leads), style: 'statValue' }
+              ],
+              margin: [1, 0, 1, 0]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('ليدز الفرع'), style: 'statLabel' },
+                { text: formatNumber(branch.stats.branch_leads), style: 'statValue' }
+              ],
+              margin: [1, 0, 1, 0]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('ووك ان'), style: 'statLabel' },
+                { text: formatNumber(branch.stats.walk_ins), style: 'statValue' }
+              ],
+              margin: [1, 0, 1, 0]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('هوت كول'), style: 'statLabel' },
+                { text: formatNumber(branch.stats.hot_calls), style: 'statValue' }
+              ],
+              margin: [1, 0, 1, 0]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('اتصالات'), style: 'statLabel' },
+                { text: formatNumber(branch.stats.daily_calls), style: 'statValue' }
+              ],
+              margin: [1, 0, 1, 0]
+            }
+          ],
+          margin: [0, 0, 0, 15]
+        });
+
+        // 2. Employee Performance
+        if (branch.reports.length > 0) {
+          docDefinition.content.push({ text: formatArabicText('أداء الموظفين'), style: 'sectionTitle' });
+
+          const staffBody = [
+            [
+              { text: formatArabicText('ملاحظات'), style: 'tableHeader' },
+              { text: formatArabicText('زيارات'), style: 'tableHeader' },
+              { text: formatArabicText('ليدز +'), style: 'tableHeader' },
+              { text: formatArabicText('ليدز اونلاين'), style: 'tableHeader' },
+              { text: formatArabicText('ليدز فرع'), style: 'tableHeader' },
+              { text: formatArabicText('ووك ان'), style: 'tableHeader' },
+              { text: formatArabicText('هوت كول'), style: 'tableHeader' },
+              { text: formatArabicText('اتصالات'), style: 'tableHeader' },
+              { text: formatArabicText('الموظف'), style: 'tableHeader' }
+            ]
+          ];
+
+          branch.reports.forEach(r => {
+            const staffName = r.sales_staff ? r.sales_staff.name : getSalesStaffName(r.sales_staff_id);
+            staffBody.push([
+              { text: formatArabicText((r.notes || '-').substring(0, 30)), style: 'tableCell', fontSize: 6, alignment: 'right' },
+              { text: formatNumber(parseInt(r.number_of_visits) || 0), style: 'tableCell' },
+              { text: formatNumber(parseInt(r.extra_leads) || 0), style: 'tableCell' },
+              { text: formatNumber(parseInt(r.online_leads) || 0), style: 'tableCell' },
+              { text: formatNumber(parseInt(r.branch_leads) || 0), style: 'tableCell' },
+              { text: formatNumber(parseInt(r.walk_ins) || 0), style: 'tableCell' },
+              { text: formatNumber(parseInt(r.hot_calls) || 0), style: 'tableCell' },
+              { text: formatNumber(parseInt(r.daily_calls) || 0), style: 'tableCell' },
+              { text: formatArabicText(staffName), style: 'tableCell', bold: true }
+            ]);
+          });
+
+          docDefinition.content.push({
+            table: {
+              headerRows: 1,
+              widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
+              body: staffBody
+            },
+            layout: {
+              hLineWidth: function (i, node) { return (i === 0 || i === node.table.body.length) ? 0.8 : 0.3; },
+              vLineWidth: function (i, node) { return 0.3; },
+              hLineColor: function (i, node) { return (i === 0 || i === node.table.body.length) ? '#5A7ACD' : '#E5E7EB'; },
+              vLineColor: function (i, node) { return '#E5E7EB'; },
+              paddingLeft: function (i) { return 4; },
+              paddingRight: function (i) { return 4; },
+              paddingTop: function (i) { return 3; },
+              paddingBottom: function (i) { return 3; }
+            },
+            margin: [0, 0, 0, 15]
+          });
+        }
+
+        // 3. Visit Details
+        const visitsList = [];
+        branch.reports.forEach(r => {
+          if (r.visits && r.visits.length > 0) {
+            r.visits.forEach(v => {
+              visitsList.push({
+                staffName: r.sales_staff ? r.sales_staff.name : getSalesStaffName(r.sales_staff_id),
+                details: v.update_details,
+                targetBranch: v.branch_id ? getBranchName(v.branch_id) : '-'
+              });
+            });
+          }
+        });
+
+        if (visitsList.length > 0) {
+          docDefinition.content.push({ text: formatArabicText('تفاصيل الزيارات'), style: 'sectionTitle' });
+
+          const visitsBody = [
+            [
+              { text: formatArabicText('تفاصيل الزيارة'), style: 'tableHeader' },
+              { text: formatArabicText('الوجهة (الفرع)'), style: 'tableHeader' },
+              { text: formatArabicText('الموظف'), style: 'tableHeader' }
+            ]
+          ];
+
+          visitsList.forEach(v => {
+            visitsBody.push([
+              { text: formatArabicText(v.details || '-'), style: 'tableCell', alignment: 'right' },
+              { text: formatArabicText(v.targetBranch), style: 'tableCell' },
+              { text: formatArabicText(v.staffName), style: 'tableCell' }
+            ]);
+          });
+
+          docDefinition.content.push({
+            table: {
+              headerRows: 1,
+              widths: ['*', 'auto', 'auto'],
+              body: visitsBody
+            },
+            layout: {
+              hLineWidth: function (i, node) { return (i === 0 || i === node.table.body.length) ? 0.8 : 0.3; },
+              vLineWidth: function (i, node) { return 0.3; },
+              hLineColor: function (i, node) { return (i === 0 || i === node.table.body.length) ? '#5A7ACD' : '#E5E7EB'; },
+              vLineColor: function (i, node) { return '#E5E7EB'; },
+              paddingLeft: function (i) { return 4; },
+              paddingRight: function (i) { return 4; },
+              paddingTop: function (i) { return 3; },
+              paddingBottom: function (i) { return 3; }
+            },
+            margin: [0, 0, 0, 15]
+          });
+        }
+
+        // 4. Contracts
+        docDefinition.content.push({ text: formatArabicText('العقود المنجزة'), style: 'sectionTitle' });
+
+        if (branch.contracts.length > 0) {
+          const contractsBody = [
+            [
+              { text: formatArabicText('الصافي'), style: 'tableHeader' },
+              { text: formatArabicText('المتبقي'), style: 'tableHeader' },
+              { text: formatArabicText('المدفوع'), style: 'tableHeader' },
+              { text: formatArabicText('الإجمالي'), style: 'tableHeader' },
+              { text: formatArabicText('النوع'), style: 'tableHeader' },
+              { text: formatArabicText('الموظف'), style: 'tableHeader' },
+              { text: formatArabicText('الطالب'), style: 'tableHeader' },
+              { text: formatArabicText('رقم العقد'), style: 'tableHeader' }
+            ]
+          ];
+
+          branch.contracts.forEach(c => {
+            const staffName = c.sales_staff ? c.sales_staff.name : getSalesStaffName(c.sales_staff_id);
+            const type = c.contract_type === 'new' ? 'جديد' : (c.contract_type === 'shared' ? 'مشترك' : 'دفعة');
+            contractsBody.push([
+              { text: formatNumber(parseFloat(c.net_amount || 0)), style: 'tableCell', color: '#5A7ACD', bold: true },
+              { text: formatNumber(parseFloat(c.remaining_amount || 0)), style: 'tableCell', color: '#DC2626' },
+              { text: formatNumber(parseFloat(c.payment_amount || 0)), style: 'tableCell', color: '#10B981', bold: true },
+              { text: formatNumber(parseFloat(c.total_amount || 0)), style: 'tableCell' },
+              { text: formatArabicText(type), style: 'tableCell' },
+              { text: formatArabicText(staffName), style: 'tableCell' },
+              { text: formatArabicText(c.student_name), style: 'tableCell', alignment: 'center' },
+              { text: formatArabicText(c.contract_number), style: 'tableCell' }
+            ]);
+          });
+
+          docDefinition.content.push({
+            table: {
+              headerRows: 1,
+              widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*', 'auto'],
+              body: contractsBody
+            },
+            layout: {
+              hLineWidth: function (i, node) { return (i === 0 || i === node.table.body.length) ? 0.8 : 0.3; },
+              vLineWidth: function (i, node) { return 0.3; },
+              hLineColor: function (i, node) { return (i === 0 || i === node.table.body.length) ? '#5A7ACD' : '#E5E7EB'; },
+              vLineColor: function (i, node) { return '#E5E7EB'; },
+              paddingLeft: function (i) { return 4; },
+              paddingRight: function (i) { return 4; },
+              paddingTop: function (i) { return 3; },
+              paddingBottom: function (i) { return 3; }
+            },
+            margin: [0, 0, 0, 20]
+          });
+        } else {
+          docDefinition.content.push({
+            text: formatArabicText('لا يوجد عقود لهذا اليوم'),
+            style: 'subtitle2',
+            margin: [0, 10, 0, 20]
+          });
+        }
+
+      }); // End Branches Loop
+
+      // Signature Section
+      docDefinition.content.push(
+        { text: formatArabicText('التوقيعات والتوثيق'), style: 'sectionTitle', alignment: 'center', margin: [0, 30, 0, 20] },
+        {
+          columns: [
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('اعتماد الإدارة'), style: 'tableHeader', alignment: 'center', margin: [0, 0, 0, 40] },
+                { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 1, lineColor: '#9CA3AF' }], alignment: 'center' }
+              ]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('توقيع المسؤول'), style: 'tableHeader', alignment: 'center', margin: [0, 0, 0, 40] },
+                { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 1, lineColor: '#9CA3AF' }], alignment: 'center' }
+              ]
+            }
+          ],
+          margin: [20, 0, 20, 0]
+        }
+      );
+
+      pdfMake.createPdf(docDefinition).download(`تقرير_يومي_شامل_${todayStr}.pdf`);
+      success(`تم تحميل التقرير اليومي الشامل`);
+
     } catch (err) {
-      console.error('Error generating daily PDF:', err);
-      showError('حدث خطأ أثناء إنشاء ملف PDF: ' + (err.message || err));
+      console.error('Error in PDF generation:', err);
+      showError('خطأ في إنشاء التقرير: ' + err.message);
     }
   };
 
@@ -2013,80 +2224,99 @@ export default function DailySalesReportsPage() {
 
   const isSalesManager = userInfo?.is_sales_manager;
 
+  // Show buttons if Super Admin OR (Sales Manager AND NOT Branch Account)
+  const showActionButtons = userInfo?.is_super_admin || (userInfo?.is_sales_manager && !userInfo?.is_branch_account);
+
   return (
     <>
       <div className="container">
         {/* Tabs and Filters - Separate Card at Top */}
         <div className="panel" style={{ marginBottom: "1rem" }}>
-              {/* Tabs */}
+          {/* Tabs */}
           <div style={{ display: "flex", gap: "1rem", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.5rem", marginBottom: "1rem" }}>
-                <button
-                  onClick={() => setActiveTab("reports")}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    border: "none",
-                    background: "none",
-                    cursor: "pointer",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    color: activeTab === "reports" ? "#5A7ACD" : "#6B7280",
-                    borderBottom: activeTab === "reports" ? "2px solid #5A7ACD" : "2px solid transparent",
-                    marginBottom: "-2px",
-                    transition: "all 0.2s"
-                  }}
-                >
-                  التقارير اليومية
-                </button>
-                <button
-                  onClick={() => setActiveTab("contracts")}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    border: "none",
-                    background: "none",
-                    cursor: "pointer",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    color: activeTab === "contracts" ? "#5A7ACD" : "#6B7280",
-                    borderBottom: activeTab === "contracts" ? "2px solid #5A7ACD" : "2px solid transparent",
-                    marginBottom: "-2px",
-                    transition: "all 0.2s"
-                  }}
-                >
-                  العقود
-                </button>
-              </div>
+            <button
+              onClick={() => setActiveTab("reports")}
+              style={{
+                padding: "0.5rem 1rem",
+                border: "none",
+                background: "none",
+                cursor: "pointer",
+                fontSize: "13px",
+                fontWeight: 600,
+                color: activeTab === "reports" ? "#5A7ACD" : "#6B7280",
+                borderBottom: activeTab === "reports" ? "2px solid #5A7ACD" : "2px solid transparent",
+                marginBottom: "-2px",
+                transition: "all 0.2s"
+              }}
+            >
+              التقارير اليومية
+            </button>
+            <button
+              onClick={() => setActiveTab("contracts")}
+              style={{
+                padding: "0.5rem 1rem",
+                border: "none",
+                background: "none",
+                cursor: "pointer",
+                fontSize: "13px",
+                fontWeight: 600,
+                color: activeTab === "contracts" ? "#5A7ACD" : "#6B7280",
+                borderBottom: activeTab === "contracts" ? "2px solid #5A7ACD" : "2px solid transparent",
+                marginBottom: "-2px",
+              }}
+            >
+              العقود
+            </button>
+            {showActionButtons && (
+              <button
+                className="btn"
+                onClick={generateDailyReportPDF}
+                style={{
+                  backgroundColor: "#5A7ACD",
+                  color: "white",
+                  border: "none",
+                  marginRight: "auto",
+                  fontSize: "13px",
+                  padding: "0.4rem 1rem",
+                  cursor: "pointer"
+                }}
+              >
+                📄 تحميل تقرير يومي
+              </button>
+            )}
+          </div>
 
           {/* Filters */}
           <div className="filters-bar">
-                {activeTab === "reports" ? (
+            {activeTab === "reports" ? (
               (() => {
                 const filteredReports = filterReportsByYearAndMonth(reports);
                 const { years, months } = getAvailableYearsAndMonths(reports);
                 // Get available sales staff based on selected branch
-                const availableSalesStaff = selectedBranchId 
+                const availableSalesStaff = selectedBranchId
                   ? salesStaff.filter(s => s.branch_id === selectedBranchId)
                   : salesStaff;
                 return (
                   <>
                     <h3 style={{ margin: 0 }}>التقارير اليومية ({filteredReports.length})</h3>
                     <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap", marginRight: "auto" }}>
-                    {(!userInfo?.is_sales_manager || userInfo?.is_super_admin || userInfo?.is_backdoor) && (
-                      <select 
-                        value={selectedBranchId || ""} 
+                      {(!userInfo?.is_sales_manager || userInfo?.is_super_admin || userInfo?.is_backdoor) && (
+                        <select
+                          value={selectedBranchId || ""}
                           onChange={(e) => {
                             const branchId = e.target.value ? parseInt(e.target.value) : null;
                             setSelectedBranchId(branchId);
                             // Reset sales staff when branch changes
                             setSelectedSalesStaffId(null);
                           }}
-                        style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
-                      >
-                        <option value="">جميع الفروع</option>
+                          style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
+                        >
+                          <option value="">جميع الفروع</option>
                           {branches.map(branch => (
                             <option key={branch.id} value={branch.id}>{branch.name}</option>
-                        ))}
-                      </select>
-                    )}
+                          ))}
+                        </select>
+                      )}
                       <select
                         value={selectedSalesStaffId || ""}
                         onChange={(e) => {
@@ -2113,7 +2343,7 @@ export default function DailySalesReportsPage() {
                           <option key={month} value={month}>{monthNames[month]}</option>
                         ))}
                       </select>
-                      <select 
+                      <select
                         value={selectedYear || ""}
                         onChange={(e) => {
                           const year = e.target.value ? parseInt(e.target.value) : null;
@@ -2140,10 +2370,9 @@ export default function DailySalesReportsPage() {
                           إزالة الفلاتر
                         </button>
                       )}
-                    {!userInfo?.is_branch_account && isSalesManager && (
-                      <>
-                        <button 
-                          className="btn primary" 
+                      {showActionButtons && (
+                        <button
+                          className="btn primary"
                           onClick={() => {
                             setEditingReport(null);
                             resetForm();
@@ -2152,15 +2381,7 @@ export default function DailySalesReportsPage() {
                         >
                           إضافة تقرير يومي
                         </button>
-                        <button 
-                          className="btn" 
-                          onClick={generateDailyReportPDF}
-                          style={{ backgroundColor: "#5A7ACD", color: "white", border: "none" }}
-                        >
-                          📄 تحميل تقرير يومي
-                        </button>
-                      </>
-                    )}
+                      )}
                     </div>
                   </>
                 );
@@ -2170,29 +2391,29 @@ export default function DailySalesReportsPage() {
                 const filteredContracts = filterContractsByYearAndMonth(contracts);
                 const { years, months } = getAvailableContractYearsAndMonths(contracts);
                 // Get available sales staff based on selected branch
-                const availableContractSalesStaff = selectedContractBranchId 
+                const availableContractSalesStaff = selectedContractBranchId
                   ? salesStaff.filter(s => s.branch_id === selectedContractBranchId)
                   : salesStaff;
                 return (
                   <>
                     <h3 style={{ margin: 0 }}>العقود ({filteredContracts.length})</h3>
                     <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap", marginRight: "auto" }}>
-                    {(!userInfo?.is_sales_manager || userInfo?.is_super_admin || userInfo?.is_backdoor) && (
-                      <select 
-                        value={selectedContractBranchId || ""} 
+                      {(!userInfo?.is_sales_manager || userInfo?.is_super_admin || userInfo?.is_backdoor) && (
+                        <select
+                          value={selectedContractBranchId || ""}
                           onChange={(e) => {
                             setSelectedContractBranchId(e.target.value ? parseInt(e.target.value) : null);
                             // Reset sales staff when branch changes
                             setSelectedContractSalesStaffId(null);
                           }}
-                        style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
-                      >
-                        <option value="">جميع الفروع</option>
-                        {branches.map(b => (
-                          <option key={b.id} value={b.id}>{b.name}</option>
-                        ))}
-                      </select>
-                    )}
+                          style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
+                        >
+                          <option value="">جميع الفروع</option>
+                          {branches.map(b => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                          ))}
+                        </select>
+                      )}
                       <select
                         value={selectedContractSalesStaffId || ""}
                         onChange={(e) => {
@@ -2237,12 +2458,12 @@ export default function DailySalesReportsPage() {
                         placeholder="بحث: اسم العميل، رقم العقد، رقم الهاتف، موظف المبيعات"
                         value={contractSearchQuery}
                         onChange={(e) => setContractSearchQuery(e.target.value)}
-                        style={{ 
-                          minWidth: "280px", 
-                          padding: "0.5rem 0.75rem", 
-                          borderRadius: "6px", 
-                          border: "1px solid #E5E7EB", 
-                          fontFamily: "Cairo", 
+                        style={{
+                          minWidth: "280px",
+                          padding: "0.5rem 0.75rem",
+                          borderRadius: "6px",
+                          border: "1px solid #E5E7EB",
+                          fontFamily: "Cairo",
                           fontSize: "13px",
                           direction: "rtl"
                         }}
@@ -2261,52 +2482,52 @@ export default function DailySalesReportsPage() {
                         >
                           إزالة الفلاتر
                         </button>
-                    )}
-                    {!userInfo?.is_branch_account && isSalesManager && (
-                      <button 
-                        className="btn primary" 
-                        onClick={() => {
-                          setEditingContract(null);
-                          resetContractForm();
-                          setShowContractForm(true);
-                        }}
-                      >
-                        إضافة عقد جديد
-                      </button>
-                    )}
+                      )}
+                      {!userInfo?.is_branch_account && (userInfo?.is_sales_manager || userInfo?.is_super_admin) && (
+                        <button
+                          className="btn primary"
+                          onClick={() => {
+                            setEditingContract(null);
+                            resetContractForm();
+                            setShowContractForm(true);
+                          }}
+                        >
+                          إضافة عقد جديد
+                        </button>
+                      )}
                     </div>
                   </>
                 );
               })()
-                )}
-              </div>
-            </div>
+            )}
+          </div>
+        </div>
 
         {/* Today's Reports Card - Only show when activeTab is "reports" */}
         {activeTab === "reports" && (() => {
           const today = new Date();
           const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
-          
+
           const todayReports = reports.filter(report => {
             if (!report.report_date) return false;
             const reportDate = new Date(report.report_date);
             const reportDateStr = reportDate.toISOString().split('T')[0];
             return reportDateStr === todayStr;
           });
-          
+
           console.log("[Today's Card] Today's date:", todayStr);
           console.log("[Today's Card] Total reports:", reports.length);
           console.log("[Today's Card] Today's reports:", todayReports.length);
-          
+
           if (todayReports.length === 0) return null;
-          
+
           const arabicDate = today.toLocaleDateString('ar-SA', {
             weekday: 'long',
             year: 'numeric',
             month: 'long',
             day: 'numeric'
           });
-          
+
           return (
             <div className="panel" style={{ marginBottom: "1.5rem", backgroundColor: "#FFF7ED", border: "2px solid #FEB05D" }}>
               <div style={{ padding: "1rem", borderBottom: "1px solid #E5E7EB" }}>
@@ -2314,7 +2535,7 @@ export default function DailySalesReportsPage() {
                   التقارير الخاصة باليوم - {arabicDate}
                 </h3>
               </div>
-              
+
               {/* Today's Reports */}
               {todayReports.length > 0 && (
                 <div style={{ padding: "1rem" }}>
@@ -2353,7 +2574,7 @@ export default function DailySalesReportsPage() {
                               return dateStr;
                             }
                           };
-                          
+
                           return (
                             <tr key={report.id}>
                               <td>{getBranchName(report.branch_id)}</td>
@@ -2369,10 +2590,10 @@ export default function DailySalesReportsPage() {
                               {!userInfo?.is_branch_account && (
                                 <td>
                                   <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
-                                    <button 
+                                    <button
                                       className="btn btn-small"
                                       onClick={() => handleEdit(report)}
-                                      style={{ 
+                                      style={{
                                         padding: "0.25rem 0.5rem",
                                         backgroundColor: "#FEB05D",
                                         color: "white",
@@ -2384,7 +2605,7 @@ export default function DailySalesReportsPage() {
                                         <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
                                       </svg>
                                     </button>
-                                    <button 
+                                    <button
                                       className="btn btn-small btn-danger"
                                       onClick={() => handleDelete(report.id)}
                                       title="حذف"
@@ -2413,7 +2634,7 @@ export default function DailySalesReportsPage() {
         {activeTab === "contracts" && (() => {
           const today = new Date();
           const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
-          
+
           const todayContracts = contracts.filter(contract => {
             const dateToUse = contract.contract_date || contract.created_at;
             if (!dateToUse) return false;
@@ -2427,7 +2648,7 @@ export default function DailySalesReportsPage() {
               return false;
             }
           });
-          
+
           console.log("[Today's Card] Today's date:", todayStr);
           console.log("[Today's Card] Total contracts:", contracts.length);
           console.log("[Today's Card] Today's contracts:", todayContracts.length);
@@ -2439,16 +2660,16 @@ export default function DailySalesReportsPage() {
               dateToUse: contracts[0].contract_date || contracts[0].created_at
             });
           }
-          
+
           if (todayContracts.length === 0) return null;
-          
+
           const arabicDate = today.toLocaleDateString('ar-SA', {
             weekday: 'long',
             year: 'numeric',
             month: 'long',
             day: 'numeric'
           });
-          
+
           return (
             <div className="panel" style={{ marginBottom: "1.5rem", backgroundColor: "#FFF7ED", border: "2px solid #FEB05D" }}>
               <div style={{ padding: "1rem", borderBottom: "1px solid #E5E7EB" }}>
@@ -2456,7 +2677,7 @@ export default function DailySalesReportsPage() {
                   العقود الخاصة باليوم - {arabicDate}
                 </h3>
               </div>
-              
+
               {/* Today's Contracts */}
               <div style={{ padding: "1rem" }}>
                 <h4 style={{ margin: "0 0 1rem 0", color: "#2B2A2A", fontSize: "16px", fontWeight: 600 }}>
@@ -2474,6 +2695,8 @@ export default function DailySalesReportsPage() {
                         <th>الدورة</th>
                         <th style={{ textAlign: "left" }}>المبلغ الإجمالي</th>
                         <th style={{ textAlign: "left" }}>المبلغ المدفوع</th>
+                        <th style={{ textAlign: "left" }}>طريقة الدفع</th>
+                        <th style={{ textAlign: "left" }}>رقم الدفعة</th>
                         <th style={{ textAlign: "left" }}>المتبقي</th>
                         <th style={{ textAlign: "left" }}>المبلغ الصافي</th>
                         <th>تاريخ العقد</th>
@@ -2482,12 +2705,18 @@ export default function DailySalesReportsPage() {
                     </thead>
                     <tbody>
                       {todayContracts.map(contract => {
-                        const totalPaid = contract.payments && contract.payments.length > 0
+                        const paymentsSum = contract.payments && contract.payments.length > 0
                           ? contract.payments.reduce((sum, p) => sum + parseFloat(p.payment_amount || 0), 0)
-                          : parseFloat(contract.payment_amount || 0);
+                          : 0;
+                        const totalPaid = (parseFloat(contract.payment_amount || 0)) + paymentsSum;
+
                         const contractDate = contract.contract_date || contract.created_at;
                         const dateToDisplay = contractDate ? new Date(contractDate).toISOString().split('T')[0] : '-';
-                        
+
+                        // Fallback mechanism for Payment Method and Number
+                        const displayPaymentMethodId = contract.payment_method_id || (contract.payments && contract.payments.length > 0 ? contract.payments[0].payment_method_id : null);
+                        const displayPaymentNumber = contract.payment_number || (contract.payments && contract.payments.length > 0 ? contract.payments[0].payment_number : "-");
+
                         return (
                           <tr key={contract.id}>
                             <td>{contract.contract_number}</td>
@@ -2496,18 +2725,20 @@ export default function DailySalesReportsPage() {
                             <td>{getBranchName(contract.branch_id)}</td>
                             <td>{getSalesStaffName(contract.sales_staff_id)}</td>
                             <td>{contract.course ? contract.course.name : "-"}</td>
-                            <td className="number" data-type="number">{parseFloat(contract.total_amount || 0).toFixed(2)}</td>
-                            <td className="number" data-type="number">{totalPaid.toFixed(2)}</td>
-                            <td className="number" data-type="number">{parseFloat(contract.remaining_amount || 0).toFixed(2)}</td>
-                            <td className="number" data-type="number">{parseFloat(contract.net_amount || 0).toFixed(2)}</td>
+                            <td className="number" data-type="number" style={{ direction: 'ltr' }}>{parseFloat(contract.total_amount || 0).toFixed(2)} درهم</td>
+                            <td className="number" data-type="number" style={{ direction: 'ltr' }}>{totalPaid.toFixed(2)} درهم</td>
+                            <td>{getPaymentMethodName(displayPaymentMethodId)}</td>
+                            <td>{displayPaymentNumber}</td>
+                            <td className="number" data-type="number" style={{ direction: 'ltr' }}>{parseFloat(contract.remaining_amount || 0).toFixed(2)} درهم</td>
+                            <td className="number" data-type="number" style={{ direction: 'ltr' }}>{parseFloat(contract.net_amount || 0).toFixed(2)} درهم</td>
                             <td>{dateToDisplay}</td>
                             {!userInfo?.is_branch_account && (
                               <td>
                                 <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
-                                  <button 
+                                  <button
                                     className="btn btn-small"
                                     onClick={() => handleEditContract(contract)}
-                                    style={{ 
+                                    style={{
                                       padding: "0.25rem 0.5rem",
                                       backgroundColor: "#FEB05D",
                                       color: "white",
@@ -2519,7 +2750,7 @@ export default function DailySalesReportsPage() {
                                       <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
                                     </svg>
                                   </button>
-                                  <button 
+                                  <button
                                     className="btn btn-small btn-danger"
                                     onClick={() => handleDeleteContract(contract.id)}
                                     title="حذف"
@@ -2563,172 +2794,172 @@ export default function DailySalesReportsPage() {
                   </div>
                   <form onSubmit={editingReport ? handleUpdate : handleCreate}>
                     <div className="modal-body">
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem" }}>
-                  <div className="form-group">
-                    <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>الفرع *</label>
-                    <select
-                      value={form.branch_id}
-                      onChange={(e) => {
-                        const newBranchId = e.target.value;
-                        setForm({ ...form, branch_id: newBranchId, sales_staff_id: "" }); // إعادة تعيين موظف المبيعات عند تغيير الفرع
-                        // تحميل موظفي المبيعات للفرع الجديد
-                        if (newBranchId) {
-                          loadSalesStaff(parseInt(newBranchId));
-                        } else {
-                          loadSalesStaff();
-                        }
-                      }}
-                      required
-                      disabled={editingReport !== null || (userInfo?.is_sales_manager && !userInfo?.is_super_admin && !userInfo?.is_backdoor)}
-                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
-                    >
-                      <option value="">اختر الفرع</option>
-                      {branches.map(b => (
-                        <option key={b.id} value={b.id}>{b.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>موظف المبيعات *</label>
-                    <select
-                      value={form.sales_staff_id}
-                      onChange={(e) => setForm({ ...form, sales_staff_id: e.target.value })}
-                      required
-                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
-                    >
-                      <option value="">اختر موظف المبيعات</option>
-                      {salesStaff.map(staff => (
-                        <option key={staff.id} value={staff.id}>{staff.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>تاريخ التقرير *</label>
-                    <input
-                      type="date"
-                      value={form.report_date}
-                      onChange={(e) => setForm({ ...form, report_date: e.target.value })}
-                      required
-                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>الاتصالات اليومية</label>
-                    <input
-                      type="number"
-                      value={form.daily_calls}
-                      onChange={(e) => setForm({ ...form, daily_calls: e.target.value })}
-                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>الهوت كول</label>
-                    <input
-                      type="number"
-                      value={form.hot_calls}
-                      onChange={(e) => setForm({ ...form, hot_calls: e.target.value })}
-                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>الووك ان</label>
-                    <input
-                      type="number"
-                      value={form.walk_ins}
-                      onChange={(e) => setForm({ ...form, walk_ins: e.target.value })}
-                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>ليدز الفرع</label>
-                    <input
-                      type="number"
-                      value={form.branch_leads}
-                      onChange={(e) => setForm({ ...form, branch_leads: e.target.value })}
-                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>ليدز الاونلاين</label>
-                    <input
-                      type="number"
-                      value={form.online_leads}
-                      onChange={(e) => setForm({ ...form, online_leads: e.target.value })}
-                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>الليدز الاضافي</label>
-                    <input
-                      type="number"
-                      value={form.extra_leads}
-                      onChange={(e) => setForm({ ...form, extra_leads: e.target.value })}
-                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>عدد الزيارات</label>
-                    <input
-                      type="number"
-                      value={form.number_of_visits}
-                      onChange={(e) => handleNumberOfVisitsChange(e.target.value)}
-                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
-                    />
-                  </div>
-                  <div className="form-group" style={{ gridColumn: "span 4" }}>
-                    <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>الملاحظات</label>
-                    <textarea
-                      value={form.notes}
-                      onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%", minHeight: "80px" }}
-                    />
-                  </div>
-                </div>
-
-                {/* Visits Section */}
-                {form.number_of_visits > 0 && (
-                  <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid #E5E7EB" }}>
-                    <h4 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "1rem", color: "#2B2A2A" }}>تفاصيل الزيارات</h4>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                    {form.visits.map((visit, index) => (
-                        <div key={index} style={{ padding: "1rem", backgroundColor: "#F9FAFB", borderRadius: "6px", border: "1px solid #E5E7EB" }}>
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "1rem", marginBottom: "0.75rem" }}>
-                          <div className="form-group">
-                              <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>الفرع</label>
-                            <select
-                                value={visit.branch_id}
-                              onChange={(e) => updateVisit(index, "branch_id", e.target.value)}
-                              style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
-                            >
-                              <option value="">اختر الفرع</option>
-                              {branches.map(b => (
-                                <option key={b.id} value={b.id}>{b.name}</option>
-                              ))}
-                            </select>
-                          </div>
-                          </div>
-                          <div className="form-group">
-                            <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "#2B2A2A", marginBottom: "0.5rem" }}>تفاصيل الزيارة</label>
-                            <textarea
-                              value={visit.update_details || ""}
-                              onChange={(e) => updateVisit(index, "update_details", e.target.value)}
-                              style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", minHeight: "60px", fontSize: "13px", width: "100%" }}
-                            />
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem" }}>
+                        <div className="form-group">
+                          <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>الفرع *</label>
+                          <select
+                            value={form.branch_id}
+                            onChange={(e) => {
+                              const newBranchId = e.target.value;
+                              setForm({ ...form, branch_id: newBranchId, sales_staff_id: "" }); // إعادة تعيين موظف المبيعات عند تغيير الفرع
+                              // تحميل موظفي المبيعات للفرع الجديد
+                              if (newBranchId) {
+                                loadSalesStaff(parseInt(newBranchId));
+                              } else {
+                                loadSalesStaff();
+                              }
+                            }}
+                            required
+                            disabled={editingReport !== null || (userInfo?.is_sales_manager && !userInfo?.is_super_admin && !userInfo?.is_backdoor)}
+                            style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
+                          >
+                            <option value="">اختر الفرع</option>
+                            {branches.map(b => (
+                              <option key={b.id} value={b.id}>{b.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>موظف المبيعات *</label>
+                          <select
+                            value={form.sales_staff_id}
+                            onChange={(e) => setForm({ ...form, sales_staff_id: e.target.value })}
+                            required
+                            style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
+                          >
+                            <option value="">اختر موظف المبيعات</option>
+                            {salesStaff.map(staff => (
+                              <option key={staff.id} value={staff.id}>{staff.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>تاريخ التقرير *</label>
+                          <input
+                            type="date"
+                            value={form.report_date}
+                            onChange={(e) => setForm({ ...form, report_date: e.target.value })}
+                            required
+                            style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>الاتصالات اليومية</label>
+                          <input
+                            type="number"
+                            value={form.daily_calls}
+                            onChange={(e) => setForm({ ...form, daily_calls: e.target.value })}
+                            style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>الهوت كول</label>
+                          <input
+                            type="number"
+                            value={form.hot_calls}
+                            onChange={(e) => setForm({ ...form, hot_calls: e.target.value })}
+                            style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>الووك ان</label>
+                          <input
+                            type="number"
+                            value={form.walk_ins}
+                            onChange={(e) => setForm({ ...form, walk_ins: e.target.value })}
+                            style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>ليدز الفرع</label>
+                          <input
+                            type="number"
+                            value={form.branch_leads}
+                            onChange={(e) => setForm({ ...form, branch_leads: e.target.value })}
+                            style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>ليدز الاونلاين</label>
+                          <input
+                            type="number"
+                            value={form.online_leads}
+                            onChange={(e) => setForm({ ...form, online_leads: e.target.value })}
+                            style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>الليدز الاضافي</label>
+                          <input
+                            type="number"
+                            value={form.extra_leads}
+                            onChange={(e) => setForm({ ...form, extra_leads: e.target.value })}
+                            style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>عدد الزيارات</label>
+                          <input
+                            type="number"
+                            value={form.number_of_visits}
+                            onChange={(e) => handleNumberOfVisitsChange(e.target.value)}
+                            style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ gridColumn: "span 4" }}>
+                          <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>الملاحظات</label>
+                          <textarea
+                            value={form.notes}
+                            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                            style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%", minHeight: "80px" }}
+                          />
                         </div>
                       </div>
-                    ))}
-                    </div>
-                  </div>
-                )}
+
+                      {/* Visits Section */}
+                      {form.number_of_visits > 0 && (
+                        <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid #E5E7EB" }}>
+                          <h4 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "1rem", color: "#2B2A2A" }}>تفاصيل الزيارات</h4>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                            {form.visits.map((visit, index) => (
+                              <div key={index} style={{ padding: "1rem", backgroundColor: "#F9FAFB", borderRadius: "6px", border: "1px solid #E5E7EB" }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "1rem", marginBottom: "0.75rem" }}>
+                                  <div className="form-group">
+                                    <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#2B2A2A", marginBottom: "0.5rem" }}>الفرع</label>
+                                    <select
+                                      value={visit.branch_id}
+                                      onChange={(e) => updateVisit(index, "branch_id", e.target.value)}
+                                      style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
+                                    >
+                                      <option value="">اختر الفرع</option>
+                                      {branches.map(b => (
+                                        <option key={b.id} value={b.id}>{b.name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                                <div className="form-group">
+                                  <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "#2B2A2A", marginBottom: "0.5rem" }}>تفاصيل الزيارة</label>
+                                  <textarea
+                                    value={visit.update_details || ""}
+                                    onChange={(e) => updateVisit(index, "update_details", e.target.value)}
+                                    style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", minHeight: "60px", fontSize: "13px", width: "100%" }}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                     </div>
                     <div className="modal-footer">
                       <button className="btn primary" type="submit">
                         {editingReport ? "تحديث" : "إضافة"}
                       </button>
-                      <button 
-                        className="btn" 
-                        type="button" 
+                      <button
+                        className="btn"
+                        type="button"
                         onClick={() => {
                           setShowForm(false);
                           setEditingReport(null);
@@ -2745,7 +2976,7 @@ export default function DailySalesReportsPage() {
             {(() => {
               const filteredReports = filterReportsByYearAndMonth(reports);
               const branchGroups = groupReportsByBranchAndMonth(filteredReports);
-              
+
               console.log("[DailySalesReports] Rendering reports:", {
                 totalReports: reports.length,
                 filteredReports: filteredReports.length,
@@ -2753,14 +2984,14 @@ export default function DailySalesReportsPage() {
                 selectedYear,
                 selectedMonth
               });
-              
+
               if (filteredReports.length === 0) {
                 return (
                   <div className="panel" style={{ textAlign: "center", padding: "3rem" }}>
                     <p style={{ color: "#6B7280", fontSize: "14px" }}>
-                        لا توجد تقارير حالياً
+                      لا توجد تقارير حالياً
                     </p>
-              </div>
+                  </div>
                 );
               }
 
@@ -2779,31 +3010,31 @@ export default function DailySalesReportsPage() {
                   {branchGroups.map((branchGroup) => (
                     <div key={branchGroup.branchId} style={{ marginBottom: "2rem" }}>
                       {/* Branch Header Card */}
-                      <div className="panel" style={{ 
+                      <div className="panel" style={{
                         marginBottom: "1rem",
                         padding: "1rem",
                         backgroundColor: "#F9FAFB",
                         border: "1px solid #E5E7EB"
                       }}>
-                        <h2 style={{ 
-                          color: "#2B2A2A", 
-                          margin: 0, 
+                        <h2 style={{
+                          color: "#2B2A2A",
+                          margin: 0,
                           fontSize: "18px",
                           fontWeight: 600
                         }}>
                           {branchGroup.branchName}
                         </h2>
                       </div>
-                      
+
                       {branchGroup.months.map((group) => {
                         const monthKey = `${group.year}-${group.month}`;
                         const isExpanded = expandedMonths.has(monthKey);
-                        
+
                         return (
-                          <div 
+                          <div
                             key={monthKey}
-                            className="panel" 
-                            style={{ 
+                            className="panel"
+                            style={{
                               marginBottom: "1.5rem"
                             }}
                           >
@@ -2858,76 +3089,76 @@ export default function DailySalesReportsPage() {
                             {isExpanded && (
                               <div data-month-key={monthKey}>
                                 {/* Reports Table */}
-              <div className="table-container" style={{ width: "100%", overflowX: "auto" }}>
-                <table style={{ width: "100%", minWidth: "1000px" }}>
-                  <thead>
-                    <tr>
-                      <th>التاريخ</th>
-                      <th>موظف المبيعات</th>
-                      <th style={{ textAlign: "left" }}>الاتصالات اليومية</th>
-                      <th style={{ textAlign: "left" }}>الهوت كول</th>
-                      <th style={{ textAlign: "left" }}>الووك ان</th>
-                      <th style={{ textAlign: "left" }}>ليدز الفرع</th>
-                      <th style={{ textAlign: "left" }}>ليدز الاونلاين</th>
-                      <th style={{ textAlign: "left" }}>الليدز الاضافي</th>
-                      <th style={{ textAlign: "left" }}>عدد الزيارات</th>
-                      <th>الملاحظات</th>
-                      {!userInfo?.is_branch_account && <th>الإجراءات</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
+                                <div className="table-container" style={{ width: "100%", overflowX: "auto" }}>
+                                  <table style={{ width: "100%", minWidth: "1000px" }}>
+                                    <thead>
+                                      <tr>
+                                        <th>التاريخ</th>
+                                        <th>موظف المبيعات</th>
+                                        <th style={{ textAlign: "left" }}>الاتصالات اليومية</th>
+                                        <th style={{ textAlign: "left" }}>الهوت كول</th>
+                                        <th style={{ textAlign: "left" }}>الووك ان</th>
+                                        <th style={{ textAlign: "left" }}>ليدز الفرع</th>
+                                        <th style={{ textAlign: "left" }}>ليدز الاونلاين</th>
+                                        <th style={{ textAlign: "left" }}>الليدز الاضافي</th>
+                                        <th style={{ textAlign: "left" }}>عدد الزيارات</th>
+                                        <th>الملاحظات</th>
+                                        {!userInfo?.is_branch_account && <th>الإجراءات</th>}
+                                      </tr>
+                                    </thead>
+                                    <tbody>
                                       {group.reports.map(report => (
-                      <tr key={report.id}>
-                        <td>{report.report_date}</td>
-                        <td>{getSalesStaffName(report.sales_staff_id)}</td>
-                        <td className="number" data-type="number">{report.daily_calls || 0}</td>
-                        <td className="number" data-type="number">{report.hot_calls || 0}</td>
-                        <td className="number" data-type="number">{report.walk_ins || 0}</td>
-                        <td className="number" data-type="number">{report.branch_leads || 0}</td>
-                        <td className="number" data-type="number">{report.online_leads || 0}</td>
-                        <td className="number" data-type="number">{report.extra_leads || 0}</td>
-                        <td className="number" data-type="number">{report.number_of_visits || 0}</td>
-                        <td style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={report.notes || ""}>
-                          {report.notes || "-"}
-                        </td>
-                        {!userInfo?.is_branch_account && (
-                          <td>
-                            <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
-                              <button 
-                                className="btn btn-small"
-                                onClick={() => handleEdit(report)}
-                                style={{ 
-                                  padding: "0.25rem 0.5rem",
-                                  backgroundColor: "#FEB05D",
-                                  color: "white",
-                                  border: "none"
-                                }}
-                                title="تعديل"
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-                                </svg>
-                              </button>
-                              <button 
-                                className="btn btn-small btn-danger"
-                                onClick={() => handleDelete(report.id)}
-                                title="حذف"
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="3 6 5 6 21 6"></polyline>
-                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                </svg>
-                              </button>
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                                        <tr key={report.id}>
+                                          <td>{report.report_date}</td>
+                                          <td>{getSalesStaffName(report.sales_staff_id)}</td>
+                                          <td className="number" data-type="number">{report.daily_calls || 0}</td>
+                                          <td className="number" data-type="number">{report.hot_calls || 0}</td>
+                                          <td className="number" data-type="number">{report.walk_ins || 0}</td>
+                                          <td className="number" data-type="number">{report.branch_leads || 0}</td>
+                                          <td className="number" data-type="number">{report.online_leads || 0}</td>
+                                          <td className="number" data-type="number">{report.extra_leads || 0}</td>
+                                          <td className="number" data-type="number">{report.number_of_visits || 0}</td>
+                                          <td style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={report.notes || ""}>
+                                            {report.notes || "-"}
+                                          </td>
+                                          {!userInfo?.is_branch_account && (
+                                            <td>
+                                              <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
+                                                <button
+                                                  className="btn btn-small"
+                                                  onClick={() => handleEdit(report)}
+                                                  style={{
+                                                    padding: "0.25rem 0.5rem",
+                                                    backgroundColor: "#FEB05D",
+                                                    color: "white",
+                                                    border: "none"
+                                                  }}
+                                                  title="تعديل"
+                                                >
+                                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                                                  </svg>
+                                                </button>
+                                                <button
+                                                  className="btn btn-small btn-danger"
+                                                  onClick={() => handleDelete(report.id)}
+                                                  title="حذف"
+                                                >
+                                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                  </svg>
+                                                </button>
+                                              </div>
+                                            </td>
+                                          )}
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
                                 </div>
-              </div>
-            )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -2955,7 +3186,7 @@ export default function DailySalesReportsPage() {
                 sampleContracts: contracts.slice(0, 2)
               });
               const branchGroups = groupContractsByBranchAndMonth(filteredContracts);
-              
+
               if (filteredContracts.length === 0) {
                 return (
                   <div className="panel" style={{ textAlign: "center", padding: "3rem" }}>
@@ -2981,41 +3212,41 @@ export default function DailySalesReportsPage() {
                   {branchGroups.map((branchGroup) => (
                     <div key={branchGroup.branchId} style={{ marginBottom: "2rem" }}>
                       {/* Branch Header Card */}
-                      <div className="panel" style={{ 
+                      <div className="panel" style={{
                         marginBottom: "1rem",
                         padding: "1rem",
                         backgroundColor: "#F9FAFB",
                         border: "1px solid #E5E7EB"
                       }}>
-                        <h2 style={{ 
-                          color: "#2B2A2A", 
-                          margin: 0, 
+                        <h2 style={{
+                          color: "#2B2A2A",
+                          margin: 0,
                           fontSize: "18px",
                           fontWeight: 600
                         }}>
                           {branchGroup.branchName}
                         </h2>
                       </div>
-                      
+
                       {branchGroup.months.map((group) => {
                         const monthKey = `${group.year}-${group.month}`;
                         const isExpanded = expandedContractMonths.has(monthKey);
-                        
+
                         return (
-                          <div 
+                          <div
                             key={monthKey}
-                            className="panel" 
-                  style={{
+                            className="panel"
+                            style={{
                               marginBottom: "1.5rem"
-                  }}
-                >
+                            }}
+                          >
                             {/* Month Header */}
                             <div
-                  style={{
+                              style={{
                                 display: "flex",
                                 justifyContent: "space-between",
                                 alignItems: "center",
-                    cursor: "pointer",
+                                cursor: "pointer",
                                 padding: "1rem",
                                 backgroundColor: "#F9FAFB",
                                 borderRadius: "6px",
@@ -3053,8 +3284,8 @@ export default function DailySalesReportsPage() {
                                 <span style={{ fontSize: "14px", color: "#6B7280" }}>
                                   {isExpanded ? "▼" : "▶"}
                                 </span>
-              </div>
-            </div>
+                              </div>
+                            </div>
 
                             {/* Expanded Content */}
                             {isExpanded && (
@@ -3062,8 +3293,8 @@ export default function DailySalesReportsPage() {
                                 {/* Contracts Table */}
                                 <div className="table-container" style={{ width: "100%", overflowX: "auto" }}>
                                   <table style={{ width: "100%", fontSize: "11px", tableLayout: "auto", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr>
+                                    <thead>
+                                      <tr>
                                         <th style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px", whiteSpace: "nowrap" }}>رقم العقد</th>
                                         <th style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px", whiteSpace: "nowrap" }}>الفرع</th>
                                         <th style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px", whiteSpace: "nowrap" }}>موظف المبيعات</th>
@@ -3080,11 +3311,11 @@ export default function DailySalesReportsPage() {
                                         <th style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px", whiteSpace: "nowrap" }}>نوع العقد</th>
                                         <th style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px", whiteSpace: "nowrap" }}>ملاحظات</th>
                                         {!userInfo?.is_branch_account && <th style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px", whiteSpace: "nowrap" }}>الإجراءات</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
                                       {group.contracts.map(contract => (
-                      <tr key={contract.id}>
+                                        <tr key={contract.id}>
                                           <td style={{ fontWeight: 600, color: "#5A7ACD", padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>{contract.contract_number}</td>
                                           <td style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>{getBranchName(contract.branch_id)}</td>
                                           <td style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>{contract.sales_staff_id ? getSalesStaffName(contract.sales_staff_id) : "-"}</td>
@@ -3092,43 +3323,43 @@ export default function DailySalesReportsPage() {
                                           <td style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>{contract.client_phone || "-"}</td>
                                           <td style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>{contract.registration_source || "-"}</td>
                                           <td style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>{getCourseName(contract.course_id)}</td>
-                                          <td data-type="number" style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>{contract.total_amount ? parseFloat(contract.total_amount).toFixed(2) : "0.00"} ر.س</td>
-                                          <td data-type="number" style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>{contract.payment_amount ? parseFloat(contract.payment_amount).toFixed(2) : "0.00"} ر.س</td>
+                                          <td data-type="number" style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>{contract.total_amount ? parseFloat(contract.total_amount).toFixed(2) : "0.00"} درهم</td>
+                                          <td data-type="number" style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>{contract.payment_amount ? parseFloat(contract.payment_amount).toFixed(2) : "0.00"} درهم</td>
                                           <td style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>{getPaymentMethodName(contract.payment_method_id)}</td>
                                           <td style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>{contract.payment_number || "-"}</td>
-                                          <td data-type="number" style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>{contract.remaining_amount ? parseFloat(contract.remaining_amount).toFixed(2) : "0.00"} ر.س</td>
-                                          <td data-type="number" style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>{contract.net_amount ? parseFloat(contract.net_amount).toFixed(2) : "0.00"} ر.س</td>
+                                          <td data-type="number" style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>{contract.remaining_amount ? parseFloat(contract.remaining_amount).toFixed(2) : "0.00"} درهم</td>
+                                          <td data-type="number" style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>{contract.net_amount ? parseFloat(contract.net_amount).toFixed(2) : "0.00"} درهم</td>
                                           <td style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>
                                             <span className={`status ${contract.contract_type === "new" ? "status-active" : contract.contract_type === "shared" ? "status-pending" : "status-rejected"}`} style={{ fontSize: "10px", padding: "0.2rem 0.4rem" }}>
                                               {contract.contract_type === "new" ? "جديد" : contract.contract_type === "shared" ? "مشترك" : "دفعة قديمة"}
                                             </span>
                                           </td>
                                           <td style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", padding: "0.4rem", textAlign: "center", fontSize: "11px" }} title={contract.notes || ""}>{contract.notes || "-"}</td>
-                        {!userInfo?.is_branch_account && (
-                          <td>
-                            <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
-                              <button 
-                                className="btn btn-small"
+                                          {!userInfo?.is_branch_account && (
+                                            <td>
+                                              <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
+                                                <button
+                                                  className="btn btn-small"
                                                   onClick={() => {
                                                     handleEditContract(contract);
                                                   }}
-                                style={{ 
+                                                  style={{
                                                     padding: "0.2rem 0.4rem",
-                                  backgroundColor: "#FEB05D",
-                                  color: "white",
+                                                    backgroundColor: "#FEB05D",
+                                                    color: "white",
                                                     border: "none",
                                                     fontSize: "10px",
                                                     borderRadius: "4px",
                                                     cursor: "pointer"
-                                }}
-                                title="تعديل"
-                              >
+                                                  }}
+                                                  title="تعديل"
+                                                >
                                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-                                </svg>
-                              </button>
-                              <button 
-                                className="btn btn-small btn-danger"
+                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                                                  </svg>
+                                                </button>
+                                                <button
+                                                  className="btn btn-small btn-danger"
                                                   onClick={() => {
                                                     confirm(
                                                       "هل أنت متأكد من حذف هذا العقد؟",
@@ -3148,23 +3379,23 @@ export default function DailySalesReportsPage() {
                                                     fontSize: "10px",
                                                     borderRadius: "4px"
                                                   }}
-                                title="حذف"
-                              >
+                                                  title="حذف"
+                                                >
                                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="3 6 5 6 21 6"></polyline>
-                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                </svg>
-                              </button>
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                  </svg>
+                                                </button>
+                                              </div>
+                                            </td>
+                                          )}
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
                                 </div>
-              </div>
-            )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -3207,7 +3438,7 @@ export default function DailySalesReportsPage() {
                       </select>
                     </div>
                   )}
-                  
+
                   {contractForm.contract_type === "old_payment" && !editingContract && (
                     <div style={{ marginBottom: "1rem", padding: "1rem", backgroundColor: "#f5f5f5", borderRadius: "8px" }}>
                       <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 600 }}>البحث عن العقد</label>
@@ -3252,12 +3483,12 @@ export default function DailySalesReportsPage() {
                       )}
                     </div>
                   )}
-                  
+
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem" }}>
                     {contractForm.contract_type !== "old_payment" && (
                       <>
-                    <select
-                      value={contractForm.branch_id}
+                        <select
+                          value={contractForm.branch_id}
                           onChange={(e) => {
                             const branchId = e.target.value;
                             setContractForm({ ...contractForm, branch_id: branchId, sales_staff_id: "" });
@@ -3267,15 +3498,15 @@ export default function DailySalesReportsPage() {
                               loadSalesStaff();
                             }
                           }}
-                      required
-                      disabled={userInfo?.is_sales_manager && !userInfo?.is_super_admin && !userInfo?.is_backdoor}
-                      style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo" }}
-                    >
-                      <option value="">اختر الفرع</option>
-                      {branches.map(b => (
-                        <option key={b.id} value={b.id}>{b.name}</option>
-                      ))}
-                    </select>
+                          required
+                          disabled={userInfo?.is_sales_manager && !userInfo?.is_super_admin && !userInfo?.is_backdoor}
+                          style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo" }}
+                        >
+                          <option value="">اختر الفرع</option>
+                          {branches.map(b => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                          ))}
+                        </select>
                         <select
                           value={contractForm.sales_staff_id}
                           onChange={(e) => setContractForm({ ...contractForm, sales_staff_id: e.target.value })}
@@ -3290,28 +3521,28 @@ export default function DailySalesReportsPage() {
                             return true;
                           }).map(s => (
                             <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </select>
-                    <input
-                      placeholder="اسم صاحب العقد"
-                      value={contractForm.student_name}
-                      onChange={(e) => setContractForm({ ...contractForm, student_name: e.target.value })}
-                      required
-                    />
-                    <input
-                      placeholder="رقم هاتف العميل"
-                      value={contractForm.client_phone || ""}
-                      onChange={(e) => setContractForm({ ...contractForm, client_phone: e.target.value })}
-                    />
-                    <input
-                      placeholder="رقم العقد"
-                      value={contractForm.contract_number}
-                      onChange={(e) => setContractForm({ ...contractForm, contract_number: e.target.value })}
-                      required
-                    />
+                          ))}
+                        </select>
+                        <input
+                          placeholder="اسم صاحب العقد"
+                          value={contractForm.student_name}
+                          onChange={(e) => setContractForm({ ...contractForm, student_name: e.target.value })}
+                          required
+                        />
+                        <input
+                          placeholder="رقم هاتف العميل"
+                          value={contractForm.client_phone || ""}
+                          onChange={(e) => setContractForm({ ...contractForm, client_phone: e.target.value })}
+                        />
+                        <input
+                          placeholder="رقم العقد"
+                          value={contractForm.contract_number}
+                          onChange={(e) => setContractForm({ ...contractForm, contract_number: e.target.value })}
+                          required
+                        />
                       </>
                     )}
-                    
+
                     {contractForm.contract_type === "shared" && (
                       <>
                         <select
@@ -3325,17 +3556,17 @@ export default function DailySalesReportsPage() {
                             <option key={b.id} value={b.id}>{b.name}</option>
                           ))}
                         </select>
-                    <input
-                      type="number"
-                      step="0.01"
+                        <input
+                          type="number"
+                          step="0.01"
                           placeholder="المبلغ المشترك"
                           value={contractForm.shared_amount}
                           onChange={(e) => setContractForm({ ...contractForm, shared_amount: e.target.value })}
-                      required
-                    />
+                          required
+                        />
                       </>
                     )}
-                    
+
                     <input
                       type="number"
                       step="0.01"
@@ -3346,11 +3577,18 @@ export default function DailySalesReportsPage() {
                     />
                     {contractForm.contract_type !== "old_payment" && (
                       <>
-                        <input
-                          placeholder="مصدر التسجيل"
+                        <select
                           value={contractForm.registration_source || ""}
                           onChange={(e) => setContractForm({ ...contractForm, registration_source: e.target.value })}
-                        />
+                          style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo" }}
+                        >
+                          <option value="">اختر مصدر التسجيل</option>
+                          <option value="تجديد">تجديد</option>
+                          <option value="داتا شخصية">داتا شخصية</option>
+                          <option value="ووك ان">ووك ان</option>
+                          <option value="هوت كول">هوت كول</option>
+                          <option value="كولد كول">كولد كول</option>
+                        </select>
                         <input
                           type="date"
                           placeholder="تاريخ العقد"
@@ -3401,20 +3639,20 @@ export default function DailySalesReportsPage() {
                             const totalAmount = parseFloat(contractForm.total_amount || 0);
                             const totalPayments = contractForm.payments.reduce((sum, p) => sum + parseFloat(p.payment_amount || 0), 0);
                             const remainingAmount = totalAmount - totalPayments;
-                            
+
                             // حساب الصافي بناءً على طريقة الدفع لكل دفعة
                             const calculateNetAmount = (paymentAmount, paymentMethodId) => {
                               if (!paymentAmount || paymentAmount <= 0) return 0;
-                              
+
                               const paymentMethod = paymentMethods.find(pm => pm.id === parseInt(paymentMethodId));
                               if (!paymentMethod) {
                                 // Default: divide by 1.05 (5% VAT)
                                 return paymentAmount / 1.05;
                               }
-                              
+
                               const methodName = paymentMethod.name.toUpperCase();
                               const baseAmount = paymentAmount / 1.05; // Remove 5% VAT
-                              
+
                               if (methodName === 'TABBY LINK') {
                                 const discount = paymentAmount * 0.0685;
                                 return baseAmount - discount;
@@ -3428,16 +3666,16 @@ export default function DailySalesReportsPage() {
                                 const discount = paymentAmount * parseFloat(paymentMethod.discount_percentage);
                                 return baseAmount - discount;
                               }
-                              
+
                               return baseAmount;
                             };
-                            
+
                             const totalNetAmount = contractForm.payments.reduce((sum, p) => {
                               const paymentAmount = parseFloat(p.payment_amount || 0);
                               const net = calculateNetAmount(paymentAmount, p.payment_method_id);
                               return sum + net;
                             }, 0);
-                            
+
                             return (
                               <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", padding: "0.75rem", backgroundColor: "white", borderRadius: "6px", border: "1px solid #dcdcdc" }}>
                                 <div style={{ flex: 1 }}>
@@ -3538,9 +3776,9 @@ export default function DailySalesReportsPage() {
                   <button className="btn primary" type="submit">
                     {editingContract ? "تحديث" : "إضافة"}
                   </button>
-                  <button 
-                    className="btn" 
-                    type="button" 
+                  <button
+                    className="btn"
+                    type="button"
                     onClick={() => {
                       setShowContractForm(false);
                       setEditingContract(null);
@@ -3553,7 +3791,7 @@ export default function DailySalesReportsPage() {
             </div>
           </div>
         )}
-      </div>
+      </div >
     </>
   );
 }

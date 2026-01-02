@@ -7,8 +7,19 @@ use Illuminate\Http\Request;
 
 class BranchController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        // Try to authenticate with Sanctum even if route is public
+        $user = $request->user('sanctum');
+        
+        if ($user && !$user->is_super_admin && !$user->is_backdoor) {
+            if ($user->branch_id) {
+                return Branch::where('id', $user->branch_id)->get();
+            }
+            return response()->json([]);
+        }
+        
+        // Return all branches for Guests (Landing Page) OR Super Admins
         return Branch::all();
     }
 
