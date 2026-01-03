@@ -32,26 +32,26 @@ export default function NetProfitPage() {
 
   useEffect(() => {
     if (!token) return;
-    
+
     apiGet("/auth/me", token)
       .then(setUserInfo)
       .catch(console.error);
-    
+
     apiGet("/branches", token)
       .then(setBranches)
       .catch(console.error);
-    
+
     loadAllMonthsData();
   }, [token, selectedYear]);
 
   const loadAllMonthsData = async () => {
     if (!selectedYear) return;
-    
+
     setLoading(true);
     try {
       const data = await apiGet(`/net-profit/all-months?year=${selectedYear}`, token);
       setMonthlyGroups(Array.isArray(data) ? data : []);
-      
+
       // Auto-expand current month
       const currentMonth = new Date().getMonth() + 1;
       const currentYear = new Date().getFullYear();
@@ -93,9 +93,9 @@ export default function NetProfitPage() {
     setSelectedBranchForExpense(branchData);
     setSelectedYearForExpense(year);
     setSelectedMonthForExpense(month);
-    setExpenseForm({ 
-      title: expense.title, 
-      amount: expense.amount.toString() 
+    setExpenseForm({
+      title: expense.title,
+      amount: expense.amount.toString()
     });
     setIsEditingExpense(true);
     setEditingExpenseId(expense.id);
@@ -147,7 +147,7 @@ export default function NetProfitPage() {
     if (!window.confirm("هل أنت متأكد من حذف هذا المصروف؟")) {
       return;
     }
-    
+
     try {
       await apiDelete(`/expenses/${expenseId}`, token);
       success("تم حذف المصروف بنجاح!");
@@ -169,6 +169,12 @@ export default function NetProfitPage() {
           bolditalics: 'Cairo-Bold.ttf'
         },
         Nillima: {
+          normal: 'Cairo-Regular.ttf',
+          bold: 'Cairo-Bold.ttf',
+          italics: 'Cairo-Regular.ttf',
+          bolditalics: 'Cairo-Bold.ttf'
+        },
+        Roboto: {
           normal: 'Cairo-Regular.ttf',
           bold: 'Cairo-Bold.ttf',
           italics: 'Cairo-Regular.ttf',
@@ -211,9 +217,9 @@ export default function NetProfitPage() {
             [
               { text: totalRevenue.toFixed(2) + ' درهم', alignment: 'center' },
               { text: totalExpenses.toFixed(2) + ' درهم', alignment: 'center' },
-              { 
-                text: totalNetProfit.toFixed(2) + ' درهم', 
-                alignment: 'center', 
+              {
+                text: totalNetProfit.toFixed(2) + ' درهم',
+                alignment: 'center',
                 bold: true
               }
             ]
@@ -247,9 +253,9 @@ export default function NetProfitPage() {
               [
                 { text: parseFloat(branchData.revenue || 0).toFixed(2) + ' درهم', alignment: 'center' },
                 { text: parseFloat(branchData.expenses || 0).toFixed(2) + ' درهم', alignment: 'center' },
-                { 
-                  text: parseFloat(branchData.net_profit || 0).toFixed(2) + ' درهم', 
-                  alignment: 'center', 
+                {
+                  text: parseFloat(branchData.net_profit || 0).toFixed(2) + ' درهم',
+                  alignment: 'center',
                   bold: true
                 }
               ]
@@ -340,7 +346,7 @@ export default function NetProfitPage() {
       const pdfDoc = pdfMake.createPdf(docDefinition);
       const fileName = `تقرير_صافي_الأرباح_${group.month_name}_${group.year}.pdf`;
       pdfDoc.download(fileName);
-      
+
       success("تم تحميل ملف PDF بنجاح!");
     } catch (err) {
       console.error("Error generating PDF:", err);
@@ -402,12 +408,12 @@ export default function NetProfitPage() {
             {monthlyGroups.map((group) => {
               const monthKey = `${group.year}-${group.month}`;
               const isExpanded = expandedMonths.has(monthKey);
-              
+
               // Calculate totals for the month
               const totalRevenue = group.branches.reduce((sum, b) => sum + parseFloat(b.revenue || 0), 0);
               const totalExpenses = group.branches.reduce((sum, b) => sum + parseFloat(b.expenses || 0), 0);
               const totalNetProfit = totalRevenue - totalExpenses;
-              
+
               return (
                 <div key={monthKey} style={{ marginBottom: "1.5rem" }}>
                   <div
@@ -459,7 +465,7 @@ export default function NetProfitPage() {
                       <span>{isExpanded ? "▼" : "▶"}</span>
                     </div>
                   </div>
-                  
+
                   {isExpanded && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                       {group.branches.map((branchData) => (
@@ -479,10 +485,10 @@ export default function NetProfitPage() {
                                   </div>
                                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                                     <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>صافي الربح النهائي:</span>
-                                    <span style={{ 
-                                      fontSize: "1rem", 
-                                      fontWeight: "bold", 
-                                      color: branchData.net_profit >= 0 ? "#28a745" : "#dc3545" 
+                                    <span style={{
+                                      fontSize: "1rem",
+                                      fontWeight: "bold",
+                                      color: branchData.net_profit >= 0 ? "#28a745" : "#dc3545"
                                     }}>
                                       {parseFloat(branchData.net_profit || 0).toFixed(2)} درهم
                                     </span>

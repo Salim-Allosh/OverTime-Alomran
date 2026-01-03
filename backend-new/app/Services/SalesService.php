@@ -23,6 +23,9 @@ class SalesService
         if (!$user->is_super_admin && !$user->is_backdoor) {
              if ($user->branch_id) {
                  $query->where('branch_id', $user->branch_id);
+             } else {
+                 // If not a super admin and has no branch assigned, return nothing to be safe
+                 $query->whereRaw('0 = 1');
              }
         }
 

@@ -11,6 +11,11 @@ class BranchController extends Controller
     {
         // Try to authenticate with Sanctum even if route is public
         $user = $request->user('sanctum');
+
+        // Allow fetching all branches for dropdowns if 'lookup' param is present
+        if ($request->has('lookup') && $request->lookup == 'true') {
+             return Branch::select('id', 'name')->get();
+        }
         
         if ($user && !$user->is_super_admin && !$user->is_backdoor) {
             if ($user->branch_id) {

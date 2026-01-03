@@ -10,6 +10,7 @@ Route::post('/auth/login', [AuthController::class, 'login'])->name('login');
 
 Route::get('/branches', [BranchController::class, 'index']);
 Route::get('/branches/{id}', [BranchController::class, 'show']);
+Route::post('/drafts', [DraftController::class, 'store']);
 
 
 
@@ -25,7 +26,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     
     // Branches Management
-    Route::post('/drafts', [DraftController::class, 'store']);
     Route::post('/branches', [BranchController::class, 'store']);
     Route::patch('/branches/{id}', [BranchController::class, 'update']);
     Route::delete('/branches/{id}', [BranchController::class, 'destroy']);

@@ -16,6 +16,7 @@ export default function DailySalesReportsPage() {
   const [reports, setReports] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [allBranches, setAllBranches] = useState([]); // For dropdowns requiring all branches (e.g. Joint Contract)
   const [salesStaff, setSalesStaff] = useState([]);
   const [userInfo, setUserInfo] = useState(null);
   const [activeTab, setActiveTab] = useState("reports"); // "reports" or "contracts"
@@ -96,6 +97,11 @@ export default function DailySalesReportsPage() {
 
     apiGet("/branches", token)
       .then(setBranches)
+      .catch(console.error);
+
+    // Fetch ALL branches for dropdowns (Shared Contract) regardless of user role
+    apiGet("/branches?lookup=true", token)
+      .then(setAllBranches)
       .catch(console.error);
 
     apiGet("/courses", token)
@@ -3552,7 +3558,7 @@ export default function DailySalesReportsPage() {
                           style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo" }}
                         >
                           <option value="">اختر الفرع المشترك</option>
-                          {branches.filter(b => b.id !== parseInt(contractForm.branch_id || 0)).map(b => (
+                          {allBranches.filter(b => b.id !== parseInt(contractForm.branch_id || 0)).map(b => (
                             <option key={b.id} value={b.id}>{b.name}</option>
                           ))}
                         </select>

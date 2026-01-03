@@ -126,7 +126,7 @@ class SalesController extends Controller
     private function authorizeBranchAccess($user, $targetBranchId)
     {
         if (!$user->is_super_admin && !$user->is_backdoor) {
-             if ($user->branch_id && $user->branch_id != $targetBranchId) {
+             if (!$user->branch_id || $user->branch_id != $targetBranchId) {
                  abort(403, 'غير مصرح لهذا الفرع');
              }
         }

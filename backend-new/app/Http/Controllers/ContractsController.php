@@ -66,31 +66,52 @@ class ContractsController extends Controller
             'payments.*.payment_method_id' => 'required_with:payments|exists:payment_methods,id',
         ]);
 
-        // Create the contract
-        $contract = Contract::create($request->except('payments'));
+        $isShared = $request->contract_type === 'shared' && $request->shared_branch_id;
+        $originalTotal = $request->total_amount;
+        $originalPayments = $request->payments ?? [];
 
-        // Handle payments
+        // Prepare data for Main Contract
+        $mainContractData = $request->except('payments');
+        if ($isShared) {
+            // Split total amount equally
+            $mainContractData['total_amount'] = ($originalTotal / 2);
+        }
+
+        // Create the contract
+        $contract = Contract::create($mainContractData);
+
+        // Handle payments for Main Contract
         $totalPaid = 0;
         $totalNet = 0;
         $firstPayment = null;
+        $processedPayments = []; // Store processed payment data for shared contract reuse
 
-        if ($request->has('payments') && is_array($request->payments)) {
-            foreach ($request->payments as $index => $paymentData) {
+        if (!empty($originalPayments)) {
+            foreach ($originalPayments as $index => $paymentData) {
                 if (!empty($paymentData['payment_amount'])) {
-                    $amount = floatval($paymentData['payment_amount']);
-                    $methodId = $paymentData['payment_method_id'];
+                    $originalAmount = floatval($paymentData['payment_amount']);
+                    $amountToRecord = $isShared ? ($originalAmount / 2) : $originalAmount;
                     
-                    $net = $this->calculateNetAmount($amount, $methodId);
+                    $methodId = $paymentData['payment_method_id'];
+                    $net = $this->calculateNetAmount($amountToRecord, $methodId);
                     
                     $payment = new ContractPayment($paymentData);
                     $payment->contract_id = $contract->id;
+                    $payment->payment_amount = $amountToRecord; // Override with split amount
                     $payment->net_amount = $net;
                     $payment->save();
 
-                    $totalPaid += $amount;
+                    $totalPaid += $amountToRecord;
                     $totalNet += $net;
 
                     if ($index === 0) $firstPayment = $paymentData;
+                    
+                    // Keep track for shared contract
+                    $processedPayments[] = [
+                        'payment_amount' => $amountToRecord, // It's also half
+                        'payment_method_id' => $methodId,
+                        'payment_number' => $paymentData['payment_number'] ?? null
+                    ];
                 }
             }
         }
@@ -107,6 +128,64 @@ class ContractsController extends Controller
         }
         
         $contract->save();
+
+        // Handle Joint Contract: Create a copy for the shared branch on specific conditions
+        if ($isShared) {
+            $currentBranch = \App\Models\Branch::find($request->branch_id);
+            $branchName = $currentBranch ? $currentBranch->name : 'الفرع الرئيسي';
+
+            $sharedContract = new Contract();
+            $sharedContract->branch_id = $request->shared_branch_id;
+            
+            // Append -S to contract number to avoid unique constraint violations if any, and denote Shared
+            $sharedContract->contract_number = $request->contract_number . '-S'; 
+            
+            $sharedContract->student_name = $request->student_name;
+            $sharedContract->client_phone = $request->client_phone;
+            $sharedContract->registration_source = "عقد مشترك مع " . $branchName;
+            $sharedContract->contract_type = 'shared';
+            $sharedContract->contract_date = $request->contract_date ?? now();
+            
+            // Split total amount equally
+            $sharedContract->total_amount = ($originalTotal / 2);
+            
+            // We will calculate paid/net below when creating payments
+            $sharedContract->payment_amount = 0;
+            $sharedContract->net_amount = 0;
+            $sharedContract->remaining_amount = $sharedContract->total_amount;
+            
+            $sharedContract->save();
+            
+            // Create Payments for Shared Contract
+            $sharedTotalPaid = 0;
+            $sharedTotalNet = 0;
+            
+            foreach ($processedPayments as $pData) {
+                $amount = $pData['payment_amount']; // Already halved
+                $net = $this->calculateNetAmount($amount, $pData['payment_method_id']);
+                
+                $sp = new ContractPayment();
+                $sp->contract_id = $sharedContract->id;
+                $sp->payment_amount = $amount;
+                $sp->payment_method_id = $pData['payment_method_id'];
+                $sp->payment_number = $pData['payment_number'];
+                $sp->net_amount = $net;
+                $sp->save();
+                
+                $sharedTotalPaid += $amount;
+                $sharedTotalNet += $net;
+            }
+            
+            // Update Shared Contract totals
+            $sharedContract->payment_amount = $sharedTotalPaid;
+            $sharedContract->net_amount = $sharedTotalNet;
+            $sharedContract->remaining_amount = ($sharedContract->total_amount ?? 0) - $sharedTotalPaid;
+             if ($firstPayment) {
+                 $sharedContract->payment_method_id = $firstPayment['payment_method_id'] ?? null;
+                 $sharedContract->payment_number = $firstPayment['payment_number'] ?? null;
+            }
+            $sharedContract->save();
+        }
 
         return $contract->load('payments');
     }

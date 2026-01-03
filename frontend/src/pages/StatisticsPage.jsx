@@ -11,6 +11,8 @@ const monthNames = {
   9: "سبتمبر", 10: "أكتوبر", 11: "نوفمبر", 12: "ديسمبر"
 };
 
+const safeParse = (val) => parseFloat(val) || 0;
+
 export default function StatisticsPage() {
   const token = localStorage.getItem("token") || "";
   const { error: showError } = useNotification();
@@ -128,7 +130,7 @@ export default function StatisticsPage() {
   const totalRemainingAmount = statistics.branches_comprehensive?.reduce((sum, b) => sum + safeParse(b.total_remaining_amount), 0) || 0;
   const totalNetAmount = statistics.branches_comprehensive?.reduce((sum, b) => sum + safeParse(b.total_net_amount), 0) || 0;
 
-  const generateStatisticsPDF = async () => {
+  const handleDownloadPDF = async () => {
     setIsGeneratingPDF(true);
     setPdfProgress(0);
     setPdfStatus('جاري إعداد التقرير...');
@@ -172,8 +174,22 @@ export default function StatisticsPage() {
 
       // Build PDF document definition using pdfmake
       const isSuperAdmin = userInfo && userInfo.is_super_admin;
+      // Filter branches to only those with activity for the PDF report (to mimic original behavior and avoid bloat)
+      const activeBranches = statistics.branches_comprehensive?.filter(b =>
+        (parseInt(b.total_monthly_contracts) || 0) > 0 ||
+        (safeParse(b.total_contracts_value) > 0) ||
+        (safeParse(b.total_paid_amount) > 0) ||
+        (safeParse(b.total_daily_reports) || 0) > 0
+      ) || [];
+
+      // Create a modified statistics object for the PDF
+      const pdfStatistics = {
+        ...statistics,
+        branches_comprehensive: activeBranches
+      };
+
       const docDefinition = buildStatisticsPDF(
-        statistics,
+        pdfStatistics,
         totalDailyReports,
         totalMonthlyContracts,
         totalContractsValue,
@@ -323,6 +339,20 @@ export default function StatisticsPage() {
             </select>
           </div>
 
+          <button
+            onClick={handleDownloadPDF}
+            className="btn success"
+            disabled={isGeneratingPDF}
+            style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+          >
+            {isGeneratingPDF ? (
+              <span>جاري التحميل...</span>
+            ) : (
+              <>
+                <span>📄 تحميل تقرير شامل</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
@@ -406,6 +436,62 @@ export default function StatisticsPage() {
           </div>
         )
       }
+
+      {/* 1.5 إحصائيات الفروع التفصيلية (للسوبر أدمن فقط) */}
+      {userInfo && userInfo.is_super_admin && statistics.branches_comprehensive && statistics.branches_comprehensive.length > 0 && (
+        <div className="panel" style={{ marginBottom: "2rem" }}>
+          <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
+            إحصائيات الفروع التفصيلية
+          </h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.5rem" }}>
+            {statistics.branches_comprehensive.map(branchStat => {
+              const branchName = branches.find(b => b.id === branchStat.branch_id)?.name || `فرع ${branchStat.branch_id}`;
+              const netAmount = safeParse(branchStat.total_net_amount);
+              const totalPaid = safeParse(branchStat.total_paid_amount);
+              const feeAmount = totalPaid - netAmount;
+
+              return (
+                <div key={branchStat.branch_id} style={{
+                  backgroundColor: "#F9FAFB",
+                  borderRadius: "8px",
+                  padding: "1rem",
+                  border: "1px solid #E5E7EB"
+                }}>
+                  <h3 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "1rem", color: "#1F2937", borderBottom: "1px solid #E5E7EB", paddingBottom: "0.5rem" }}>
+                    {branchName}
+                  </h3>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.8rem", fontSize: "13px" }}>
+                    <div>
+                      <div style={{ color: "#6B7280", marginBottom: "2px" }}>العقود الشهرية</div>
+                      <div style={{ fontWeight: "600" }}>{parseInt(branchStat.total_monthly_contracts) || 0}</div>
+                    </div>
+                    <div>
+                      <div style={{ color: "#6B7280", marginBottom: "2px" }}>قيمة العقود</div>
+                      <div style={{ fontWeight: "600" }}>{safeParse(branchStat.total_contracts_value).toFixed(2)}</div>
+                    </div>
+                    <div>
+                      <div style={{ color: "#6B7280", marginBottom: "2px" }}>المدفوع</div>
+                      <div style={{ fontWeight: "600" }}>{totalPaid.toFixed(2)}</div>
+                    </div>
+                    <div>
+                      <div style={{ color: "#6B7280", marginBottom: "2px" }}>المتبقي</div>
+                      <div style={{ fontWeight: "600", color: "#DC3545" }}>{safeParse(branchStat.total_remaining_amount).toFixed(2)}</div>
+                    </div>
+                    <div>
+                      <div style={{ color: "#6B7280", marginBottom: "2px" }}>الصافي</div>
+                      <div style={{ fontWeight: "600", color: "#5A7ACD" }}>{netAmount.toFixed(2)}</div>
+                    </div>
+                    <div>
+                      <div style={{ color: "#6B7280", marginBottom: "2px" }}>النسبة</div>
+                      <div style={{ fontWeight: "600", color: "#DC3545" }}>{feeAmount.toFixed(2)}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* 3. إحصائيات حسب طريقة الدفع */}
       {

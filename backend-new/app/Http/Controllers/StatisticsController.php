@@ -78,18 +78,82 @@ class StatisticsController extends Controller
         // Step 1: Get base contracts statistics
         $contractsStats = $contractsQuery->get();
 
+        // Initialize stats for ALL branches relevant to the query context
+        $allBranchesQuery = Branch::query();
+        if ($branchId) {
+            $allBranchesQuery->where('id', $branchId);
+        }
+        $allBranches = $allBranchesQuery->get();
+
         $branchStats = [];
+        foreach ($allBranches as $branch) {
+            $branchStats[$branch->id] = [
+                'branch_id' => $branch->id,
+                'branch_name' => $branch->name,
+                'total_monthly_contracts' => 0,
+                'total_contracts_value' => 0,
+                'total_paid_amount' => 0,
+                'total_remaining_amount' => 0,
+                'total_net_amount' => 0,
+                'total_daily_reports' => 0,
+                'total_calls' => 0,
+                'total_hot_calls' => 0,
+                'total_branch_leads' => 0,
+                'total_online_leads' => 0,
+                'total_extra_leads' => 0,
+                'total_visits' => 0,
+                'total_fees' => 0,
+                'total_discounted' => 0
+            ];
+        }
+
+        // Calculate Daily Reports detailed stats per branch
+        $reportsQuery = DailySalesReport::query();
+        if ($year) $reportsQuery->whereYear('report_date', $year);
+        if ($month) $reportsQuery->whereMonth('report_date', $month);
+        if ($salesStaffId) $reportsQuery->where('sales_staff_id', $salesStaffId);
+        
+        $reportsPerBranch = $reportsQuery->select(
+            'branch_id', 
+            DB::raw('count(*) as total'),
+            DB::raw('SUM(daily_calls) as total_calls'),
+            DB::raw('SUM(hot_calls) as total_hot_calls'),
+            DB::raw('SUM(branch_leads) as total_branch_leads'),
+            DB::raw('SUM(online_leads) as total_online_leads'),
+            DB::raw('SUM(extra_leads) as total_extra_leads'),
+            DB::raw('SUM(number_of_visits) as total_visits')
+        )
+            ->groupBy('branch_id')
+            ->get()
+            ->keyBy('branch_id');
+
+        foreach ($reportsPerBranch as $bId => $stats) {
+             if (isset($branchStats[$bId])) {
+                 $branchStats[$bId]['total_daily_reports'] = $stats->total;
+                 $branchStats[$bId]['total_calls'] = (int)$stats->total_calls;
+                 $branchStats[$bId]['total_hot_calls'] = (int)$stats->total_hot_calls;
+                 $branchStats[$bId]['total_branch_leads'] = (int)$stats->total_branch_leads;
+                 $branchStats[$bId]['total_online_leads'] = (int)$stats->total_online_leads;
+                 $branchStats[$bId]['total_extra_leads'] = (int)$stats->total_extra_leads;
+                 $branchStats[$bId]['total_visits'] = (int)$stats->total_visits;
+             }
+        }
         
         foreach ($contractsStats as $contract) {
             $bId = $contract->branch_id;
+            // Fallback: This theoretically shouldn't happen if all branches are active, 
+            // but if a contract belongs to an inactive/deleted branch we ignore it or add it safely.
             if (!isset($branchStats[$bId])) {
-                $branchStats[$bId] = [
+                 // Option: Skip or add. Let's add to be safe so numbers match totals.
+                 $branchStats[$bId] = [
                     'branch_id' => $bId,
+                    'branch_name' => 'Unknown Branch ' . $bId,
                     'total_monthly_contracts' => 0,
                     'total_contracts_value' => 0,
                     'total_paid_amount' => 0,
                     'total_remaining_amount' => 0,
                     'total_net_amount' => 0,
+                    'total_daily_reports' => 0,
                     'total_fees' => 0
                 ];
             }
@@ -102,6 +166,8 @@ class StatisticsController extends Controller
                 $branchStats[$bId]['total_monthly_contracts']++;
                 $branchStats[$bId]['total_contracts_value'] += $contract->total_amount;
                 $branchStats[$bId]['total_remaining_amount'] += $contract->remaining_amount; // Remaining is usually attached to the main contract
+                // Calculate Discount per branch: Total - Net
+                $branchStats[$bId]['total_discounted'] += ($contract->total_amount - $contract->net_amount);
             }
 
             // 2. Total Paid & Net
@@ -135,6 +201,22 @@ class StatisticsController extends Controller
         // Calculate Fees: Paid - Net
         foreach ($branchStats as &$stat) {
             $stat['total_fees'] = $stat['total_paid_amount'] - $stat['total_net_amount'];
+            
+            // Nested Daily Reports Stats for PDF Detailed Section
+            $stat['daily_reports_stats'] = [
+                'total_calls' => $stat['total_calls'],
+                'total_hot_calls' => $stat['total_hot_calls'],
+                'total_branch_leads' => $stat['total_branch_leads'],
+                'total_online_leads' => $stat['total_online_leads'],
+                'total_extra_leads' => $stat['total_extra_leads'],
+                'total_visits' => $stat['total_visits']
+            ];
+            
+            // Initialize other nested stats
+            $stat['payment_methods_stats'] = [];
+            $stat['sales_staff_stats'] = [];
+            $stat['incomplete_contracts_stats'] = [];
+            $stat['course_registration_stats'] = [];
         }
         unset($stat); // CRITICAL: Sever reference to prevent overwriting in later loops
 
@@ -178,83 +260,60 @@ class StatisticsController extends Controller
         ];
 
 
-        // --- 4. payment_methods_details ---
-        // Group initial payments (Contract)
+        // --- 4. payment_methods_details & per-branch payment stats ---
         $initialPayments = Contract::query();
         if ($year) $initialPayments->whereYear('contract_date', $year);
         if ($month) $initialPayments->whereMonth('contract_date', $month);
         if ($branchId) $initialPayments->where('branch_id', $branchId);
         if ($salesStaffId) $initialPayments->where('sales_staff_id', $salesStaffId);
         
-        $initialStats = $initialPayments->select(
+        $initialStatsPerBranch = $initialPayments->select(
+            'branch_id',
             'payment_method_id',
             DB::raw('COUNT(*) as count'),
             DB::raw('SUM(payment_amount) as total_paid'),
-            DB::raw('SUM(net_amount) as total_net') // Is net_amount per payment? No, per contract. 
-            // Warning: Associating full contract Net Amount with initial payment method is wrong if there are multiple payments.
-            // But usually initial payment defines the "Method" for the contract start.
-            // Let's assume we sum `payment_amount` (Cash in) and calculate "Net" proportional to payment? 
-            // Or just use the Contract's Net Amount logic?
-            // "Net" usually means "After fees/discounts".
-            // Let's use `payment_amount` and apply discount % from method?
-            // Or use the stored `net_amount`?
-            // Contract table has `net_amount`.
-            // Let's sum `payment_amount` as total_paid.
-        )->groupBy('payment_method_id')->get();
-
-        // Group additional payments (ContractPayment)
-        $additionalPayments = ContractPayment::query()->whereHas('contract', function($q) use ($year, $month, $branchId, $salesStaffId) {
-             // Filter by Contract date or Payment date? Usually Payment Date for cash flow.
-             // But existing logic seemed to filter by Contract Date for "Comprehensive stats for contracts in X".
-             // Let's stick to Payment Date for this part if possible, BUT we are combining with initial payments which utilize Contract Date. 
-             // To be consistent with "Contracts Report", we often look at "Everything related to contracts created in Jan".
-             // Let's filter ContractPayment by created_at year/month? Or filter their parent Contract?
-             // Let's filter by Payment Date (created_at of payment) for true cash flow.
-             // BUT wait, Contract initial payment date IS contract_date.
-             
-             if ($year) $q->whereYear('contract_date', $year);
-             if ($month) $q->whereMonth('contract_date', $month);
-             if ($branchId) $q->where('branch_id', $branchId);
-             if ($salesStaffId) $q->where('sales_staff_id', $salesStaffId);
-        });
-        
-        // Actually, let's simplify. Just use Contracts for "Payment Methods used in Contracts"
-        // This is what usually users want "How many contracts via Cash?".
-        
-        $paymentMethodsMap = [];
-        
-        foreach($initialStats as $stat) {
-             if(!$stat->payment_method_id) continue;
-             if(!isset($paymentMethodsMap[$stat->payment_method_id])) {
-                 $paymentMethodsMap[$stat->payment_method_id] = [
-                     'transactions_count' => 0,
-                     'total_paid' => 0,
-                     'total_net' => 0 // This is ambiguous, let's just sum paid for now
-                 ];
-             }
-             $paymentMethodsMap[$stat->payment_method_id]['transactions_count'] += $stat->count;
-             $paymentMethodsMap[$stat->payment_method_id]['total_paid'] += $stat->total_paid;
-             // For net, let's assume it means "Money after payment gateway fees" or similar.
-             // Since we don't have fee logic here, let's make total_net = total_paid
-             $paymentMethodsMap[$stat->payment_method_id]['total_net'] += $stat->total_paid; 
-        }
+            DB::raw('SUM(net_amount) as total_net')
+        )->groupBy('branch_id', 'payment_method_id')->get();
 
         $paymentMethodsDetails = [];
         $allMethods = PaymentMethod::all()->keyBy('id');
-        
-        foreach($paymentMethodsMap as $id => $data) {
-            $name = $allMethods[$id]->name ?? 'Unknown';
-            $paymentMethodsDetails[] = [
-                'payment_method_id' => $id,
-                'payment_method_name' => $name,
-                'total_paid' => $data['total_paid'],
-                'transactions_count' => $data['transactions_count'],
-                'total_net' => $data['total_net']
+        $globalPaymentMap = [];
+
+        foreach ($initialStatsPerBranch as $stat) {
+            if (!$stat->payment_method_id) continue;
+            $mId = $stat->payment_method_id;
+            $bId = $stat->branch_id;
+            $mName = $allMethods[$mId]->name ?? 'Unknown';
+
+            $item = [
+                'payment_method_id' => $mId,
+                'payment_method_name' => $mName,
+                'total_paid' => (float)$stat->total_paid,
+                'transactions_count' => (int)$stat->count,
+                'total_net' => (float)$stat->total_net
             ];
+
+            if (isset($branchStats[$bId])) {
+                $branchStats[$bId]['payment_methods_stats'][] = $item;
+            }
+
+            if (!isset($globalPaymentMap[$mId])) {
+                $globalPaymentMap[$mId] = [
+                    'payment_method_id' => $mId,
+                    'payment_method_name' => $mName,
+                    'total_paid' => 0,
+                    'transactions_count' => 0,
+                    'total_net' => 0
+                ];
+            }
+            $globalPaymentMap[$mId]['total_paid'] += $stat->total_paid;
+            $globalPaymentMap[$mId]['transactions_count'] += $stat->count;
+            $globalPaymentMap[$mId]['total_net'] += $stat->total_net;
         }
+        $paymentMethodsDetails = array_values($globalPaymentMap);
 
 
-        // --- 5. sales_staff_details ---
+        // --- 5. sales_staff_details & per-branch staff stats ---
         // Join SalesStaff, Contract, DailySalesReport
         // We need all staff, or just active ones?
         $staffQuery = SalesStaff::query();
@@ -287,9 +346,10 @@ class StatisticsController extends Controller
                 DB::raw('SUM(branch_leads + online_leads + extra_leads) as total_leads')
             )->first();
 
-            $salesStaffDetails[] = [
+            $staffItem = [
                 'staff_id' => $staff->id,
                 'staff_name' => $staff->name,
+                'branch_id' => $staff->branch_id,
                 'branch_name' => $staff->branch->name ?? '',
                 'total_sales' => (float)$cStats->total_sales,
                 'contracts_count' => (int)$cStats->count,
@@ -300,6 +360,11 @@ class StatisticsController extends Controller
                 'total_leads' => (int)$dStats->total_leads,
                 'reports_count' => (int)$dStats->reports_count
             ];
+
+            $salesStaffDetails[] = $staffItem;
+            if (isset($branchStats[$staff->branch_id])) {
+                $branchStats[$staff->branch_id]['sales_staff_stats'][] = $staffItem;
+            }
         }
 
 
@@ -315,16 +380,23 @@ class StatisticsController extends Controller
                 'contract_id' => $c->id,
                 'contract_number' => $c->contract_number,
                 'student_name' => $c->student_name,
+                'branch_id' => $c->branch_id,
                 'branch_name' => $c->branch->name ?? '',
                 'sales_staff_name' => $c->salesStaff->name ?? '',
                 'course_name' => $c->course->name ?? '',
                 'registration_source' => $c->registration_source,
-                'total_amount' => $c->total_amount,
-                'paid_amount' => $c->total_amount - $c->remaining_amount,
-                'remaining_amount' => $c->remaining_amount,
-                'net_amount' => $c->net_amount
+                'total_amount' => (float)$c->total_amount,
+                'paid_amount' => (float)($c->total_amount - $c->remaining_amount),
+                'remaining_amount' => (float)$c->remaining_amount,
+                'net_amount' => (float)$c->net_amount
             ];
         });
+
+        foreach($incompleteContracts as $inc) {
+            if (isset($branchStats[$inc['branch_id']])) {
+                $branchStats[$inc['branch_id']]['incomplete_contracts_stats'][] = $inc;
+            }
+        }
 
 
         // --- 7. course_registration_details ---
@@ -335,32 +407,59 @@ class StatisticsController extends Controller
         if ($branchId) $courseQuery->where('branch_id', $branchId);
         if ($salesStaffId) $courseQuery->where('sales_staff_id', $salesStaffId);
 
-        $courseStats = $courseQuery->select(
+        $courseStatsRaw = $courseQuery->select(
+            'branch_id',
             'course_id',
             DB::raw('COUNT(*) as total_registrations'),
-            DB::raw('COUNT(DISTINCT branch_id) as branches_count'),
             DB::raw('SUM(total_amount) as total_value'),
             DB::raw('SUM(remaining_amount) as total_remaining'),
             DB::raw('SUM(net_amount) as total_net')
-        )->groupBy('course_id')->get();
+        )->groupBy('branch_id', 'course_id')->get();
         
-        $courseDetails = [];
         $allCourses = Course::all()->keyBy('id');
-        
-        foreach($courseStats as $stat) {
+        $courseDetails = [];
+        $globalCourseMap = [];
+
+        foreach($courseStatsRaw as $stat) {
              if(!$stat->course_id) continue;
-             $name = $allCourses[$stat->course_id]->name ?? 'Unknown';
-             $courseDetails[] = [
-                 'course_id' => $stat->course_id,
+             $cId = $stat->course_id;
+             $bId = $stat->branch_id;
+             $name = $allCourses[$cId]->name ?? 'Unknown';
+
+             $item = [
+                 'course_id' => $cId,
                  'course_name' => $name,
-                 'branches_count' => $stat->branches_count,
-                 'total_registrations' => $stat->total_registrations,
-                 'total_value' => $stat->total_value,
-                 'paid_amount' => $stat->total_value - $stat->total_remaining,
-                 'remaining_amount' => $stat->total_remaining,
-                 'net_amount' => $stat->total_net
+                 'total_registrations' => (int)$stat->total_registrations,
+                 'total_value' => (float)$stat->total_value,
+                 'paid_amount' => (float)($stat->total_value - $stat->total_remaining),
+                 'remaining_amount' => (float)$stat->total_remaining,
+                 'net_amount' => (float)$stat->total_net
              ];
+
+             if (isset($branchStats[$bId])) {
+                 $branchStats[$bId]['course_registration_stats'][] = $item;
+             }
+
+             if (!isset($globalCourseMap[$cId])) {
+                 $globalCourseMap[$cId] = [
+                     'course_id' => $cId,
+                     'course_name' => $name,
+                     'branches_count' => 0,
+                     'total_registrations' => 0,
+                     'total_value' => 0,
+                     'paid_amount' => 0,
+                     'remaining_amount' => 0,
+                     'net_amount' => 0
+                 ];
+             }
+             $globalCourseMap[$cId]['branches_count']++;
+             $globalCourseMap[$cId]['total_registrations'] += $stat->total_registrations;
+             $globalCourseMap[$cId]['total_value'] += $stat->total_value;
+             $globalCourseMap[$cId]['paid_amount'] += ($stat->total_value - $stat->total_remaining);
+             $globalCourseMap[$cId]['remaining_amount'] += $stat->total_remaining;
+             $globalCourseMap[$cId]['net_amount'] += $stat->total_net;
         }
+        $courseDetails = array_values($globalCourseMap);
 
         // --- 8. visits_details ---
         $visitsQuery = DailySalesReport::with(['visits', 'salesStaff', 'branch']);

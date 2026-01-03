@@ -144,19 +144,34 @@ class ReportService
         if (!$year) return [];
 
         $contracts = Contract::whereYear('contract_date', $year)->get();
-        // Expenses are fetched but currently excluded from calculation per requirement
-        $branches = Branch::all()->keyBy('id');
+        // Use Branch::all() since is_active column does not exist
+        $branches = Branch::all(); 
+        $branchesMap = $branches->keyBy('id');
+        
         $data = [];
 
-        $getGroup = function($month) use (&$data, $year) {
+        // Helper to initialize a month group with ALL branches
+        $getGroup = function($month) use (&$data, $year, $branches) {
             $key = "$year-$month";
             if (!isset($data[$key])) {
                 $data[$key] = [
                     'year' => $year,
                     'month' => $month,
-                    'month_name' => '',
+                    'month_name' => '', // Will act populate later or here
                     'branches' => []
                 ];
+                
+                // Pre-fill all branches with 0
+                foreach ($branches as $branch) {
+                    $data[$key]['branches'][$branch->id] = [
+                        'branch_id' => $branch->id,
+                        'branch_name' => $branch->name,
+                        'revenue' => 0,
+                        'expenses' => 0,
+                        'net_profit' => 0,
+                        'expenses_list' => []
+                    ];
+                }
             }
             return $key;
         };
@@ -166,24 +181,38 @@ class ReportService
             if (!$date) continue;
 
             $month = $date->month;
-            $key = $getGroup($month);
+            // This will ensure the month exists with all branches initialized
+            $key = $getGroup($month); 
             $bId = $contract->branch_id;
             
-            if (!isset($data[$key]['branches'][$bId])) {
-                $data[$key]['branches'][$bId] = [
-                    'branch_id' => $bId,
-                    'branch_name' => $branches[$bId]->name ?? "Unknown",
-                    'revenue' => 0,
-                    'expenses' => 0,
-                    'net_profit' => 0,
-                    'expenses_list' => []
-                ];
+            // Safety check: if branch exists (it should because we pre-filled from Branch::all())
+            if (isset($data[$key]['branches'][$bId])) {
+                $data[$key]['branches'][$bId]['revenue'] += $contract->net_amount;
+            } else {
+                // If contract references a deleted branch not in Branch::all(), we ignore or add it dynamic?
+                // Let's add it dynamically if we have the name, otherwise strict match.
+                // For now, assume strict match with current branches.
             }
-            $data[$key]['branches'][$bId]['revenue'] += $contract->net_amount; 
         }
 
-        // NOTE: Expenses processing removed as per "Clean Architecture" refactor of existing applied logic.
-        
+        // Also fetch Expenses and distribute them
+        $expenses = Expense::whereYear('created_at', $year)->get();
+        foreach ($expenses as $expense) {
+            $date = $expense->created_at;
+            $month = $date->month;
+            $key = $getGroup($month);
+            $bId = $expense->branch_id;
+
+            if (isset($data[$key]['branches'][$bId])) {
+                $data[$key]['branches'][$bId]['expenses'] += $expense->amount;
+                $data[$key]['branches'][$bId]['expenses_list'][] = [
+                    'id' => $expense->id,
+                    'title' => $expense->title,
+                    'amount' => $expense->amount
+                ];
+            }
+        }
+
         $monthNames = [
             1 => "يناير", 2 => "فبراير", 3 => "مارس", 4 => "أبريل",
             5 => "مايو", 6 => "يونيو", 7 => "يوليو", 8 => "أغسطس",
@@ -194,7 +223,6 @@ class ReportService
         foreach ($data as $group) {
             $group['month_name'] = $monthNames[$group['month']];
             foreach ($group['branches'] as &$bData) {
-                // Net Profit = Revenue (since expenses are excluded for now)
                 $bData['net_profit'] = $bData['revenue'] - $bData['expenses'];
             }
             $group['branches'] = array_values($group['branches']);

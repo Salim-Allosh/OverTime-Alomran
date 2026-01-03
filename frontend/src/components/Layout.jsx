@@ -81,16 +81,18 @@ export default function Layout({ children }) {
           </button>
         </div>
         <nav className={`header-nav ${isMenuOpen ? "active" : ""}`}>
-          <Link
-            to="/"
-            className={location.pathname === "/" ? "active" : ""}
-            onClick={() => setIsMenuOpen(false)}
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-            </svg>
-            الرئيسية
-          </Link>
+          {!token && (
+            <Link
+              to="/"
+              className={location.pathname === "/" ? "active" : ""}
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+              </svg>
+              الرئيسية
+            </Link>
+          )}
           {token && userInfo ? (
             <>
               {(userInfo.is_super_admin || userInfo.is_sales_manager) && !userInfo.is_backdoor ? (
