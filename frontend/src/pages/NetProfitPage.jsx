@@ -119,12 +119,25 @@ export default function NetProfitPage() {
     }
 
     try {
+      const now = new Date();
+      let createdAtStr;
+
+      if (selectedYearForExpense === now.getFullYear() && selectedMonthForExpense === (now.getMonth() + 1)) {
+        // Current month: use current time
+        createdAtStr = now.toISOString().slice(0, 19).replace('T', ' ');
+      } else {
+        // Past/Future month: use 1st of that month
+        const d = new Date(selectedYearForExpense, selectedMonthForExpense - 1, 1, 12, 0, 0);
+        createdAtStr = d.toISOString().slice(0, 19).replace('T', ' ');
+      }
+
       if (isEditingExpense && editingExpenseId) {
         await apiPatch(`/expenses/${editingExpenseId}`, {
           branch_id: selectedBranchForExpense.branch_id,
           title: expenseForm.title,
           amount: parseFloat(expenseForm.amount),
-          teacher_name: null
+          teacher_name: null,
+          created_at: createdAtStr
         }, token);
         success("تم تحديث المصروف بنجاح!");
       } else {
@@ -132,7 +145,8 @@ export default function NetProfitPage() {
           branch_id: selectedBranchForExpense.branch_id,
           title: expenseForm.title,
           amount: parseFloat(expenseForm.amount),
-          teacher_name: null
+          teacher_name: null,
+          created_at: createdAtStr
         }, token);
         success("تم إضافة المصروف بنجاح!");
       }
