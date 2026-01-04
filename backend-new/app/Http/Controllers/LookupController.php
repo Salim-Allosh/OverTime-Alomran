@@ -126,10 +126,26 @@ class LookupController extends Controller
         return OperationAccount::create($data);
     }
     
-    public function deleteAccount($id)
+    public function deleteAccount(Request $request, $id)
     {
-        OperationAccount::destroy($id);
-        return response()->json(['status' => 'deleted']);
+        $user = $request->user();
+        if (!$user->is_super_admin && !$user->is_backdoor) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        if ($user->id == $id) {
+            return response()->json(['error' => 'Cannot delete your own account'], 400);
+        }
+
+        try {
+            $account = OperationAccount::findOrFail($id);
+            $account->is_active = false;
+            $account->save();
+            $account->delete();
+            return response()->json(['status' => 'deleted']);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Internal Server Error'], 500);
+        }
     }
 
     public function updateAccount(Request $request, $id)

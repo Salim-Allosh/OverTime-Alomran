@@ -136,12 +136,12 @@ export default function DailySalesReportsPage() {
 
   const loadSalesStaff = async (branchId = null) => {
     try {
-      let url = "/sales-staff";
+      let url = "/sales-staff?include_trashed=true";
       if (branchId) {
-        url += `?branch_id=${branchId}`;
+        url += `&branch_id=${branchId}`;
       } else if (userInfo && userInfo.is_sales_manager && !userInfo.is_super_admin && !userInfo.is_backdoor && userInfo.branch_id) {
         // إذا كان مدير مبيعات، فلتر حسب فرعه
-        url += `?branch_id=${userInfo.branch_id}`;
+        url += `&branch_id=${userInfo.branch_id}`;
       }
       const data = await apiGet(url, token);
       setSalesStaff(Array.isArray(data) ? data : []);
@@ -2964,7 +2964,7 @@ export default function DailySalesReportsPage() {
                             style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
                           >
                             <option value="">اختر موظف المبيعات</option>
-                            {salesStaff.map(staff => (
+                            {salesStaff.filter(s => s.is_active || s.id === parseInt(form.sales_staff_id)).map(staff => (
                               <option key={staff.id} value={staff.id}>{staff.name}</option>
                             ))}
                           </select>
@@ -3651,10 +3651,10 @@ export default function DailySalesReportsPage() {
                         >
                           <option value="">اختر موظف المبيعات *</option>
                           {salesStaff.filter(s => {
-                            if (contractForm.branch_id) {
-                              return s.branch_id === parseInt(contractForm.branch_id);
+                            if (contractForm.branch_id && s.branch_id !== parseInt(contractForm.branch_id)) {
+                              return false;
                             }
-                            return true;
+                            return s.is_active || s.id === parseInt(contractForm.sales_staff_id);
                           }).map(s => (
                             <option key={s.id} value={s.id}>{s.name}</option>
                           ))}

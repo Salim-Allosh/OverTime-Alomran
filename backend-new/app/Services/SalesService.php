@@ -11,9 +11,13 @@ class SalesService
 {
     // --- Sales Staff ---
 
-    public function getStaff($user, $branchId = null)
+    public function getStaff($user, $branchId = null, $includeTrashed = false)
     {
         $query = SalesStaff::with('branch');
+        
+        if ($includeTrashed) {
+            $query->withTrashed();
+        }
 
         if ($branchId) {
             $query->where('branch_id', $branchId);
@@ -52,6 +56,8 @@ class SalesService
     public function deleteStaff($id)
     {
         $staff = SalesStaff::findOrFail($id);
+        $staff->is_active = false;
+        $staff->save();
         $staff->delete();
     }
 

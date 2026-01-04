@@ -41,7 +41,7 @@ class DailySalesReport extends Model
 
     public function salesStaff()
     {
-        return $this->belongsTo(SalesStaff::class);
+        return $this->belongsTo(SalesStaff::class)->withTrashed();
     }
 
     public function visits()

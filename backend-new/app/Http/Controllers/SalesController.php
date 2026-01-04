@@ -20,7 +20,8 @@ class SalesController extends Controller
     // Sales Staff
     public function staffIndex(Request $request)
     {
-        return $this->salesService->getStaff($request->user(), $request->branch_id);
+        $includeTrashed = $request->query('include_trashed') === 'true';
+        return $this->salesService->getStaff($request->user(), $request->branch_id, $includeTrashed);
     }
 
     public function staffShow($id)

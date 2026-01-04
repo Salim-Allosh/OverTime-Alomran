@@ -18,18 +18,19 @@ export default function SalesStaffPage() {
     is_active: true
   });
   const [selectedBranchId, setSelectedBranchId] = useState(null);
+  const [showInactive, setShowInactive] = useState(false);
 
   useEffect(() => {
     if (!token) return;
-    
+
     apiGet("/auth/me", token)
       .then(setUserInfo)
       .catch(console.error);
-    
+
     apiGet("/branches", token)
       .then(setBranches)
       .catch(console.error);
-    
+
     loadStaff();
   }, [token, selectedBranchId]);
 
@@ -37,7 +38,7 @@ export default function SalesStaffPage() {
     try {
       let url = "/sales-staff";
       if (selectedBranchId) url += `?branch_id=${selectedBranchId}`;
-      
+
       const data = await apiGet(url, token);
       setStaff(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -67,7 +68,7 @@ export default function SalesStaffPage() {
   const handleUpdate = async (e) => {
     e.preventDefault();
     if (!editingStaff) return;
-    
+
     try {
       await apiPatch(`/sales-staff/${editingStaff.id}`, {
         name: form.name || undefined,
@@ -154,8 +155,8 @@ export default function SalesStaffPage() {
         <div className="panel">
           <div className="filters-bar">
             <h3 style={{ fontSize: "13px", margin: 0, fontWeight: 600 }}>قائمة موظفي المبيعات</h3>
-            <select 
-              value={selectedBranchId || ""} 
+            <select
+              value={selectedBranchId || ""}
               onChange={(e) => setSelectedBranchId(e.target.value ? parseInt(e.target.value) : null)}
             >
               <option value="">جميع الفروع</option>
@@ -163,6 +164,14 @@ export default function SalesStaffPage() {
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "13px", color: "#6B7280", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={showInactive}
+                onChange={(e) => setShowInactive(e.target.checked)}
+              />
+              عرض غير المفعّلين
+            </label>
             <button className="btn primary" onClick={() => {
               setEditingStaff(null);
               resetForm();
@@ -251,7 +260,7 @@ export default function SalesStaffPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {staff.map(staffMember => (
+                  {staff.filter(s => showInactive || s.is_active).map(staffMember => (
                     <tr key={staffMember.id}>
                       <td>{getBranchName(staffMember.branch_id)}</td>
                       <td>{staffMember.name}</td>
@@ -263,14 +272,14 @@ export default function SalesStaffPage() {
                         </span>
                       </td>
                       <td>
-                        <button 
-                          className="btn btn-small" 
+                        <button
+                          className="btn btn-small"
                           style={{ marginLeft: "0.5rem" }}
                           onClick={() => handleEdit(staffMember)}
                         >
                           تعديل
                         </button>
-                        <button 
+                        <button
                           className="btn btn-small btn-danger"
                           onClick={() => handleDelete(staffMember.id)}
                         >

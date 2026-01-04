@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class OperationAccount extends Authenticatable
 {
-    use HasApiTokens;
+    use HasApiTokens, SoftDeletes;
 
     protected $fillable = [
         'username', 'password_hash', 'branch_id', 'is_super_admin',
