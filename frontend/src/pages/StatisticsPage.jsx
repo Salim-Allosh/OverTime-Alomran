@@ -421,12 +421,20 @@ export default function StatisticsPage() {
                 <div className="stat-value">{statistics.daily_reports_details.total_hot_calls}</div>
               </div>
               <div className="stat-card">
+                <div className="stat-label">إجمالي الووك إن</div>
+                <div className="stat-value">{statistics.daily_reports_details.total_walk_ins}</div>
+              </div>
+              <div className="stat-card">
                 <div className="stat-label">إجمالي ليدز الفرع</div>
                 <div className="stat-value">{statistics.daily_reports_details.total_branch_leads}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">إجمالي ليدز الأونلاين</div>
                 <div className="stat-value">{statistics.daily_reports_details.total_online_leads}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-label">إجمالي ليدز إضافي</div>
+                <div className="stat-value">{statistics.daily_reports_details.total_extra_leads}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">إجمالي الزيارات</div>
@@ -543,10 +551,14 @@ export default function StatisticsPage() {
                     <tr>
                       <th style={{ textAlign: "center" }}>اسم الموظف</th>
                       <th style={{ textAlign: "center" }}>الفرع</th>
-                      <th style={{ textAlign: "center" }}>عدد المكالمات</th>
+                      <th style={{ textAlign: "center" }}>الاتصالات اليومية</th>
+                      <th style={{ textAlign: "center" }}>الهوت كول</th>
+                      <th style={{ textAlign: "center" }}>الووك ان</th>
+                      <th style={{ textAlign: "center" }}>ليدز الفرع</th>
+                      <th style={{ textAlign: "center" }}>ليدز الاونلاين</th>
+                      <th style={{ textAlign: "center" }}>الليدز الاضافي</th>
                       <th style={{ textAlign: "center" }}>عدد الزيارات</th>
-                      <th style={{ textAlign: "center" }}>عدد الـ Leads</th>
-                      <th style={{ textAlign: "center" }}>عدد التقارير اليومية</th>
+                      <th style={{ textAlign: "center" }}>عدد التقارير</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -555,8 +567,12 @@ export default function StatisticsPage() {
                         <td style={{ fontWeight: 600, textAlign: "center" }}>{staff.staff_name}</td>
                         <td style={{ textAlign: "center" }}>{staff.branch_name}</td>
                         <td style={{ textAlign: "center" }}>{staff.total_calls}</td>
+                        <td style={{ textAlign: "center" }}>{staff.total_hot_calls}</td>
+                        <td style={{ textAlign: "center" }}>{staff.total_walk_ins}</td>
+                        <td style={{ textAlign: "center" }}>{staff.total_branch_leads}</td>
+                        <td style={{ textAlign: "center" }}>{staff.total_online_leads}</td>
+                        <td style={{ textAlign: "center" }}>{staff.total_extra_leads}</td>
                         <td style={{ textAlign: "center" }}>{staff.total_visits}</td>
-                        <td style={{ textAlign: "center" }}>{staff.total_leads}</td>
                         <td style={{ textAlign: "center" }}>{staff.reports_count || 0}</td>
                       </tr>
                     ))}
@@ -565,8 +581,12 @@ export default function StatisticsPage() {
                       <td style={{ textAlign: "center" }}>الإجمالي</td>
                       <td style={{ textAlign: "center" }}>-</td>
                       <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_calls, 0)}</td>
+                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_hot_calls, 0)}</td>
+                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_walk_ins, 0)}</td>
+                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_branch_leads, 0)}</td>
+                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_online_leads, 0)}</td>
+                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_extra_leads, 0)}</td>
                       <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_visits, 0)}</td>
-                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_leads, 0)}</td>
                       <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + (s.reports_count || 0), 0)}</td>
                     </tr>
                   </tbody>

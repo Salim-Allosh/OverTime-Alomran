@@ -98,6 +98,7 @@ class StatisticsController extends Controller
                 'total_daily_reports' => 0,
                 'total_calls' => 0,
                 'total_hot_calls' => 0,
+                'total_walk_ins' => 0,
                 'total_branch_leads' => 0,
                 'total_online_leads' => 0,
                 'total_extra_leads' => 0,
@@ -118,6 +119,7 @@ class StatisticsController extends Controller
             DB::raw('count(*) as total'),
             DB::raw('SUM(daily_calls) as total_calls'),
             DB::raw('SUM(hot_calls) as total_hot_calls'),
+            DB::raw('SUM(walk_ins) as total_walk_ins'),
             DB::raw('SUM(branch_leads) as total_branch_leads'),
             DB::raw('SUM(online_leads) as total_online_leads'),
             DB::raw('SUM(extra_leads) as total_extra_leads'),
@@ -132,6 +134,7 @@ class StatisticsController extends Controller
                  $branchStats[$bId]['total_daily_reports'] = $stats->total;
                  $branchStats[$bId]['total_calls'] = (int)$stats->total_calls;
                  $branchStats[$bId]['total_hot_calls'] = (int)$stats->total_hot_calls;
+                 $branchStats[$bId]['total_walk_ins'] = (int)$stats->total_walk_ins;
                  $branchStats[$bId]['total_branch_leads'] = (int)$stats->total_branch_leads;
                  $branchStats[$bId]['total_online_leads'] = (int)$stats->total_online_leads;
                  $branchStats[$bId]['total_extra_leads'] = (int)$stats->total_extra_leads;
@@ -206,6 +209,7 @@ class StatisticsController extends Controller
             $stat['daily_reports_stats'] = [
                 'total_calls' => $stat['total_calls'],
                 'total_hot_calls' => $stat['total_hot_calls'],
+                'total_walk_ins' => $stat['total_walk_ins'],
                 'total_branch_leads' => $stat['total_branch_leads'],
                 'total_online_leads' => $stat['total_online_leads'],
                 'total_extra_leads' => $stat['total_extra_leads'],
@@ -233,6 +237,7 @@ class StatisticsController extends Controller
         $dailyStats = $dailyQuery->select(
             DB::raw('SUM(daily_calls) as total_calls'),
             DB::raw('SUM(hot_calls) as total_hot_calls'),
+            DB::raw('SUM(walk_ins) as total_walk_ins'),
             DB::raw('SUM(branch_leads) as total_branch_leads'),
             DB::raw('SUM(online_leads) as total_online_leads'),
             DB::raw('SUM(extra_leads) as total_extra_leads'),
@@ -252,6 +257,7 @@ class StatisticsController extends Controller
         $dailyReportsDetails = [
             'total_calls' => (int)$dailyStats->total_calls,
             'total_hot_calls' => (int)$dailyStats->total_hot_calls,
+            'total_walk_ins' => (int)$dailyStats->total_walk_ins,
             'total_branch_leads' => (int)$dailyStats->total_branch_leads,
             'total_online_leads' => (int)$dailyStats->total_online_leads,
             'total_extra_leads' => (int)$dailyStats->total_extra_leads,
@@ -342,8 +348,12 @@ class StatisticsController extends Controller
             $dStats = $dQuery->select(
                 DB::raw('COUNT(*) as reports_count'),
                 DB::raw('SUM(daily_calls) as total_calls'),
-                DB::raw('SUM(number_of_visits) as total_visits'),
-                DB::raw('SUM(branch_leads + online_leads + extra_leads) as total_leads')
+                DB::raw('SUM(hot_calls) as total_hot_calls'),
+                DB::raw('SUM(walk_ins) as total_walk_ins'),
+                DB::raw('SUM(branch_leads) as total_branch_leads'),
+                DB::raw('SUM(online_leads) as total_online_leads'),
+                DB::raw('SUM(extra_leads) as total_extra_leads'),
+                DB::raw('SUM(number_of_visits) as total_visits')
             )->first();
 
             $staffItem = [
@@ -356,8 +366,12 @@ class StatisticsController extends Controller
                 'contracts_value' => (float)$cStats->total_sales,
                 'total_net_amount' => (float)$cStats->total_net_amount,
                 'total_calls' => (int)$dStats->total_calls,
+                'total_hot_calls' => (int)$dStats->total_hot_calls,
+                'total_walk_ins' => (int)$dStats->total_walk_ins,
+                'total_branch_leads' => (int)$dStats->total_branch_leads,
+                'total_online_leads' => (int)$dStats->total_online_leads,
+                'total_extra_leads' => (int)$dStats->total_extra_leads,
                 'total_visits' => (int)$dStats->total_visits,
-                'total_leads' => (int)$dStats->total_leads,
                 'reports_count' => (int)$dStats->reports_count
             ];
 

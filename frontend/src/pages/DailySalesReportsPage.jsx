@@ -1282,31 +1282,31 @@ export default function DailySalesReportsPage() {
       // Reports table
       const tableBody = [
         [
-          { text: formatArabicText('الملاحظات'), style: 'tableHeader', alignment: 'center' },
-          { text: formatArabicText('عدد الزيارات'), style: 'tableHeader', alignment: 'center' },
-          { text: formatArabicText('الليدز الاضافي'), style: 'tableHeader', alignment: 'center' },
-          { text: formatArabicText('ليدز الاونلاين'), style: 'tableHeader', alignment: 'center' },
-          { text: formatArabicText('ليدز الفرع'), style: 'tableHeader', alignment: 'center' },
-          { text: formatArabicText('الووك ان'), style: 'tableHeader', alignment: 'center' },
-          { text: formatArabicText('الهوت كول'), style: 'tableHeader', alignment: 'center' },
-          { text: formatArabicText('الاتصالات'), style: 'tableHeader', alignment: 'center' },
+          { text: formatArabicText('التاريخ'), style: 'tableHeader', alignment: 'center' },
           { text: formatArabicText('موظف المبيعات'), style: 'tableHeader', alignment: 'center' },
-          { text: formatArabicText('التاريخ'), style: 'tableHeader', alignment: 'center' }
+          { text: formatArabicText('الاتصالات'), style: 'tableHeader', alignment: 'center' },
+          { text: formatArabicText('الهوت كول'), style: 'tableHeader', alignment: 'center' },
+          { text: formatArabicText('الووك ان'), style: 'tableHeader', alignment: 'center' },
+          { text: formatArabicText('ليدز الفرع'), style: 'tableHeader', alignment: 'center' },
+          { text: formatArabicText('ليدز الاونلاين'), style: 'tableHeader', alignment: 'center' },
+          { text: formatArabicText('الليدز الاضافي'), style: 'tableHeader', alignment: 'center' },
+          { text: formatArabicText('عدد الزيارات'), style: 'tableHeader', alignment: 'center' },
+          { text: formatArabicText('الملاحظات'), style: 'tableHeader', alignment: 'center' }
         ]
       ];
 
       group.reports.forEach(report => {
         tableBody.push([
-          { text: formatArabicText((report.notes || '-').substring(0, 30)), alignment: 'center', fontSize: 7 },
-          { text: formatNumber(parseInt(report.number_of_visits) || 0), alignment: 'center', fontSize: 8 },
-          { text: formatNumber(parseInt(report.extra_leads) || 0), alignment: 'center', fontSize: 8 },
-          { text: formatNumber(parseInt(report.online_leads) || 0), alignment: 'center', fontSize: 8 },
-          { text: formatNumber(parseInt(report.branch_leads) || 0), alignment: 'center', fontSize: 8 },
-          { text: formatNumber(parseInt(report.walk_ins) || 0), alignment: 'center', fontSize: 8 },
-          { text: formatNumber(parseInt(report.hot_calls) || 0), alignment: 'center', fontSize: 8 },
-          { text: formatNumber(parseInt(report.daily_calls) || 0), alignment: 'center', fontSize: 8 },
+          { text: formatArabicText(report.report_date || '-'), alignment: 'center', fontSize: 8 },
           { text: formatArabicText(getSalesStaffName(report.sales_staff_id)), alignment: 'center', fontSize: 8 },
-          { text: formatArabicText(report.report_date || '-'), alignment: 'center', fontSize: 8 }
+          { text: formatNumber(parseInt(report.daily_calls) || 0), alignment: 'center', fontSize: 8 },
+          { text: formatNumber(parseInt(report.hot_calls) || 0), alignment: 'center', fontSize: 8 },
+          { text: formatNumber(parseInt(report.walk_ins) || 0), alignment: 'center', fontSize: 8 },
+          { text: formatNumber(parseInt(report.branch_leads) || 0), alignment: 'center', fontSize: 8 },
+          { text: formatNumber(parseInt(report.online_leads) || 0), alignment: 'center', fontSize: 8 },
+          { text: formatNumber(parseInt(report.extra_leads) || 0), alignment: 'center', fontSize: 8 },
+          { text: formatNumber(parseInt(report.number_of_visits) || 0), alignment: 'center', fontSize: 8 },
+          { text: formatArabicText((report.notes || '-').substring(0, 30)), alignment: 'center', fontSize: 7 }
         ]);
       });
 
@@ -1639,6 +1639,8 @@ export default function DailySalesReportsPage() {
     try {
       const today = new Date();
       const todayStr = today.toISOString().split('T')[0];
+      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      const monthStartStr = monthStart.toISOString().split('T')[0];
 
       // 1. Fetch Data
       let reportsUrl = `/daily-sales-reports?date_from=${todayStr}&date_to=${todayStr}`;
@@ -1649,17 +1651,36 @@ export default function DailySalesReportsPage() {
       const todayReports = await apiGet(reportsUrl, token);
       const reportsArray = Array.isArray(todayReports) ? todayReports : [];
 
+      // Fetch Monthly Reports for Cumulative Section (Month-to-Date)
+      let monthlyReportsUrl = `/daily-sales-reports?date_from=${monthStartStr}&date_to=${todayStr}`;
+      if (selectedBranchId && !userInfo?.is_super_admin) {
+        monthlyReportsUrl += `&branch_id=${selectedBranchId}`;
+      }
+      const monthlyReportsData = await apiGet(monthlyReportsUrl, token);
+      const monthlyReportsArray = Array.isArray(monthlyReportsData) ? monthlyReportsData : [];
+
       let contractsUrl = "/contracts";
       if (selectedContractBranchId && !userInfo?.is_super_admin) {
         contractsUrl += `?branch_id=${selectedContractBranchId}`;
       }
       const allContracts = await apiGet(contractsUrl, token);
-      const todayContracts = Array.isArray(allContracts) ? allContracts.filter(contract => {
+      const contractsArray = Array.isArray(allContracts) ? allContracts : [];
+
+      // Today's Contracts
+      const todayContracts = contractsArray.filter(contract => {
         const dateToUse = contract.contract_date || contract.created_at;
         if (!dateToUse) return false;
         const contractDateStr = new Date(dateToUse).toISOString().split('T')[0];
         return contractDateStr === todayStr;
-      }) : [];
+      });
+
+      // Monthly Contracts (Month-to-Date)
+      const monthlyContracts = contractsArray.filter(contract => {
+        const dateToUse = contract.contract_date || contract.created_at;
+        if (!dateToUse) return false;
+        const contractDateStr = new Date(dateToUse).toISOString().split('T')[0];
+        return contractDateStr >= monthStartStr && contractDateStr <= todayStr;
+      });
 
       // 2. Prepare Data Structures
       // Group Reports by Branch
@@ -1717,10 +1738,14 @@ export default function DailySalesReportsPage() {
 
       const sortedBranches = Object.values(branchesData).sort((a, b) => a.id - b.id);
 
-      // Calculate Grand Totals
+      // Calculate Today's Grand Totals
       let grandTotal = {
         visits_count: 0, extra_leads: 0, online_leads: 0, branch_leads: 0,
-        net_total: 0, paid_total: 0, remaining_total: 0
+        net_total: 0, paid_total: 0, remaining_total: 0,
+        walk_ins: 0, hot_calls: 0, daily_calls: 0,
+        total_reports: reportsArray.length,
+        total_contracts: todayContracts.length,
+        total_contracts_value: todayContracts.reduce((sum, c) => sum + parseFloat(c.total_amount || 0), 0)
       };
 
       sortedBranches.forEach(b => {
@@ -1728,11 +1753,31 @@ export default function DailySalesReportsPage() {
         grandTotal.extra_leads += b.stats.extra_leads;
         grandTotal.online_leads += b.stats.online_leads;
         grandTotal.branch_leads += b.stats.branch_leads;
+        grandTotal.walk_ins += b.stats.walk_ins;
+        grandTotal.hot_calls += b.stats.hot_calls;
+        grandTotal.daily_calls += b.stats.daily_calls;
 
         grandTotal.net_total += b.financials.net_total;
         grandTotal.paid_total += b.financials.paid_total;
         grandTotal.remaining_total += b.financials.remaining_total;
       });
+
+      // Calculate Month-to-Date Grand Totals for Cumulative Section
+      const monthGrandTotal = {
+        total_reports: monthlyReportsArray.length,
+        total_contracts: monthlyContracts.length,
+        total_contracts_value: monthlyContracts.reduce((sum, c) => sum + parseFloat(c.total_amount || 0), 0),
+        paid_total: monthlyContracts.reduce((sum, c) => sum + parseFloat(c.payment_amount || 0), 0),
+        remaining_total: monthlyContracts.reduce((sum, c) => sum + parseFloat(c.remaining_amount || 0), 0),
+        net_total: monthlyContracts.reduce((sum, c) => sum + parseFloat(c.net_amount || 0), 0),
+        daily_calls: monthlyReportsArray.reduce((sum, r) => sum + (parseInt(r.daily_calls) || 0), 0),
+        hot_calls: monthlyReportsArray.reduce((sum, r) => sum + (parseInt(r.hot_calls) || 0), 0),
+        walk_ins: monthlyReportsArray.reduce((sum, r) => sum + (parseInt(r.walk_ins) || 0), 0),
+        branch_leads: monthlyReportsArray.reduce((sum, r) => sum + (parseInt(r.branch_leads) || 0), 0),
+        online_leads: monthlyReportsArray.reduce((sum, r) => sum + (parseInt(r.online_leads) || 0), 0),
+        extra_leads: monthlyReportsArray.reduce((sum, r) => sum + (parseInt(r.extra_leads) || 0), 0),
+        visits_count: monthlyReportsArray.reduce((sum, r) => sum + (parseInt(r.number_of_visits) || 0), 0),
+      };
 
       // 3. PDF Usage Helpers
       const arabicDate = `${today.getDate()} ${monthNames[today.getMonth() + 1]} ${today.getFullYear()}`;
@@ -1757,6 +1802,7 @@ export default function DailySalesReportsPage() {
 
       const docDefinition = {
         defaultStyle: { font: 'Cairo', fontSize: 8, alignment: 'right' },
+        direction: 'rtl',
         pageSize: 'A4',
         pageOrientation: 'portrait',
         pageMargins: [30, 50, 30, 50],
@@ -1797,8 +1843,80 @@ export default function DailySalesReportsPage() {
         { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1.5, lineColor: '#5A7ACD' }], margin: [0, 0, 0, 15] }
       );
 
-      // --- SECTION 1: GLOBAL STATISTICS & SUMMARY (SUPER ADMIN ONLY) ---
+      // --- SECTION 1: CUMULATIVE STATISTICS (SUPER ADMIN ONLY) ---
       if (userInfo?.is_super_admin) {
+        docDefinition.content.push({ text: formatArabicText('الإحصائيات التراكمية (هذا الشهر)'), style: 'sectionTitle' });
+
+        docDefinition.content.push({
+          columns: [
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('صافي المبيعات'), style: 'statLabel' },
+                { text: formatArabicText(formatNumber(monthGrandTotal.net_total, true)), style: 'statValue', color: '#28a745' }
+              ],
+              margin: [2, 0, 2, 5]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('الزيارات'), style: 'statLabel' },
+                { text: formatNumber(monthGrandTotal.visits_count), style: 'statValue' }
+              ],
+              margin: [2, 0, 2, 5]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('ليدز +'), style: 'statLabel' },
+                { text: formatNumber(monthGrandTotal.extra_leads), style: 'statValue' }
+              ],
+              margin: [2, 0, 2, 5]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('ليدز اونلاين'), style: 'statLabel' },
+                { text: formatNumber(monthGrandTotal.online_leads), style: 'statValue' }
+              ],
+              margin: [2, 0, 2, 5]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('ليدز الفرع'), style: 'statLabel' },
+                { text: formatNumber(monthGrandTotal.branch_leads), style: 'statValue' }
+              ],
+              margin: [2, 0, 2, 5]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('ووك ان'), style: 'statLabel' },
+                { text: formatNumber(monthGrandTotal.walk_ins), style: 'statValue' }
+              ],
+              margin: [2, 0, 2, 5]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('هوت كول'), style: 'statLabel' },
+                { text: formatNumber(monthGrandTotal.hot_calls), style: 'statValue' }
+              ],
+              margin: [2, 0, 2, 5]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('اتصالات'), style: 'statLabel' },
+                { text: formatNumber(monthGrandTotal.daily_calls), style: 'statValue' }
+              ],
+              margin: [2, 0, 2, 5]
+            }
+          ],
+          margin: [0, 0, 0, 20]
+        });
+
         docDefinition.content.push({ text: formatArabicText('الإحصائيات الإجمالية'), style: 'sectionTitle' });
 
         docDefinition.content.push({
@@ -1878,7 +1996,7 @@ export default function DailySalesReportsPage() {
           [
             { text: formatArabicText('صافي المبيعات'), style: 'tableHeader' },
             { text: formatArabicText('المدفوع'), style: 'tableHeader' },
-            { text: formatArabicText('إجمالي العقود'), style: 'tableHeader' },
+            { text: formatArabicText('عدد العقود'), style: 'tableHeader' },
             { text: formatArabicText('الزيارات'), style: 'tableHeader' },
             { text: formatArabicText('ليدز +'), style: 'tableHeader' },
             { text: formatArabicText('ليدز اونلاين'), style: 'tableHeader' },
@@ -1894,7 +2012,7 @@ export default function DailySalesReportsPage() {
           branchSummaryBody.push([
             { text: formatArabicText(formatNumber(b.financials.net_total)), style: 'tableCell', color: '#5A7ACD', bold: true },
             { text: formatArabicText(formatNumber(b.financials.paid_total)), style: 'tableCell', color: '#10B981' },
-            { text: formatArabicText(formatNumber(b.financials.total_amount)), style: 'tableCell' },
+            { text: formatNumber(b.contracts.length), style: 'tableCell' },
             { text: formatNumber(b.stats.visits_count), style: 'tableCell' },
             { text: formatNumber(b.stats.extra_leads), style: 'tableCell' },
             { text: formatNumber(b.stats.online_leads), style: 'tableCell' },
@@ -1903,10 +2021,22 @@ export default function DailySalesReportsPage() {
           ]);
         });
 
+        // Add Grand Total row
+        branchSummaryBody.push([
+          { text: formatArabicText(formatNumber(grandTotal.net_total)), style: 'tableCell', bold: true, fillColor: '#F3F4F6', color: '#5A7ACD' },
+          { text: formatArabicText(formatNumber(grandTotal.paid_total)), style: 'tableCell', bold: true, fillColor: '#F3F4F6', color: '#10B981' },
+          { text: formatNumber(grandTotal.total_contracts), style: 'tableCell', bold: true, fillColor: '#F3F4F6' },
+          { text: formatNumber(grandTotal.visits_count), style: 'tableCell', bold: true, fillColor: '#F3F4F6' },
+          { text: formatNumber(grandTotal.extra_leads), style: 'tableCell', bold: true, fillColor: '#F3F4F6' },
+          { text: formatNumber(grandTotal.online_leads), style: 'tableCell', bold: true, fillColor: '#F3F4F6' },
+          { text: formatNumber(grandTotal.daily_calls), style: 'tableCell', bold: true, fillColor: '#F3F4F6' },
+          { text: formatArabicText('الإجمالي'), style: 'tableCell', bold: true, fillColor: '#F3F4F6' }
+        ]);
+
         docDefinition.content.push({
           table: {
             headerRows: 1,
-            widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*', 'auto'],
+            widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*'],
             body: branchSummaryBody
           },
           layout: {
@@ -2014,37 +2144,37 @@ export default function DailySalesReportsPage() {
 
           const staffBody = [
             [
-              { text: formatArabicText('ملاحظات'), style: 'tableHeader' },
-              { text: formatArabicText('زيارات'), style: 'tableHeader' },
-              { text: formatArabicText('ليدز +'), style: 'tableHeader' },
-              { text: formatArabicText('ليدز اونلاين'), style: 'tableHeader' },
-              { text: formatArabicText('ليدز فرع'), style: 'tableHeader' },
-              { text: formatArabicText('ووك ان'), style: 'tableHeader' },
-              { text: formatArabicText('هوت كول'), style: 'tableHeader' },
+              { text: formatArabicText('الموظف'), style: 'tableHeader' },
               { text: formatArabicText('اتصالات'), style: 'tableHeader' },
-              { text: formatArabicText('الموظف'), style: 'tableHeader' }
+              { text: formatArabicText('هوت كول'), style: 'tableHeader' },
+              { text: formatArabicText('ووك ان'), style: 'tableHeader' },
+              { text: formatArabicText('ليدز فرع'), style: 'tableHeader' },
+              { text: formatArabicText('ليدز اونلاين'), style: 'tableHeader' },
+              { text: formatArabicText('ليدز +'), style: 'tableHeader' },
+              { text: formatArabicText('زيارات'), style: 'tableHeader' },
+              { text: formatArabicText('ملاحظات'), style: 'tableHeader' }
             ]
           ];
 
           branch.reports.forEach(r => {
             const staffName = r.sales_staff ? r.sales_staff.name : getSalesStaffName(r.sales_staff_id);
             staffBody.push([
-              { text: formatArabicText((r.notes || '-').substring(0, 30)), style: 'tableCell', fontSize: 6, alignment: 'right' },
-              { text: formatNumber(parseInt(r.number_of_visits) || 0), style: 'tableCell' },
-              { text: formatNumber(parseInt(r.extra_leads) || 0), style: 'tableCell' },
-              { text: formatNumber(parseInt(r.online_leads) || 0), style: 'tableCell' },
-              { text: formatNumber(parseInt(r.branch_leads) || 0), style: 'tableCell' },
-              { text: formatNumber(parseInt(r.walk_ins) || 0), style: 'tableCell' },
-              { text: formatNumber(parseInt(r.hot_calls) || 0), style: 'tableCell' },
+              { text: formatArabicText(staffName), style: 'tableCell', bold: true },
               { text: formatNumber(parseInt(r.daily_calls) || 0), style: 'tableCell' },
-              { text: formatArabicText(staffName), style: 'tableCell', bold: true }
+              { text: formatNumber(parseInt(r.hot_calls) || 0), style: 'tableCell' },
+              { text: formatNumber(parseInt(r.walk_ins) || 0), style: 'tableCell' },
+              { text: formatNumber(parseInt(r.branch_leads) || 0), style: 'tableCell' },
+              { text: formatNumber(parseInt(r.online_leads) || 0), style: 'tableCell' },
+              { text: formatNumber(parseInt(r.extra_leads) || 0), style: 'tableCell' },
+              { text: formatNumber(parseInt(r.number_of_visits) || 0), style: 'tableCell' },
+              { text: formatArabicText((r.notes || '-').substring(0, 30)), style: 'tableCell', fontSize: 6, alignment: 'right' }
             ]);
           });
 
           docDefinition.content.push({
             table: {
               headerRows: 1,
-              widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
+              widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*'],
               body: staffBody
             },
             layout: {
@@ -2080,24 +2210,24 @@ export default function DailySalesReportsPage() {
 
           const visitsBody = [
             [
-              { text: formatArabicText('تفاصيل الزيارة'), style: 'tableHeader' },
+              { text: formatArabicText('الموظف'), style: 'tableHeader' },
               { text: formatArabicText('الوجهة (الفرع)'), style: 'tableHeader' },
-              { text: formatArabicText('الموظف'), style: 'tableHeader' }
+              { text: formatArabicText('تفاصيل الزيارة'), style: 'tableHeader' }
             ]
           ];
 
           visitsList.forEach(v => {
             visitsBody.push([
-              { text: formatArabicText(v.details || '-'), style: 'tableCell', alignment: 'right' },
+              { text: formatArabicText(v.staffName), style: 'tableCell' },
               { text: formatArabicText(v.targetBranch), style: 'tableCell' },
-              { text: formatArabicText(v.staffName), style: 'tableCell' }
+              { text: formatArabicText(v.details || '-'), style: 'tableCell', alignment: 'right' }
             ]);
           });
 
           docDefinition.content.push({
             table: {
               headerRows: 1,
-              widths: ['*', 'auto', 'auto'],
+              widths: ['auto', 'auto', '*'],
               body: visitsBody
             },
             layout: {
@@ -2120,14 +2250,14 @@ export default function DailySalesReportsPage() {
         if (branch.contracts.length > 0) {
           const contractsBody = [
             [
-              { text: formatArabicText('الصافي'), style: 'tableHeader' },
-              { text: formatArabicText('المتبقي'), style: 'tableHeader' },
-              { text: formatArabicText('المدفوع'), style: 'tableHeader' },
-              { text: formatArabicText('الإجمالي'), style: 'tableHeader' },
-              { text: formatArabicText('النوع'), style: 'tableHeader' },
-              { text: formatArabicText('الموظف'), style: 'tableHeader' },
+              { text: formatArabicText('رقم العقد'), style: 'tableHeader' },
               { text: formatArabicText('الطالب'), style: 'tableHeader' },
-              { text: formatArabicText('رقم العقد'), style: 'tableHeader' }
+              { text: formatArabicText('الموظف'), style: 'tableHeader' },
+              { text: formatArabicText('النوع'), style: 'tableHeader' },
+              { text: formatArabicText('الإجمالي'), style: 'tableHeader' },
+              { text: formatArabicText('المدفوع'), style: 'tableHeader' },
+              { text: formatArabicText('المتبقي'), style: 'tableHeader' },
+              { text: formatArabicText('الصافي'), style: 'tableHeader' }
             ]
           ];
 
@@ -2135,21 +2265,21 @@ export default function DailySalesReportsPage() {
             const staffName = c.sales_staff ? c.sales_staff.name : getSalesStaffName(c.sales_staff_id);
             const type = c.contract_type === 'new' ? 'جديد' : (c.contract_type === 'shared' ? 'مشترك' : 'دفعة');
             contractsBody.push([
-              { text: formatNumber(parseFloat(c.net_amount || 0)), style: 'tableCell', color: '#5A7ACD', bold: true },
-              { text: formatNumber(parseFloat(c.remaining_amount || 0)), style: 'tableCell', color: '#DC2626' },
-              { text: formatNumber(parseFloat(c.payment_amount || 0)), style: 'tableCell', color: '#10B981', bold: true },
-              { text: formatNumber(parseFloat(c.total_amount || 0)), style: 'tableCell' },
-              { text: formatArabicText(type), style: 'tableCell' },
-              { text: formatArabicText(staffName), style: 'tableCell' },
+              { text: formatArabicText(c.contract_number), style: 'tableCell' },
               { text: formatArabicText(c.student_name), style: 'tableCell', alignment: 'center' },
-              { text: formatArabicText(c.contract_number), style: 'tableCell' }
+              { text: formatArabicText(staffName), style: 'tableCell' },
+              { text: formatArabicText(type), style: 'tableCell' },
+              { text: formatNumber(parseFloat(c.total_amount || 0)), style: 'tableCell' },
+              { text: formatNumber(parseFloat(c.payment_amount || 0)), style: 'tableCell', color: '#10B981', bold: true },
+              { text: formatNumber(parseFloat(c.remaining_amount || 0)), style: 'tableCell', color: '#DC2626' },
+              { text: formatNumber(parseFloat(c.net_amount || 0)), style: 'tableCell', color: '#5A7ACD', bold: true }
             ]);
           });
 
           docDefinition.content.push({
             table: {
               headerRows: 1,
-              widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*', 'auto'],
+              widths: ['auto', '*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
               body: contractsBody
             },
             layout: {
