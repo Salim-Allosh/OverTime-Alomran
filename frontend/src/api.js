@@ -33,6 +33,8 @@ export async function apiPost(path, body, token) {
     console.error(`API Error [${res.status}]:`, errorText);
     throw new Error(errorText || `HTTP ${res.status}`);
   }
+
+  if (res.status === 204) return null;
   return res.json();
 }
 
@@ -69,6 +71,7 @@ export async function apiDelete(path, token) {
     }
   });
   if (!res.ok) throw new Error(await res.text());
+  if (res.status === 204) return null;
   return res.json();
 }
 
@@ -83,6 +86,7 @@ export async function apiPatch(path, body, token) {
     body: JSON.stringify(body)
   });
   if (!res.ok) throw new Error(await res.text());
+  if (res.status === 204) return null;
   return res.json();
 }
 

@@ -30,6 +30,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/branches/{id}', [BranchController::class, 'update']);
     Route::delete('/branches/{id}', [BranchController::class, 'destroy']);
 
+    // Expenses
+    Route::get('/expenses', [App\Http\Controllers\LookupController::class, 'expenses']);
+    Route::post('/expenses', [App\Http\Controllers\LookupController::class, 'createExpense']);
+    Route::patch('/expenses/{id}', [App\Http\Controllers\LookupController::class, 'updateExpense']);
+    Route::delete('/expenses/{id}', [App\Http\Controllers\LookupController::class, 'deleteExpense']);
+
     
     Route::get('/drafts', [DraftController::class, 'index']);
 
@@ -65,6 +71,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/daily-sales-reports', [App\Http\Controllers\SalesController::class, 'dailyReportsStore']);
     Route::patch('/daily-sales-reports/{id}', [App\Http\Controllers\SalesController::class, 'dailyReportsUpdate']);
     Route::delete('/daily-sales-reports/{id}', [App\Http\Controllers\SalesController::class, 'dailyReportsDestroy']);
+
+    // Daily Reports (Accounting/Training)
+    Route::get('/daily-reports', [App\Http\Controllers\DailyReportController::class, 'index']);
+    Route::post('/daily-reports', [App\Http\Controllers\DailyReportController::class, 'store']);
+    Route::patch('/daily-reports/{id}', [App\Http\Controllers\DailyReportController::class, 'update']);
+    Route::delete('/daily-reports/{id}', [App\Http\Controllers\DailyReportController::class, 'destroy']);
 
     // Sales Visits
     Route::post('/sales-visits', [App\Http\Controllers\SalesVisitController::class, 'store']);

@@ -62,6 +62,9 @@ export default function ReportsPage() {
     hourly_rate: "",
     location: "internal"
   });
+  const [showExpenseEditModal, setShowExpenseEditModal] = useState(false);
+  const [editingExpense, setEditingExpense] = useState(null);
+  const [expenseEditForm, setExpenseEditForm] = useState({ title: "", amount: "", teacher_name: "" });
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [teacherNames, setTeacherNames] = useState([]);
   const [mergeForm, setMergeForm] = useState({
@@ -389,6 +392,47 @@ export default function ReportsPage() {
     } catch (err) {
       showError("حدث خطأ أثناء إضافة المصروف: " + err.message);
     }
+  };
+
+  const handleEditExpense = (expense) => {
+    setEditingExpense(expense);
+    setExpenseEditForm({
+      title: expense.title,
+      amount: expense.amount.toString(),
+      teacher_name: expense.teacher_name || ""
+    });
+    setShowExpenseEditModal(true);
+  };
+
+  const handleUpdateExpense = async (e) => {
+    e.preventDefault();
+    if (!editingExpense) return;
+
+    try {
+      await apiPatch(`/expenses/${editingExpense.id}`, expenseEditForm, token);
+      success("تم تحديث المصروف بنجاح!");
+      setShowExpenseEditModal(false);
+      setEditingExpense(null);
+      // Reload expenses by reloading sessions (which triggers the expense loader)
+      loadSessions(selectedBranchId);
+    } catch (err) {
+      showError("حدث خطأ أثناء تحديث المصروف: " + err.message);
+    }
+  };
+
+  const handleDeleteExpense = async (expenseId) => {
+    confirm(
+      "هل أنت متأكد من حذف هذا المصروف؟",
+      async () => {
+        try {
+          await apiDelete(`/expenses/${expenseId}`, token);
+          success("تم حذف المصروف بنجاح!");
+          loadSessions(selectedBranchId);
+        } catch (err) {
+          showError("حدث خطأ أثناء حذف المصروف: " + err.message);
+        }
+      }
+    );
   };
 
   const getBranchName = (branchId) => {
@@ -1405,6 +1449,7 @@ export default function ReportsPage() {
                                         <th style={{ textAlign: "center" }}>اسم المدرس</th>
                                         <th style={{ textAlign: "center" }}>السبب</th>
                                         <th style={{ textAlign: "center" }} data-type="number">المبلغ</th>
+                                        <th style={{ textAlign: "center" }}>الإجراءات</th>
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -1415,6 +1460,35 @@ export default function ReportsPage() {
                                           <td style={{ textAlign: "center" }}>{expense.title}</td>
                                           <td data-type="number" style={{ textAlign: "center", fontWeight: 600, color: "#DC2626" }}>
                                             {parseFloat(expense.amount || 0).toFixed(2)} درهم
+                                          </td>
+                                          <td style={{ textAlign: "center" }}>
+                                            <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
+                                              <button
+                                                className="btn btn-small"
+                                                onClick={() => handleEditExpense(expense)}
+                                                style={{
+                                                  padding: "0.25rem 0.5rem",
+                                                  backgroundColor: "#FEB05D",
+                                                  color: "white",
+                                                  border: "none"
+                                                }}
+                                                title="تعديل"
+                                              >
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                                                </svg>
+                                              </button>
+                                              <button
+                                                className="btn btn-small btn-danger"
+                                                onClick={() => handleDeleteExpense(expense.id)}
+                                                title="حذف"
+                                              >
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                  <polyline points="3 6 5 6 21 6"></polyline>
+                                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                </svg>
+                                              </button>
+                                            </div>
                                           </td>
                                         </tr>
                                       ))}
@@ -1724,6 +1798,61 @@ export default function ReportsPage() {
                   setMergeForm({ old_name: "", new_name: "" });
                   setMonthSessionsForMerge([]);
                 }}>إلغاء</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Expense Edit Modal */}
+      {showExpenseEditModal && editingExpense && (
+        <div className="modal-overlay" onClick={() => setShowExpenseEditModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px" }}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: "1rem" }}>تعديل المصروف</h3>
+              <button className="modal-close" onClick={() => setShowExpenseEditModal(false)}>×</button>
+            </div>
+            <form onSubmit={handleUpdateExpense}>
+              <div className="modal-body" style={{ padding: "1.5rem" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <div className="form-group">
+                    <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "0.5rem", display: "block" }}>اسم المدرس</label>
+                    <input
+                      type="text"
+                      placeholder="اسم المدرس (اختياري)"
+                      value={expenseEditForm.teacher_name}
+                      onChange={(e) => setExpenseEditForm({ ...expenseEditForm, teacher_name: e.target.value })}
+                      style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem" }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "0.5rem", display: "block" }}>السبب</label>
+                    <input
+                      type="text"
+                      placeholder="السبب"
+                      value={expenseEditForm.title}
+                      onChange={(e) => setExpenseEditForm({ ...expenseEditForm, title: e.target.value })}
+                      required
+                      style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem" }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "0.5rem", display: "block" }}>المبلغ</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="المبلغ"
+                      value={expenseEditForm.amount}
+                      onChange={(e) => setExpenseEditForm({ ...expenseEditForm, amount: e.target.value })}
+                      required
+                      style={{ padding: "0.6rem 0.8rem", width: "100%", fontSize: "0.95rem" }}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn primary" type="submit">تحديث</button>
+                <button className="btn" type="button" onClick={() => setShowExpenseEditModal(false)}>إلغاء</button>
               </div>
             </form>
           </div>
