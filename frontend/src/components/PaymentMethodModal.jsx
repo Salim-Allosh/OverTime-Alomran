@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from "react";
 
 export default function PaymentMethodModal({ isOpen, onClose, onSubmit, paymentMethod = null }) {
-  const [formData, setFormData] = useState({ name: "", discount_percentage: "0", is_active: true });
+  const [formData, setFormData] = useState({ name: "", discount_percentage: "0", tax_percentage: "0.05", is_active: true });
 
   useEffect(() => {
     if (paymentMethod) {
       setFormData({
         name: paymentMethod.name || "",
         discount_percentage: paymentMethod.discount_percentage?.toString() || "0",
+        tax_percentage: paymentMethod.tax_percentage?.toString() || "0.05",
         is_active: paymentMethod.is_active !== undefined ? paymentMethod.is_active : true
       });
     } else {
-      setFormData({ name: "", discount_percentage: "0", is_active: true });
+      setFormData({ name: "", discount_percentage: "0", tax_percentage: "0.05", is_active: true });
     }
   }, [paymentMethod, isOpen]);
 
@@ -37,6 +38,18 @@ export default function PaymentMethodModal({ isOpen, onClose, onSubmit, paymentM
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               required
             />
+            <div style={{ marginBottom: "0.5rem", fontSize: "12px", color: "#666" }}>الضريبة الأساسية (مثال: 0.05 لـ 5%)</div>
+            <input
+              type="number"
+              step="0.0001"
+              min="0"
+              max="1"
+              placeholder="الضريبة الأساسية (0.05 = 5%)"
+              value={formData.tax_percentage}
+              onChange={(e) => setFormData({ ...formData, tax_percentage: e.target.value })}
+              required
+            />
+            <div style={{ marginBottom: "0.5rem", fontSize: "12px", color: "#666" }}>نسبة الخصم / العمولة (مثال: 0.0685 لـ 6.85%)</div>
             <input
               type="number"
               step="0.0001"

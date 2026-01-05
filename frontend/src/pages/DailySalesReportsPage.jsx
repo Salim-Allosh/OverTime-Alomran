@@ -70,8 +70,8 @@ export default function DailySalesReportsPage() {
   const currentDate = new Date();
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
-  const [expandedMonths, setExpandedMonths] = useState(new Set());
-  const [expandedContractMonths, setExpandedContractMonths] = useState(new Set());
+  const [expandedMonth, setExpandedMonth] = useState(null);
+  const [expandedContractMonth, setExpandedContractMonth] = useState(null);
   const [selectedContractYear, setSelectedContractYear] = useState(null);
   const [selectedContractMonth, setSelectedContractMonth] = useState(null);
   const [selectedContractSalesStaffId, setSelectedContractSalesStaffId] = useState(null);
@@ -126,7 +126,33 @@ export default function DailySalesReportsPage() {
     }
   }, [selectedBranchId, selectedYear, selectedMonth, selectedSalesStaffId]);
 
-  // تحميل العقود عند تغيير selectedContractBranchId أو الفلاتر
+  // Scroll to expanded month when it changes or data updates
+  useEffect(() => {
+    if (expandedMonth && activeTab === "reports") {
+      console.log("[Scroll] Effect triggered for Reports. expandedMonth:", expandedMonth);
+      setTimeout(() => {
+        const element = document.querySelector(`[data-month-key="${expandedMonth}"]`);
+        console.log("[Scroll] Looking for element with key:", expandedMonth, "Found:", !!element);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 200);
+    }
+  }, [expandedMonth, reports, activeTab]);
+
+  useEffect(() => {
+    if (expandedContractMonth && activeTab === "contracts") {
+      console.log("[Scroll] Effect triggered for Contracts. expandedContractMonth:", expandedContractMonth);
+      setTimeout(() => {
+        const element = document.querySelector(`[data-month-key="${expandedContractMonth}"]`);
+        console.log("[Scroll] Looking for element with key:", expandedContractMonth, "Found:", !!element);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 200);
+    }
+  }, [expandedContractMonth, contracts, activeTab]);
+
   useEffect(() => {
     if (!token) return;
     if (activeTab === "contracts") {
@@ -272,30 +298,16 @@ export default function DailySalesReportsPage() {
     }).sort((a, b) => a.branchId - b.branchId);
   };
 
-  const toggleMonth = (year, month) => {
-    const key = `${year}-${month}`;
-    setExpandedMonths(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(key)) {
-        newSet.delete(key);
-      } else {
-        newSet.add(key);
-      }
-      return newSet;
-    });
+  const toggleMonth = (branchId, year, month) => {
+    const key = `${branchId}-${year}-${month}`;
+    console.log("[Accordion] Toggling Month:", key, "Current expandedMonth:", expandedMonth);
+    setExpandedMonth(prev => (prev === key ? null : key));
   };
 
-  const toggleContractMonth = (year, month) => {
-    const key = `${year}-${month}`;
-    setExpandedContractMonths(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(key)) {
-        newSet.delete(key);
-      } else {
-        newSet.add(key);
-      }
-      return newSet;
-    });
+  const toggleContractMonth = (branchId, year, month) => {
+    const key = `${branchId}-${year}-${month}`;
+    console.log("[Accordion] Toggling Contract Month:", key, "Current expandedContractMonth:", expandedContractMonth);
+    setExpandedContractMonth(prev => (prev === key ? null : key));
   };
 
   // Filter contracts by year, month, branch, sales staff, and search query
@@ -2841,10 +2853,7 @@ export default function DailySalesReportsPage() {
                     </thead>
                     <tbody>
                       {todayContracts.map(contract => {
-                        const paymentsSum = contract.payments && contract.payments.length > 0
-                          ? contract.payments.reduce((sum, p) => sum + parseFloat(p.payment_amount || 0), 0)
-                          : 0;
-                        const totalPaid = (parseFloat(contract.payment_amount || 0)) + paymentsSum;
+                        const totalPaid = parseFloat(contract.payment_amount || 0);
 
                         const contractDate = contract.contract_date || contract.created_at;
                         const dateToDisplay = contractDate ? new Date(contractDate).toISOString().split('T')[0] : '-';
@@ -3163,8 +3172,10 @@ export default function DailySalesReportsPage() {
                       </div>
 
                       {branchGroup.months.map((group) => {
-                        const monthKey = `${group.year}-${group.month}`;
-                        const isExpanded = expandedMonths.has(monthKey);
+                        const monthKey = `${branchGroup.branchId}-${group.year}-${group.month}`;
+                        const isExpanded = expandedMonth === monthKey;
+                        // Diagnostic log for render
+                        if (isExpanded) console.log("[Render] Month Group Expanded:", monthKey);
 
                         return (
                           <div
@@ -3187,7 +3198,7 @@ export default function DailySalesReportsPage() {
                                 marginBottom: isExpanded ? "1rem" : "0",
                                 border: "1px solid #E5E7EB"
                               }}
-                              onClick={() => toggleMonth(group.year, group.month)}
+                              onClick={() => toggleMonth(branchGroup.branchId, group.year, group.month)}
                             >
                               <h3 style={{ margin: 0, color: "#2B2A2A", fontSize: "16px", fontWeight: 600 }}>
                                 {group.monthName} {group.year}
@@ -3365,8 +3376,10 @@ export default function DailySalesReportsPage() {
                       </div>
 
                       {branchGroup.months.map((group) => {
-                        const monthKey = `${group.year}-${group.month}`;
-                        const isExpanded = expandedContractMonths.has(monthKey);
+                        const monthKey = `${branchGroup.branchId}-${group.year}-${group.month}`;
+                        const isExpanded = expandedContractMonth === monthKey;
+                        // Diagnostic log for render
+                        if (isExpanded) console.log("[Render] Contract Group Expanded:", monthKey);
 
                         return (
                           <div
@@ -3389,7 +3402,7 @@ export default function DailySalesReportsPage() {
                                 marginBottom: isExpanded ? "1rem" : "0",
                                 border: "1px solid #E5E7EB"
                               }}
-                              onClick={() => toggleContractMonth(group.year, group.month)}
+                              onClick={() => toggleContractMonth(branchGroup.branchId, group.year, group.month)}
                             >
                               <h3 style={{ margin: 0, color: "#2B2A2A", fontSize: "16px", fontWeight: 600 }}>
                                 {group.monthName} {group.year}
@@ -3446,7 +3459,7 @@ export default function DailySalesReportsPage() {
                                         <th style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px", whiteSpace: "nowrap" }}>الصافي للفرع</th>
                                         <th style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px", whiteSpace: "nowrap" }}>نوع العقد</th>
                                         <th style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px", whiteSpace: "nowrap" }}>ملاحظات</th>
-                                        {!userInfo?.is_branch_account && <th style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px", whiteSpace: "nowrap" }}>الإجراءات</th>}
+                                        <th style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px", whiteSpace: "nowrap" }}>الإجراءات</th>
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -3471,60 +3484,58 @@ export default function DailySalesReportsPage() {
                                             </span>
                                           </td>
                                           <td style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", padding: "0.4rem", textAlign: "center", fontSize: "11px" }} title={contract.notes || ""}>{contract.notes || "-"}</td>
-                                          {!userInfo?.is_branch_account && (
-                                            <td>
-                                              <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
-                                                <button
-                                                  className="btn btn-small"
-                                                  onClick={() => {
-                                                    handleEditContract(contract);
-                                                  }}
-                                                  style={{
-                                                    padding: "0.2rem 0.4rem",
-                                                    backgroundColor: "#FEB05D",
-                                                    color: "white",
-                                                    border: "none",
-                                                    fontSize: "10px",
-                                                    borderRadius: "4px",
-                                                    cursor: "pointer"
-                                                  }}
-                                                  title="تعديل"
-                                                >
-                                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-                                                  </svg>
-                                                </button>
-                                                <button
-                                                  className="btn btn-small btn-danger"
-                                                  onClick={() => {
-                                                    confirm(
-                                                      "هل أنت متأكد من حذف هذا العقد؟",
-                                                      async () => {
-                                                        try {
-                                                          await apiDelete(`/contracts/${contract.id}`, token);
-                                                          success("تم حذف العقد بنجاح!");
-                                                          loadContracts();
-                                                        } catch (err) {
-                                                          showError("حدث خطأ أثناء حذف العقد");
-                                                        }
+                                          <td>
+                                            <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
+                                              <button
+                                                className="btn btn-small"
+                                                onClick={() => {
+                                                  handleEditContract(contract);
+                                                }}
+                                                style={{
+                                                  padding: "0.2rem 0.4rem",
+                                                  backgroundColor: "#FEB05D",
+                                                  color: "white",
+                                                  border: "none",
+                                                  fontSize: "10px",
+                                                  borderRadius: "4px",
+                                                  cursor: "pointer"
+                                                }}
+                                                title="تعديل"
+                                              >
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                                                </svg>
+                                              </button>
+                                              <button
+                                                className="btn btn-small btn-danger"
+                                                onClick={() => {
+                                                  confirm(
+                                                    "هل أنت متأكد من حذف هذا العقد؟",
+                                                    async () => {
+                                                      try {
+                                                        await apiDelete(`/contracts/${contract.id}`, token);
+                                                        success("تم حذف العقد بنجاح!");
+                                                        loadContracts();
+                                                      } catch (err) {
+                                                        showError("حدث خطأ أثناء حذف العقد");
                                                       }
-                                                    );
-                                                  }}
-                                                  style={{
-                                                    padding: "0.2rem 0.4rem",
-                                                    fontSize: "10px",
-                                                    borderRadius: "4px"
-                                                  }}
-                                                  title="حذف"
-                                                >
-                                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                    <polyline points="3 6 5 6 21 6"></polyline>
-                                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                                  </svg>
-                                                </button>
-                                              </div>
-                                            </td>
-                                          )}
+                                                    }
+                                                  );
+                                                }}
+                                                style={{
+                                                  padding: "0.2rem 0.4rem",
+                                                  fontSize: "10px",
+                                                  borderRadius: "4px"
+                                                }}
+                                                title="حذف"
+                                              >
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                  <polyline points="3 6 5 6 21 6"></polyline>
+                                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                </svg>
+                                              </button>
+                                            </div>
+                                          </td>
                                         </tr>
                                       ))}
                                     </tbody>
@@ -3721,6 +3732,7 @@ export default function DailySalesReportsPage() {
                           <option value="">اختر مصدر التسجيل</option>
                           <option value="تجديد">تجديد</option>
                           <option value="داتا شخصية">داتا شخصية</option>
+                          <option value="Leads">Leads</option>
                           <option value="ووك ان">ووك ان</option>
                           <option value="هوت كول">هوت كول</option>
                           <option value="كولد كول">كولد كول</option>
@@ -3781,29 +3793,17 @@ export default function DailySalesReportsPage() {
                               if (!paymentAmount || paymentAmount <= 0) return 0;
 
                               const paymentMethod = paymentMethods.find(pm => pm.id === parseInt(paymentMethodId));
+
                               if (!paymentMethod) {
-                                // Default: divide by 1.05 (5% VAT)
-                                return paymentAmount / 1.05;
+                                return paymentAmount;
                               }
 
-                              const methodName = paymentMethod.name.toUpperCase();
-                              const baseAmount = paymentAmount / 1.05; // Remove 5% VAT
+                              const taxPercentage = parseFloat(paymentMethod.tax_percentage || 0);
+                              const baseAmount = paymentAmount / (1 + taxPercentage);
+                              const discountPercentage = parseFloat(paymentMethod.discount_percentage || 0);
 
-                              if (methodName === 'TABBY LINK') {
-                                const discount = paymentAmount * 0.0685;
-                                return baseAmount - discount;
-                              } else if (methodName === 'TABBY CARD') {
-                                const discount = paymentAmount * 0.05;
-                                return baseAmount - discount;
-                              } else if (methodName === 'TAMARA') {
-                                const discount = paymentAmount * 0.07;
-                                return baseAmount - discount;
-                              } else if (paymentMethod.discount_percentage) {
-                                const discount = paymentAmount * parseFloat(paymentMethod.discount_percentage);
-                                return baseAmount - discount;
-                              }
-
-                              return baseAmount;
+                              // Formula: (Amount / (1 + Tax)) - (Amount * Discount)
+                              return baseAmount - (paymentAmount * discountPercentage);
                             };
 
                             const totalNetAmount = contractForm.payments.reduce((sum, p) => {

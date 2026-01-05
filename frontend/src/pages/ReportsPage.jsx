@@ -45,7 +45,7 @@ export default function ReportsPage() {
   const [expenses, setExpenses] = useState({}); // { "2025-1": [expenses...] }
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [expandedMonths, setExpandedMonths] = useState(new Set());
+  const [expandedMonth, setExpandedMonth] = useState(null);
   const [showExpenseForm, setShowExpenseForm] = useState({}); // { "2025-1": true/false }
   const [expenseForm, setExpenseForm] = useState({ title: "", amount: "", branch_id: "", teacher_name: "" });
   const [showEditModal, setShowEditModal] = useState(false);
@@ -122,6 +122,20 @@ export default function ReportsPage() {
     loadSessions(selectedBranchId);
   }, [token, selectedBranchId]);
 
+  // Scroll to expanded month when it changes or data updates
+  useEffect(() => {
+    if (expandedMonth) {
+      console.log("[Scroll] Effect triggered for Reports. expandedMonth:", expandedMonth);
+      setTimeout(() => {
+        const element = document.querySelector(`[data-month-key="${expandedMonth}"]`);
+        console.log("[Scroll] Looking for element with key:", expandedMonth, "Found:", !!element);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 200);
+    }
+  }, [expandedMonth, sessions]);
+
   // Load teacher names from currently displayed sessions only
   const loadTeacherNames = async () => {
     if (!token || sessions.length === 0) {
@@ -188,8 +202,12 @@ export default function ReportsPage() {
       // Auto-expand current month
       if (sessionsData.length > 0) {
         const now = new Date();
-        const currentKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
-        setExpandedMonths(new Set([currentKey]));
+        // Since we have multiple branches, we don't know which branch to expand by default
+        // But we can try to expand the first branch's current month if it exists
+        const branchId = sessionsData[0].branch_id;
+        const currentKey = `${branchId}-${now.getFullYear()}-${now.getMonth() + 1}`;
+        console.log("[Reports] Auto-expanding current month:", currentKey);
+        setExpandedMonth(currentKey);
       }
     } catch (err) {
       console.error("[Reports] Error loading sessions:", err);
@@ -357,17 +375,10 @@ export default function ReportsPage() {
     };
   };
 
-  const toggleMonth = (year, month) => {
-    const key = `${year}-${month}`;
-    setExpandedMonths(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(key)) {
-        newSet.delete(key);
-      } else {
-        newSet.add(key);
-      }
-      return newSet;
-    });
+  const toggleMonth = (branchId, year, month) => {
+    const key = `${branchId}-${year}-${month}`;
+    console.log("[Accordion] Toggling Month:", key, "Current expandedMonth:", expandedMonth);
+    setExpandedMonth(prev => (prev === key ? null : key));
   };
 
   const handleAddExpense = async (year, month, branchId, e) => {
@@ -1184,8 +1195,10 @@ export default function ReportsPage() {
                   </h2>
 
                   {branchGroup.months.map((group) => {
-                    const monthKey = `${group.year}-${group.month}`;
-                    const isExpanded = expandedMonths.has(monthKey);
+                    const monthKey = `${branchGroup.branchId}-${group.year}-${group.month}`;
+                    const isExpanded = expandedMonth === monthKey;
+                    // Diagnostic log for render
+                    if (isExpanded) console.log("[Render] Month Group Expanded:", monthKey);
                     // Filter expenses for this specific branch only
                     const allMonthExpenses = expenses[monthKey] || [];
                     const monthExpenses = allMonthExpenses.filter(e => e.branch_id === branchGroup.branchId);
@@ -1213,7 +1226,7 @@ export default function ReportsPage() {
                             marginBottom: isExpanded ? "1rem" : "0",
                             border: "1px solid #E5E7EB"
                           }}
-                          onClick={() => toggleMonth(group.year, group.month)}
+                          onClick={() => toggleMonth(branchGroup.branchId, group.year, group.month)}
                         >
                           <h3 style={{ margin: 0, color: "#2B2A2A", fontSize: "16px", fontWeight: 600 }}>
                             {group.monthName} {group.year}

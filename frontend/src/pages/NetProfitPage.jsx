@@ -120,33 +120,30 @@ export default function NetProfitPage() {
 
     try {
       const now = new Date();
-      let createdAtStr;
+      let expenseDateStr;
 
       if (selectedYearForExpense === now.getFullYear() && selectedMonthForExpense === (now.getMonth() + 1)) {
         // Current month: use current time
-        createdAtStr = now.toISOString().slice(0, 19).replace('T', ' ');
+        expenseDateStr = now.toISOString().slice(0, 19).replace('T', ' ');
       } else {
         // Past/Future month: use 1st of that month
         const d = new Date(selectedYearForExpense, selectedMonthForExpense - 1, 1, 12, 0, 0);
-        createdAtStr = d.toISOString().slice(0, 19).replace('T', ' ');
+        expenseDateStr = d.toISOString().slice(0, 19).replace('T', ' ');
       }
 
       if (isEditingExpense && editingExpenseId) {
-        await apiPatch(`/expenses/${editingExpenseId}`, {
-          branch_id: selectedBranchForExpense.branch_id,
+        await apiPatch(`/net-profit-expenses/${editingExpenseId}`, {
           title: expenseForm.title,
           amount: parseFloat(expenseForm.amount),
-          teacher_name: null,
-          created_at: createdAtStr
+          expense_date: expenseDateStr
         }, token);
         success("تم تحديث المصروف بنجاح!");
       } else {
-        await apiPost("/expenses", {
+        await apiPost("/net-profit-expenses", {
           branch_id: selectedBranchForExpense.branch_id,
           title: expenseForm.title,
           amount: parseFloat(expenseForm.amount),
-          teacher_name: null,
-          created_at: createdAtStr
+          expense_date: expenseDateStr
         }, token);
         success("تم إضافة المصروف بنجاح!");
       }
@@ -163,7 +160,7 @@ export default function NetProfitPage() {
     }
 
     try {
-      await apiDelete(`/expenses/${expenseId}`, token);
+      await apiDelete(`/net-profit-expenses/${expenseId}`, token);
       success("تم حذف المصروف بنجاح!");
       loadAllMonthsData();
     } catch (err) {

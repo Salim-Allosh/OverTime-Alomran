@@ -7,6 +7,7 @@ use App\Models\SessionDraft;
 use App\Models\Expense;
 use App\Models\Contract;
 use App\Models\Branch;
+use App\Models\NetProfitExpense;
 use Carbon\Carbon;
 
 class ReportService
@@ -195,10 +196,10 @@ class ReportService
             }
         }
 
-        // Also fetch Expenses and distribute them
-        $expenses = Expense::whereYear('created_at', $year)->get();
+        // Also fetch Net Profit Expenses and distribute them
+        $expenses = NetProfitExpense::whereYear('expense_date', $year)->get();
         foreach ($expenses as $expense) {
-            $date = $expense->created_at;
+            $date = $expense->expense_date;
             $month = $date->month;
             $key = $getGroup($month);
             $bId = $expense->branch_id;
@@ -208,7 +209,8 @@ class ReportService
                 $data[$key]['branches'][$bId]['expenses_list'][] = [
                     'id' => $expense->id,
                     'title' => $expense->title,
-                    'amount' => $expense->amount
+                    'amount' => $expense->amount,
+                    'expense_date' => $expense->expense_date
                 ];
             }
         }

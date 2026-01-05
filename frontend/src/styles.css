@@ -342,6 +342,49 @@ body,
 }
 
 /* ============================================
+   COLLAPSIBLE PANELS
+   ============================================ */
+.panel-collapsible {
+  padding: 0;
+  overflow: hidden;
+}
+
+.panel-header-clickable {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-lg);
+  cursor: pointer;
+  user-select: none;
+  background: var(--bg-white);
+  transition: background-color 0.2s ease;
+}
+
+.panel-header-clickable:hover {
+  background: #F9FAFB;
+}
+
+.panel-header-clickable h2 {
+  margin: 0 !important;
+  border-bottom: none !important;
+  padding-bottom: 0 !important;
+}
+
+.panel-content {
+  padding: var(--spacing-lg);
+  border-top: 1px solid var(--border-color);
+}
+
+.chevron-icon {
+  transition: transform 0.3s ease;
+  color: var(--text-secondary);
+}
+
+.chevron-icon.expanded {
+  transform: rotate(180deg);
+}
+
+/* ============================================
    TABLES - جداول احترافية
    ============================================ */
 .table-container {

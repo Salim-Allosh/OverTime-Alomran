@@ -7,13 +7,14 @@ use App\Models\Course;
 use App\Models\PaymentMethod;
 use App\Models\Expense;
 use App\Models\OperationAccount;
+use App\Models\NetProfitExpense;
 use Illuminate\Support\Facades\Hash;
 
 class LookupController extends Controller
 {
     public function courses()
     {
-        return Course::all();
+        return Course::orderBy('sort_order', 'asc')->get();
     }
     
     public function createCourse(Request $request) 
@@ -23,7 +24,25 @@ class LookupController extends Controller
             'type' => 'nullable|string'
         ]);
         
+        // Set sort_order to the max + 1
+        $maxOrder = Course::max('sort_order') ?? 0;
+        $validated['sort_order'] = $maxOrder + 1;
+        
         return Course::create($validated);
+    }
+
+    public function reorderCourses(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'exists:courses,id'
+        ]);
+
+        foreach ($validated['ids'] as $index => $id) {
+            Course::where('id', $id)->update(['sort_order' => $index + 1]);
+        }
+
+        return response()->json(['status' => 'success']);
     }
     
     public function updateCourse(Request $request, $id)
@@ -54,7 +73,8 @@ class LookupController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|unique:payment_methods,name',
-            'discount_percentage' => 'nullable|numeric|min:0|max:100',
+            'discount_percentage' => 'nullable|numeric|min:0|max:1',
+            'tax_percentage' => 'nullable|numeric|min:0|max:1',
             'is_active' => 'boolean'
         ]);
         
@@ -67,7 +87,8 @@ class LookupController extends Controller
         
         $validated = $request->validate([
             'name' => 'required|unique:payment_methods,name,' . $id,
-            'discount_percentage' => 'nullable|numeric|min:0|max:100',
+            'discount_percentage' => 'nullable|numeric|min:0|max:1',
+            'tax_percentage' => 'nullable|numeric|min:0|max:1',
             'is_active' => 'boolean'
         ]);
         
@@ -162,5 +183,47 @@ class LookupController extends Controller
         
         $account->update($data);
         return $account;
+    }
+
+    // Net Profit Expenses
+    public function netProfitExpensesIndex(Request $request)
+    {
+        $query = NetProfitExpense::query();
+        if($request->branch_id) $query->where('branch_id', $request->branch_id);
+        if($request->year) $query->whereYear('expense_date', $request->year);
+        if($request->month) $query->whereMonth('expense_date', $request->month);
+        
+        return $query->orderBy('expense_date', 'desc')->get();
+    }
+
+    public function createNetProfitExpense(Request $request)
+    {
+        $validated = $request->validate([
+            'branch_id' => 'required|exists:branches,id',
+            'title' => 'required|string',
+            'amount' => 'required|numeric',
+            'expense_date' => 'required|date'
+        ]);
+
+        return NetProfitExpense::create($validated);
+    }
+
+    public function updateNetProfitExpense(Request $request, $id)
+    {
+        $expense = NetProfitExpense::findOrFail($id);
+        $validated = $request->validate([
+            'title' => 'string',
+            'amount' => 'numeric',
+            'expense_date' => 'date'
+        ]);
+
+        $expense->update($validated);
+        return $expense;
+    }
+
+    public function deleteNetProfitExpense($id)
+    {
+        NetProfitExpense::destroy($id);
+        return response()->noContent();
     }
 }

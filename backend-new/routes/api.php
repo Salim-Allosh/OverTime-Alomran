@@ -88,6 +88,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/courses', [App\Http\Controllers\LookupController::class, 'courses']);
     Route::post('/courses', [App\Http\Controllers\LookupController::class, 'createCourse']);
     Route::patch('/courses/{id}', [App\Http\Controllers\LookupController::class, 'updateCourse']);
+    Route::post('/courses/reorder', [App\Http\Controllers\LookupController::class, 'reorderCourses']);
     Route::delete('/courses/{id}', [App\Http\Controllers\LookupController::class, 'deleteCourse']);
 
     Route::get('/payment-methods', [App\Http\Controllers\LookupController::class, 'paymentMethods']);
@@ -98,6 +99,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/expenses', [App\Http\Controllers\LookupController::class, 'createExpense']);
     Route::patch('/expenses/{id}', [App\Http\Controllers\LookupController::class, 'updateExpense']);
     Route::delete('/expenses/{id}', [App\Http\Controllers\LookupController::class, 'deleteExpense']);
+
+    Route::get('/net-profit-expenses', [App\Http\Controllers\LookupController::class, 'netProfitExpensesIndex']);
+    Route::post('/net-profit-expenses', [App\Http\Controllers\LookupController::class, 'createNetProfitExpense']);
+    Route::patch('/net-profit-expenses/{id}', [App\Http\Controllers\LookupController::class, 'updateNetProfitExpense']);
+    Route::delete('/net-profit-expenses/{id}', [App\Http\Controllers\LookupController::class, 'deleteNetProfitExpense']);
     
     // Sessions
     Route::get('/sessions/all', [App\Http\Controllers\SessionController::class, 'index']);

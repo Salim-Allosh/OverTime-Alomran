@@ -15,6 +15,7 @@ class Course extends Model
         'name',
         'type',
         'is_active',
+        'sort_order',
     ];
 
     protected $casts = [

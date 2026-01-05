@@ -32,26 +32,17 @@ class ContractsController extends Controller
         if (!$paymentAmount || $paymentAmount <= 0) return 0;
         
         $paymentMethod = \App\Models\PaymentMethod::find($paymentMethodId);
+        
         if (!$paymentMethod) {
-            // Default: just remove VAT 5%
-            return $paymentAmount / 1.05;
+            return $paymentAmount;
         }
 
-        $methodName = strtoupper($paymentMethod->name);
-        $baseAmount = $paymentAmount / 1.05; // Remove 5% VAT
-
-        $discount = 0;
-        if ($methodName === 'TABBY LINK') {
-            $discount = $paymentAmount * 0.0685;
-        } elseif ($methodName === 'TABBY CARD') {
-            $discount = $paymentAmount * 0.05;
-        } elseif ($methodName === 'TAMARA') {
-            $discount = $paymentAmount * 0.07;
-        } elseif ($paymentMethod->discount_percentage) {
-            $discount = $paymentAmount * $paymentMethod->discount_percentage;
-        }
-
-        return $baseAmount - $discount;
+        $taxPercentage = $paymentMethod->tax_percentage ?: 0;
+        $baseAmount = $paymentAmount / (1 + $taxPercentage);
+        $discountPercentage = $paymentMethod->discount_percentage ?: 0;
+        
+        // Formula: (Amount / (1 + Tax)) - (Amount * DiscountPercentage)
+        return $baseAmount - ($paymentAmount * $discountPercentage);
     }
 
     public function store(Request $request)
@@ -273,9 +264,15 @@ class ContractsController extends Controller
         
         $payment = new ContractPayment($request->all());
         $payment->contract_id = $contract->id;
+        
+        // Calculate net amount for the new payment
+        if ($payment->payment_amount && $payment->payment_method_id) {
+            $payment->net_amount = $this->calculateNetAmount($payment->payment_amount, $payment->payment_method_id);
+        }
+        
         $payment->save();
         
-        // Update contract totals logic if needed (e.g. remaining amount)
+        // Update contract totals
         $totalPaid = $contract->payment_amount + $contract->payments()->sum('payment_amount');
         $contract->remaining_amount = $contract->total_amount - $totalPaid;
         $contract->save();
