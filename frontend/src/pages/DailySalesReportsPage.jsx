@@ -3825,6 +3825,7 @@ export default function DailySalesReportsPage() {
                           <option value="ووك ان">ووك ان</option>
                           <option value="هوت كول">هوت كول</option>
                           <option value="كولد كول">كولد كول</option>
+                          <option value="دفعة قديمة">دفعة قديمة</option>
                         </select>
                         <input
                           type="date"

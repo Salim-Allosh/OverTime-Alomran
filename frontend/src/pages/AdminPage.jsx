@@ -382,6 +382,7 @@ export default function AdminPage() {
     return branch ? branch.name : `فرع ${branchId}`;
   };
 
+
   if (!userInfo || (!userInfo.is_super_admin && !userInfo.is_sales_manager && !userInfo.is_operation_manager)) {
     return (
       <div className="container">
