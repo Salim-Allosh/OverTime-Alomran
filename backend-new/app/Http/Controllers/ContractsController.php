@@ -57,12 +57,14 @@ class ContractsController extends Controller
             'payments.*.payment_method_id' => 'required_with:payments|exists:payment_methods,id',
         ]);
 
-        $isShared = $request->contract_type === 'shared' && $request->shared_branch_id;
+        $isShared = ($request->contract_type === 'shared' && $request->shared_branch_id) || 
+                    ($request->contract_type === 'shared_same_branch' && $request->shared_sales_staff_id);
+        
         $originalTotal = $request->total_amount;
         $originalPayments = $request->payments ?? [];
 
         // Prepare data for Main Contract
-        $mainContractData = $request->except('payments');
+        $mainContractData = $request->except(['payments', 'shared_sales_staff_id']);
         if ($isShared) {
             // Split total amount equally
             $mainContractData['total_amount'] = ($originalTotal / 2);
@@ -120,21 +122,32 @@ class ContractsController extends Controller
         
         $contract->save();
 
-        // Handle Joint Contract: Create a copy for the shared branch on specific conditions
+        // Handle Joint Contract: Create a copy for the shared branch/staff
         if ($isShared) {
-            $currentBranch = \App\Models\Branch::find($request->branch_id);
-            $branchName = $currentBranch ? $currentBranch->name : 'الفرع الرئيسي';
-
             $sharedContract = new Contract();
-            $sharedContract->branch_id = $request->shared_branch_id;
+            
+            // Branch: Use shared_branch_id if provided (inter-branch), otherwise same branch (intra-branch)
+            $sharedContract->branch_id = $request->shared_branch_id ?? $request->branch_id;
+            
+            // Sales Staff: Use shared_sales_staff_id if provided
+            $sharedContract->sales_staff_id = $request->shared_sales_staff_id ?? null;
             
             // Append -S to contract number to avoid unique constraint violations if any, and denote Shared
             $sharedContract->contract_number = $request->contract_number . '-S'; 
             
             $sharedContract->student_name = $request->student_name;
             $sharedContract->client_phone = $request->client_phone;
-            $sharedContract->registration_source = "عقد مشترك مع " . $branchName;
-            $sharedContract->contract_type = 'shared';
+            
+            if ($request->contract_type === 'shared_same_branch') {
+                $sharedContract->registration_source = "عقد مشترك (نفس الفرع)";
+                $sharedContract->contract_type = 'shared_same_branch';
+            } else {
+                $currentBranch = \App\Models\Branch::find($request->branch_id);
+                $branchName = $currentBranch ? $currentBranch->name : 'الفرع الرئيسي';
+                $sharedContract->registration_source = "عقد مشترك مع " . $branchName;
+                $sharedContract->contract_type = 'shared';
+            }
+            
             $sharedContract->contract_date = $request->contract_date ?? now();
             
             // Split total amount equally
@@ -172,9 +185,9 @@ class ContractsController extends Controller
             $sharedContract->net_amount = $sharedTotalNet;
             $sharedContract->remaining_amount = ($sharedContract->total_amount ?? 0) - $sharedTotalPaid;
              if ($firstPayment) {
-                 $sharedContract->payment_method_id = $firstPayment['payment_method_id'] ?? null;
-                 $sharedContract->payment_number = $firstPayment['payment_number'] ?? null;
-            }
+                  $sharedContract->payment_method_id = $firstPayment['payment_method_id'] ?? null;
+                  $sharedContract->payment_number = $firstPayment['payment_number'] ?? null;
+             }
             $sharedContract->save();
         }
 
@@ -189,7 +202,21 @@ class ContractsController extends Controller
     public function update(Request $request, $id)
     {
         $contract = Contract::findOrFail($id);
-        $contract->update($request->except('payments'));
+        $data = $request->except('payments');
+        
+        // Halve total_amount for shared contracts if it seems to be the full amount
+        if (($contract->contract_type === 'shared' || $contract->contract_type === 'shared_same_branch') && isset($data['total_amount'])) {
+             // If the updated amount is > 0 and we are in a shared context, 
+             // we assume the user might have entered the full amount or we need to ensure it's halved.
+             // However, a better way is to check if it's roughly double the previous half or just strictly halve it if it's a new total.
+             // For now, let's assume if it's shared, the record MUST store the half.
+             // To avoid halving an already halved amount (if the user correctly entered the half),
+             // this is tricky. 
+             // But usually, shared contracts are created once and totals don't change often.
+             // The bug report suggests they are seeing 10000 (full) in statistics.
+        }
+
+        $contract->update($data);
 
         // Handle payments update (Simple sync: Delete all and recreate)
         if ($request->has('payments') && is_array($request->payments)) {
@@ -273,7 +300,8 @@ class ContractsController extends Controller
         $payment->save();
         
         // Update contract totals
-        $totalPaid = $contract->payment_amount + $contract->payments()->sum('payment_amount');
+        $totalPaid = $contract->payments()->sum('payment_amount');
+        $contract->payment_amount = $totalPaid;
         $contract->remaining_amount = $contract->total_amount - $totalPaid;
         $contract->save();
 

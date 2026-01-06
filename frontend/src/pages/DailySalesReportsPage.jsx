@@ -47,6 +47,7 @@ export default function DailySalesReportsPage() {
     sales_staff_id: "",
     contract_type: "new", // new, shared, old_payment
     shared_branch_id: "",
+    shared_sales_staff_id: "",
     shared_amount: "",
     parent_contract_id: null,
     search_contract_number: "",
@@ -854,12 +855,18 @@ export default function DailySalesReportsPage() {
       // إزالة الحقول غير المطلوبة حسب نوع العقد
       if (contractForm.contract_type === "new") {
         delete payload.shared_branch_id;
+        delete payload.shared_sales_staff_id;
         delete payload.shared_amount;
         delete payload.parent_contract_id;
       } else if (contractForm.contract_type === "shared") {
+        delete payload.shared_sales_staff_id;
+        delete payload.parent_contract_id;
+      } else if (contractForm.contract_type === "shared_same_branch") {
+        delete payload.shared_branch_id;
         delete payload.parent_contract_id;
       } else if (contractForm.contract_type === "old_payment") {
         delete payload.shared_branch_id;
+        delete payload.shared_sales_staff_id;
         delete payload.shared_amount;
         delete payload.student_name;
         delete payload.contract_number;
@@ -1096,6 +1103,7 @@ export default function DailySalesReportsPage() {
       sales_staff_id: "",
       contract_type: "new",
       shared_branch_id: "",
+      shared_sales_staff_id: "",
       shared_amount: "",
       parent_contract_id: null,
       search_contract_number: "",
@@ -1294,6 +1302,7 @@ export default function DailySalesReportsPage() {
       // Reports table
       const tableBody = [
         [
+          { text: formatArabicText('اليوم'), style: 'tableHeader', alignment: 'center' },
           { text: formatArabicText('التاريخ'), style: 'tableHeader', alignment: 'center' },
           { text: formatArabicText('موظف المبيعات'), style: 'tableHeader', alignment: 'center' },
           { text: formatArabicText('الاتصالات'), style: 'tableHeader', alignment: 'center' },
@@ -1308,24 +1317,43 @@ export default function DailySalesReportsPage() {
       ];
 
       group.reports.forEach(report => {
+        const getDayName = (dateStr) => {
+          if (!dateStr) return '-';
+          try {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('ar-SA', { weekday: 'long' });
+          } catch (e) { return '-'; }
+        };
+
+        const formatDateShort = (dateStr) => {
+          if (!dateStr) return '-';
+          try {
+            const date = new Date(dateStr);
+            const day = String(date.getDate()).padStart(2, '0');
+            const monthNames = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+            return `${day} ${monthNames[date.getMonth()]}`;
+          } catch (e) { return dateStr; }
+        };
+
         tableBody.push([
-          { text: formatArabicText(report.report_date || '-'), alignment: 'center', fontSize: 8 },
-          { text: formatArabicText(getSalesStaffName(report.sales_staff_id)), alignment: 'center', fontSize: 8 },
-          { text: formatNumber(parseInt(report.daily_calls) || 0), alignment: 'center', fontSize: 8 },
-          { text: formatNumber(parseInt(report.hot_calls) || 0), alignment: 'center', fontSize: 8 },
-          { text: formatNumber(parseInt(report.walk_ins) || 0), alignment: 'center', fontSize: 8 },
-          { text: formatNumber(parseInt(report.branch_leads) || 0), alignment: 'center', fontSize: 8 },
-          { text: formatNumber(parseInt(report.online_leads) || 0), alignment: 'center', fontSize: 8 },
-          { text: formatNumber(parseInt(report.extra_leads) || 0), alignment: 'center', fontSize: 8 },
-          { text: formatNumber(parseInt(report.number_of_visits) || 0), alignment: 'center', fontSize: 8 },
-          { text: formatArabicText((report.notes || '-').substring(0, 30)), alignment: 'center', fontSize: 7 }
+          { text: formatArabicText(getDayName(report.report_date)), alignment: 'center', fontSize: 7 },
+          { text: formatArabicText(formatDateShort(report.report_date)), alignment: 'center', fontSize: 7 },
+          { text: formatArabicText(getSalesStaffName(report.sales_staff_id)), alignment: 'center', fontSize: 7 },
+          { text: formatNumber(parseInt(report.daily_calls) || 0), alignment: 'center', fontSize: 7 },
+          { text: formatNumber(parseInt(report.hot_calls) || 0), alignment: 'center', fontSize: 7 },
+          { text: formatNumber(parseInt(report.walk_ins) || 0), alignment: 'center', fontSize: 7 },
+          { text: formatNumber(parseInt(report.branch_leads) || 0), alignment: 'center', fontSize: 7 },
+          { text: formatNumber(parseInt(report.online_leads) || 0), alignment: 'center', fontSize: 7 },
+          { text: formatNumber(parseInt(report.extra_leads) || 0), alignment: 'center', fontSize: 7 },
+          { text: formatNumber(parseInt(report.number_of_visits) || 0), alignment: 'center', fontSize: 7 },
+          { text: formatArabicText((report.notes || '-').substring(0, 30)), alignment: 'center', fontSize: 6 }
         ]);
       });
 
       docDefinition.content.push({
         table: {
           headerRows: 1,
-          widths: ['*', '*', '*', '*', '*', '*', '*', '*', '*', '*'],
+          widths: ['*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*'],
           body: tableBody
         },
         layout: {
@@ -1333,10 +1361,10 @@ export default function DailySalesReportsPage() {
           vLineWidth: function (i, node) { return 0.5; },
           hLineColor: function (i, node) { return '#E5E7EB'; },
           vLineColor: function (i, node) { return '#E5E7EB'; },
-          paddingLeft: function (i) { return 4; },
-          paddingRight: function (i) { return 4; },
-          paddingTop: function (i) { return 3; },
-          paddingBottom: function (i) { return 3; }
+          paddingLeft: function (i) { return 2; },
+          paddingRight: function (i) { return 2; },
+          paddingTop: function (i) { return 2; },
+          paddingBottom: function (i) { return 2; }
         },
         margin: [0, 0, 0, 15]
       });
@@ -1480,8 +1508,9 @@ export default function DailySalesReportsPage() {
       );
 
       // Summary
-      const totalContracts = group.contracts.length;
-      const totalAmount = group.contracts.reduce((sum, c) => sum + parseFloat(c.total_amount || 0), 0);
+      const salesContracts = group.contracts.filter(c => c.contract_type !== 'old_payment' && c.contract_type !== 'payment');
+      const totalContracts = salesContracts.length;
+      const totalAmount = salesContracts.reduce((sum, c) => sum + parseFloat(c.total_amount || 0), 0);
       const totalPaid = group.contracts.reduce((sum, c) => sum + parseFloat(c.payment_amount || 0), 0);
       const totalRemaining = group.contracts.reduce((sum, c) => sum + parseFloat(c.remaining_amount || 0), 0);
       const totalNet = group.contracts.reduce((sum, c) => sum + parseFloat(c.net_amount || 0), 0);
@@ -1563,16 +1592,19 @@ export default function DailySalesReportsPage() {
 
       group.contracts.forEach(contract => {
         const contractType = contract.contract_type === "new" ? "جديد" :
-          contract.contract_type === "shared" ? "مشترك" : "دفعة قديمة";
+          (contract.contract_type === "shared" || contract.contract_type === "shared_same_branch") ? "مشترك" : "دفعة قديمة";
         tableBody.push([
           { text: formatArabicText(contract.contract_number || '-'), alignment: 'center', fontSize: 7 },
           { text: formatArabicText(contract.student_name || '-'), alignment: 'center', fontSize: 7 },
           { text: formatArabicText(contract.client_phone || '-'), alignment: 'center', fontSize: 7 },
           { text: formatArabicText(contract.sales_staff_id ? getSalesStaffName(contract.sales_staff_id) : '-'), alignment: 'center', fontSize: 7 },
-          { text: `${formatNumber(parseFloat(contract.total_amount || 0))} ${formatArabicText('درهم')}`, alignment: 'center', fontSize: 7 },
-          { text: `${formatNumber(parseFloat(contract.payment_amount || 0))} ${formatArabicText('درهم')}`, alignment: 'center', fontSize: 7 },
-          { text: `${formatNumber(parseFloat(contract.remaining_amount || 0))} ${formatArabicText('درهم')}`, alignment: 'center', fontSize: 7 },
-          { text: `${formatNumber(parseFloat(contract.net_amount || 0))} ${formatArabicText('درهم')}`, alignment: 'center', fontSize: 7 },
+          {
+            text: `${formatNumber(parseFloat(contract.total_amount || 0))
+              } ${formatArabicText('درهم')} `, alignment: 'center', fontSize: 7
+          },
+          { text: `${formatNumber(parseFloat(contract.payment_amount || 0))} ${formatArabicText('درهم')} `, alignment: 'center', fontSize: 7 },
+          { text: `${formatNumber(parseFloat(contract.remaining_amount || 0))} ${formatArabicText('درهم')} `, alignment: 'center', fontSize: 7 },
+          { text: `${formatNumber(parseFloat(contract.net_amount || 0))} ${formatArabicText('درهم')} `, alignment: 'center', fontSize: 7 },
           { text: formatArabicText(contractType), alignment: 'center', fontSize: 7 }
         ]);
       });
@@ -1639,7 +1671,7 @@ export default function DailySalesReportsPage() {
 
       const pdfDoc = pdfMake.createPdf(docDefinition);
       pdfDoc.download(`تقرير_العقود_${branchName}_${group.monthName}_${group.year}.pdf`);
-      success(`تم تحميل تقرير العقود لشهر ${group.monthName} ${group.year}`);
+      success(`تم تحميل تقرير العقود لشهر ${group.monthName} ${group.year} `);
     } catch (err) {
       console.error('Error generating PDF:', err);
       showError('حدث خطأ أثناء إنشاء ملف PDF: ' + (err.message || err));
@@ -1792,7 +1824,7 @@ export default function DailySalesReportsPage() {
       };
 
       // 3. PDF Usage Helpers
-      const arabicDate = `${today.getDate()} ${monthNames[today.getMonth() + 1]} ${today.getFullYear()}`;
+      const arabicDate = `${today.getDate()} ${monthNames[today.getMonth() + 1]} ${today.getFullYear()} `;
       const formatArabicText = (text) => {
         if (!text || typeof text !== 'string') return text;
         let trimmedText = text.trim();
@@ -1824,7 +1856,7 @@ export default function DailySalesReportsPage() {
         },
         footer: function (currentPage, pageCount) {
           return {
-            text: formatArabicText(`صفحة ${currentPage} من ${pageCount}`),
+            text: formatArabicText(`صفحة ${currentPage} من ${pageCount} `),
             alignment: 'center',
             fontSize: 8,
             color: '#6B7280',
@@ -1851,7 +1883,7 @@ export default function DailySalesReportsPage() {
       docDefinition.content.push(
         { text: formatArabicText(reportTitle), style: 'title' },
         { text: formatArabicText('مركز العمران للتدريب والتطوير'), style: 'subtitle' },
-        { text: formatArabicText(`تاريخ التقرير: ${arabicDate}`), style: 'subtitle2' },
+        { text: formatArabicText(`تاريخ التقرير: ${arabicDate} `), style: 'subtitle2' },
         { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1.5, lineColor: '#5A7ACD' }], margin: [0, 0, 0, 15] }
       );
 
@@ -2275,7 +2307,7 @@ export default function DailySalesReportsPage() {
 
           branch.contracts.forEach(c => {
             const staffName = c.sales_staff ? c.sales_staff.name : getSalesStaffName(c.sales_staff_id);
-            const type = c.contract_type === 'new' ? 'جديد' : (c.contract_type === 'shared' ? 'مشترك' : 'دفعة');
+            const type = c.contract_type === 'new' ? 'جديد' : ((c.contract_type === 'shared' || c.contract_type === 'shared_same_branch') ? 'مشترك' : 'دفعة');
             contractsBody.push([
               { text: formatArabicText(c.contract_number), style: 'tableCell' },
               { text: formatArabicText(c.student_name), style: 'tableCell', alignment: 'center' },
@@ -2696,6 +2728,7 @@ export default function DailySalesReportsPage() {
                         <tr>
                           <th>الفرع</th>
                           <th>موظف المبيعات</th>
+                          <th>اليوم</th>
                           <th>تاريخ التقرير</th>
                           <th style={{ textAlign: "left" }}>الاتصالات اليومية</th>
                           <th style={{ textAlign: "left" }}>الهوت كول</th>
@@ -2709,25 +2742,30 @@ export default function DailySalesReportsPage() {
                       </thead>
                       <tbody>
                         {todayReports.map(report => {
-                          // تنسيق التاريخ بصيغة dd/mm/yyyy
-                          const formatDate = (dateStr) => {
+                          const getDayName = (dateStr) => {
+                            if (!dateStr) return '-';
+                            try {
+                              const date = new Date(dateStr);
+                              return date.toLocaleDateString('ar-SA', { weekday: 'long' });
+                            } catch (e) { return '-'; }
+                          };
+
+                          const formatDateShort = (dateStr) => {
                             if (!dateStr) return '-';
                             try {
                               const date = new Date(dateStr);
                               const day = String(date.getDate()).padStart(2, '0');
-                              const month = String(date.getMonth() + 1).padStart(2, '0');
-                              const year = date.getFullYear();
-                              return `${day}/${month}/${year}`;
-                            } catch (e) {
-                              return dateStr;
-                            }
+                              const monthNames = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+                              return `${day} ${monthNames[date.getMonth()]}`;
+                            } catch (e) { return dateStr; }
                           };
 
                           return (
                             <tr key={report.id}>
                               <td>{getBranchName(report.branch_id)}</td>
                               <td>{getSalesStaffName(report.sales_staff_id)}</td>
-                              <td>{formatDate(report.report_date)}</td>
+                              <td style={{ fontWeight: 600, color: "#5A7ACD" }}>{getDayName(report.report_date)}</td>
+                              <td>{formatDateShort(report.report_date)}</td>
                               <td className="number" data-type="number">{report.daily_calls || 0}</td>
                               <td className="number" data-type="number">{report.hot_calls || 0}</td>
                               <td className="number" data-type="number">{report.walk_ins || 0}</td>
@@ -3240,6 +3278,7 @@ export default function DailySalesReportsPage() {
                                   <table style={{ width: "100%", minWidth: "1000px" }}>
                                     <thead>
                                       <tr>
+                                        <th>اليوم</th>
                                         <th>التاريخ</th>
                                         <th>موظف المبيعات</th>
                                         <th style={{ textAlign: "left" }}>الاتصالات اليومية</th>
@@ -3254,53 +3293,74 @@ export default function DailySalesReportsPage() {
                                       </tr>
                                     </thead>
                                     <tbody>
-                                      {group.reports.map(report => (
-                                        <tr key={report.id}>
-                                          <td>{report.report_date}</td>
-                                          <td>{getSalesStaffName(report.sales_staff_id)}</td>
-                                          <td className="number" data-type="number">{report.daily_calls || 0}</td>
-                                          <td className="number" data-type="number">{report.hot_calls || 0}</td>
-                                          <td className="number" data-type="number">{report.walk_ins || 0}</td>
-                                          <td className="number" data-type="number">{report.branch_leads || 0}</td>
-                                          <td className="number" data-type="number">{report.online_leads || 0}</td>
-                                          <td className="number" data-type="number">{report.extra_leads || 0}</td>
-                                          <td className="number" data-type="number">{report.number_of_visits || 0}</td>
-                                          <td style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={report.notes || ""}>
-                                            {report.notes || "-"}
-                                          </td>
-                                          {!userInfo?.is_branch_account && (
-                                            <td>
-                                              <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
-                                                <button
-                                                  className="btn btn-small"
-                                                  onClick={() => handleEdit(report)}
-                                                  style={{
-                                                    padding: "0.25rem 0.5rem",
-                                                    backgroundColor: "#FEB05D",
-                                                    color: "white",
-                                                    border: "none"
-                                                  }}
-                                                  title="تعديل"
-                                                >
-                                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-                                                  </svg>
-                                                </button>
-                                                <button
-                                                  className="btn btn-small btn-danger"
-                                                  onClick={() => handleDelete(report.id)}
-                                                  title="حذف"
-                                                >
-                                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                    <polyline points="3 6 5 6 21 6"></polyline>
-                                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                                  </svg>
-                                                </button>
-                                              </div>
+                                      {group.reports.map(report => {
+                                        const getDayName = (dateStr) => {
+                                          if (!dateStr) return '-';
+                                          try {
+                                            const date = new Date(dateStr);
+                                            return date.toLocaleDateString('ar-SA', { weekday: 'long' });
+                                          } catch (e) { return '-'; }
+                                        };
+
+                                        const formatDateShort = (dateStr) => {
+                                          if (!dateStr) return '-';
+                                          try {
+                                            const date = new Date(dateStr);
+                                            const day = String(date.getDate()).padStart(2, '0');
+                                            const monthNames = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+                                            return `${day} ${monthNames[date.getMonth()]}`;
+                                          } catch (e) { return dateStr; }
+                                        };
+
+                                        return (
+                                          <tr key={report.id}>
+                                            <td style={{ fontWeight: 600, color: "#5A7ACD" }}>{getDayName(report.report_date)}</td>
+                                            <td>{formatDateShort(report.report_date)}</td>
+                                            <td>{getSalesStaffName(report.sales_staff_id)}</td>
+                                            <td className="number" data-type="number">{report.daily_calls || 0}</td>
+                                            <td className="number" data-type="number">{report.hot_calls || 0}</td>
+                                            <td className="number" data-type="number">{report.walk_ins || 0}</td>
+                                            <td className="number" data-type="number">{report.branch_leads || 0}</td>
+                                            <td className="number" data-type="number">{report.online_leads || 0}</td>
+                                            <td className="number" data-type="number">{report.extra_leads || 0}</td>
+                                            <td className="number" data-type="number">{report.number_of_visits || 0}</td>
+                                            <td style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={report.notes || ""}>
+                                              {report.notes || "-"}
                                             </td>
-                                          )}
-                                        </tr>
-                                      ))}
+                                            {!userInfo?.is_branch_account && (
+                                              <td>
+                                                <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
+                                                  <button
+                                                    className="btn btn-small"
+                                                    onClick={() => handleEdit(report)}
+                                                    style={{
+                                                      padding: "0.25rem 0.5rem",
+                                                      backgroundColor: "#FEB05D",
+                                                      color: "white",
+                                                      border: "none"
+                                                    }}
+                                                    title="تعديل"
+                                                  >
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                                                    </svg>
+                                                  </button>
+                                                  <button
+                                                    className="btn btn-small btn-danger"
+                                                    onClick={() => handleDelete(report.id)}
+                                                    title="حذف"
+                                                  >
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                      <polyline points="3 6 5 6 21 6"></polyline>
+                                                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                    </svg>
+                                                  </button>
+                                                </div>
+                                              </td>
+                                            )}
+                                          </tr>
+                                        );
+                                      })}
                                     </tbody>
                                   </table>
                                 </div>
@@ -3479,8 +3539,8 @@ export default function DailySalesReportsPage() {
                                           <td data-type="number" style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>{contract.remaining_amount ? parseFloat(contract.remaining_amount).toFixed(2) : "0.00"} درهم</td>
                                           <td data-type="number" style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>{contract.net_amount ? parseFloat(contract.net_amount).toFixed(2) : "0.00"} درهم</td>
                                           <td style={{ padding: "0.4rem", textAlign: "center", fontSize: "11px" }}>
-                                            <span className={`status ${contract.contract_type === "new" ? "status-active" : contract.contract_type === "shared" ? "status-pending" : "status-rejected"}`} style={{ fontSize: "10px", padding: "0.2rem 0.4rem" }}>
-                                              {contract.contract_type === "new" ? "جديد" : contract.contract_type === "shared" ? "مشترك" : "دفعة قديمة"}
+                                            <span className={`status ${contract.contract_type === "new" ? "status-active" : (contract.contract_type === "shared" || contract.contract_type === "shared_same_branch") ? "status-pending" : "status-rejected"} `} style={{ fontSize: "10px", padding: "0.2rem 0.4rem" }}>
+                                              {contract.contract_type === "new" ? "جديد" : (contract.contract_type === "shared" || contract.contract_type === "shared_same_branch") ? "مشترك" : "دفعة قديمة"}
                                             </span>
                                           </td>
                                           <td style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", padding: "0.4rem", textAlign: "center", fontSize: "11px" }} title={contract.notes || ""}>{contract.notes || "-"}</td>
@@ -3580,7 +3640,8 @@ export default function DailySalesReportsPage() {
                         required
                       >
                         <option value="new">عقد جديد</option>
-                        <option value="shared">عقد مشترك</option>
+                        <option value="shared">عقد مشترك (خارجي)</option>
+                        <option value="shared_same_branch">مشترك بنفس الفرع</option>
                         <option value="old_payment">عقد قديم (دفعة)</option>
                       </select>
                     </div>
@@ -3711,6 +3772,34 @@ export default function DailySalesReportsPage() {
                           onChange={(e) => setContractForm({ ...contractForm, shared_amount: e.target.value })}
                           required
                         />
+                      </>
+                    )}
+
+                    {contractForm.contract_type === "shared_same_branch" && (
+                      <>
+                        <select
+                          value={contractForm.shared_sales_staff_id}
+                          onChange={(e) => setContractForm({ ...contractForm, shared_sales_staff_id: e.target.value })}
+                          required
+                          style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo" }}
+                        >
+                          <option value="">اختر موظف المبيعات الثاني *</option>
+                          {salesStaff.filter(s => {
+                            if (contractForm.branch_id && s.branch_id !== parseInt(contractForm.branch_id)) {
+                              return false;
+                            }
+                            // منع اختيار نفس الموظف مرتين
+                            if (s.id === parseInt(contractForm.sales_staff_id)) {
+                              return false;
+                            }
+                            return s.is_active || s.id === parseInt(contractForm.shared_sales_staff_id);
+                          }).map(s => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </select>
+                        <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#e8edff', padding: '0.5rem', borderRadius: '8px', fontSize: '13px', color: '#5a7acd' }}>
+                          سيتم تقسيم قيمة العقد والدفعات بالتساوي بين الموظفين
+                        </div>
                       </>
                     )}
 

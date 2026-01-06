@@ -165,7 +165,7 @@ class StatisticsController extends Controller
             // Assuming 'payment' type or similar indicates a standalone payment record not a new sale.
             // If contract_type is 'payment', we skip adding to total_contracts_value, but we might count it in payments?
             // User said: "if contract type is payment do not count value again in total".
-            if ($contract->contract_type !== 'payment') {
+            if ($contract->contract_type !== 'payment' && $contract->contract_type !== 'old_payment') {
                 $branchStats[$bId]['total_monthly_contracts']++;
                 $branchStats[$bId]['total_contracts_value'] += $contract->total_amount;
                 $branchStats[$bId]['total_remaining_amount'] += $contract->remaining_amount; // Remaining is usually attached to the main contract
@@ -247,7 +247,7 @@ class StatisticsController extends Controller
         // Total Discounted? From PaymentMethod discount?
         // Or is it `total_amount - net_amount` from Contracts?
         // Let's calculate it from Contracts.
-        $totalDiscounted = Contract::query();
+        $totalDiscounted = Contract::query()->where('contract_type', '!=', 'old_payment');
         if ($year) $totalDiscounted->whereYear('contract_date', $year);
         if ($month) $totalDiscounted->whereMonth('contract_date', $month);
         if ($branchId) $totalDiscounted->where('branch_id', $branchId);

@@ -11,7 +11,18 @@ const monthNames = {
   9: "سبتمبر", 10: "أكتوبر", 11: "نوفمبر", 12: "ديسمبر"
 };
 
-const safeParse = (val) => parseFloat(val) || 0;
+const safeParse = (val) => {
+  const num = parseFloat(val);
+  return isNaN(num) ? 0 : num;
+};
+
+const formatNumber = (num, decimals = 2) => {
+  if (num === undefined || num === null || isNaN(num)) return num;
+  return Number(num).toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  });
+};
 
 export default function StatisticsPage() {
   const token = localStorage.getItem("token") || "";
@@ -364,40 +375,40 @@ export default function StatisticsPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.75rem" }}>
           <div className="stat-card">
             <div className="stat-label">إجمالي التقارير اليومية</div>
-            <div className="stat-value">{totalDailyReports}</div>
+            <div className="stat-value">{formatNumber(totalDailyReports, 0)}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">إجمالي العقود الشهرية</div>
-            <div className="stat-value">{totalMonthlyContracts}</div>
+            <div className="stat-value">{formatNumber(totalMonthlyContracts, 0)}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">إجمالي قيمة العقود</div>
-            <div className="stat-value">{totalContractsValue.toFixed(2)}</div>
+            <div className="stat-value">{formatNumber(totalContractsValue)}</div>
             <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "0.25rem" }}>درهم</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">إجمالي المبالغ المدفوعة</div>
-            <div className="stat-value">{totalPaidAmount.toFixed(2)}</div>
+            <div className="stat-value">{formatNumber(totalPaidAmount)}</div>
             <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "0.25rem" }}>درهم</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">إجمالي المتبقي</div>
             <div className="stat-value" style={{ color: "#DC3545" }}>
-              {totalRemainingAmount.toFixed(2)}
+              {formatNumber(totalRemainingAmount)}
             </div>
             <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "0.25rem" }}>درهم</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">إجمالي الصافي</div>
             <div className="stat-value" style={{ color: "#5A7ACD" }}>
-              {totalNetAmount.toFixed(2)}
+              {formatNumber(totalNetAmount)}
             </div>
             <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "0.25rem" }}>درهم</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">إجمالي النسبة</div>
             <div className="stat-value" style={{ color: "#DC3545" }}>
-              {(totalPaidAmount - totalNetAmount).toFixed(2)}
+              {formatNumber(totalPaidAmount - totalNetAmount)}
             </div>
             <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "0.25rem" }}>درهم</div>
           </div>
@@ -414,31 +425,31 @@ export default function StatisticsPage() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
               <div className="stat-card">
                 <div className="stat-label">إجمالي المكالمات</div>
-                <div className="stat-value">{statistics.daily_reports_details.total_calls}</div>
+                <div className="stat-value">{formatNumber(statistics.daily_reports_details.total_calls, 0)}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">إجمالي الهوت كول</div>
-                <div className="stat-value">{statistics.daily_reports_details.total_hot_calls}</div>
+                <div className="stat-value">{formatNumber(statistics.daily_reports_details.total_hot_calls, 0)}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">إجمالي الووك إن</div>
-                <div className="stat-value">{statistics.daily_reports_details.total_walk_ins}</div>
+                <div className="stat-value">{formatNumber(statistics.daily_reports_details.total_walk_ins, 0)}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">إجمالي ليدز الفرع</div>
-                <div className="stat-value">{statistics.daily_reports_details.total_branch_leads}</div>
+                <div className="stat-value">{formatNumber(statistics.daily_reports_details.total_branch_leads, 0)}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">إجمالي ليدز الأونلاين</div>
-                <div className="stat-value">{statistics.daily_reports_details.total_online_leads}</div>
+                <div className="stat-value">{formatNumber(statistics.daily_reports_details.total_online_leads, 0)}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">إجمالي ليدز إضافي</div>
-                <div className="stat-value">{statistics.daily_reports_details.total_extra_leads}</div>
+                <div className="stat-value">{formatNumber(statistics.daily_reports_details.total_extra_leads, 0)}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">إجمالي الزيارات</div>
-                <div className="stat-value">{statistics.daily_reports_details.total_visits}</div>
+                <div className="stat-value">{formatNumber(statistics.daily_reports_details.total_visits, 0)}</div>
               </div>
             </div>
           </div>
@@ -471,27 +482,27 @@ export default function StatisticsPage() {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.8rem", fontSize: "13px" }}>
                     <div>
                       <div style={{ color: "#6B7280", marginBottom: "2px" }}>العقود الشهرية</div>
-                      <div style={{ fontWeight: "600" }}>{parseInt(branchStat.total_monthly_contracts) || 0}</div>
+                      <div style={{ fontWeight: "600" }}>{formatNumber(parseInt(branchStat.total_monthly_contracts) || 0, 0)}</div>
                     </div>
                     <div>
                       <div style={{ color: "#6B7280", marginBottom: "2px" }}>قيمة العقود</div>
-                      <div style={{ fontWeight: "600" }}>{safeParse(branchStat.total_contracts_value).toFixed(2)}</div>
+                      <div style={{ fontWeight: "600" }}>{formatNumber(safeParse(branchStat.total_contracts_value))}</div>
                     </div>
                     <div>
                       <div style={{ color: "#6B7280", marginBottom: "2px" }}>المدفوع</div>
-                      <div style={{ fontWeight: "600" }}>{totalPaid.toFixed(2)}</div>
+                      <div style={{ fontWeight: "600" }}>{formatNumber(totalPaid)}</div>
                     </div>
                     <div>
                       <div style={{ color: "#6B7280", marginBottom: "2px" }}>المتبقي</div>
-                      <div style={{ fontWeight: "600", color: "#DC3545" }}>{safeParse(branchStat.total_remaining_amount).toFixed(2)}</div>
+                      <div style={{ fontWeight: "600", color: "#DC3545" }}>{formatNumber(safeParse(branchStat.total_remaining_amount))}</div>
                     </div>
                     <div>
                       <div style={{ color: "#6B7280", marginBottom: "2px" }}>الصافي</div>
-                      <div style={{ fontWeight: "600", color: "#5A7ACD" }}>{netAmount.toFixed(2)}</div>
+                      <div style={{ fontWeight: "600", color: "#5A7ACD" }}>{formatNumber(netAmount)}</div>
                     </div>
                     <div>
                       <div style={{ color: "#6B7280", marginBottom: "2px" }}>النسبة</div>
-                      <div style={{ fontWeight: "600", color: "#DC3545" }}>{feeAmount.toFixed(2)}</div>
+                      <div style={{ fontWeight: "600", color: "#DC3545" }}>{formatNumber(feeAmount)}</div>
                     </div>
                   </div>
                 </div>
@@ -522,9 +533,9 @@ export default function StatisticsPage() {
                   {statistics.payment_methods_details.map(method => (
                     <tr key={method.payment_method_id}>
                       <td style={{ fontWeight: 600, textAlign: "center" }}>{method.payment_method_name}</td>
-                      <td style={{ textAlign: "center" }}>{parseFloat(method.total_paid).toFixed(2)} درهم</td>
-                      <td style={{ textAlign: "center" }}>{method.transactions_count}</td>
-                      <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{parseFloat(method.total_net).toFixed(2)} درهم</td>
+                      <td style={{ textAlign: "center" }}>{formatNumber(parseFloat(method.total_paid))} درهم</td>
+                      <td style={{ textAlign: "center" }}>{formatNumber(method.transactions_count, 0)}</td>
+                      <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{formatNumber(parseFloat(method.total_net))} درهم</td>
                     </tr>
                   ))}
                 </tbody>
@@ -566,28 +577,28 @@ export default function StatisticsPage() {
                       <tr key={staff.staff_id}>
                         <td style={{ fontWeight: 600, textAlign: "center" }}>{staff.staff_name}</td>
                         <td style={{ textAlign: "center" }}>{staff.branch_name}</td>
-                        <td style={{ textAlign: "center" }}>{staff.total_calls}</td>
-                        <td style={{ textAlign: "center" }}>{staff.total_hot_calls}</td>
-                        <td style={{ textAlign: "center" }}>{staff.total_walk_ins}</td>
-                        <td style={{ textAlign: "center" }}>{staff.total_branch_leads}</td>
-                        <td style={{ textAlign: "center" }}>{staff.total_online_leads}</td>
-                        <td style={{ textAlign: "center" }}>{staff.total_extra_leads}</td>
-                        <td style={{ textAlign: "center" }}>{staff.total_visits}</td>
-                        <td style={{ textAlign: "center" }}>{staff.reports_count || 0}</td>
+                        <td style={{ textAlign: "center" }}>{formatNumber(staff.total_calls, 0)}</td>
+                        <td style={{ textAlign: "center" }}>{formatNumber(staff.total_hot_calls, 0)}</td>
+                        <td style={{ textAlign: "center" }}>{formatNumber(staff.total_walk_ins, 0)}</td>
+                        <td style={{ textAlign: "center" }}>{formatNumber(staff.total_branch_leads, 0)}</td>
+                        <td style={{ textAlign: "center" }}>{formatNumber(staff.total_online_leads, 0)}</td>
+                        <td style={{ textAlign: "center" }}>{formatNumber(staff.total_extra_leads, 0)}</td>
+                        <td style={{ textAlign: "center" }}>{formatNumber(staff.total_visits, 0)}</td>
+                        <td style={{ textAlign: "center" }}>{formatNumber(staff.reports_count || 0, 0)}</td>
                       </tr>
                     ))}
                     {/* صف الإجمالي */}
                     <tr style={{ backgroundColor: "#F9FAFB", fontWeight: 600 }}>
                       <td style={{ textAlign: "center" }}>الإجمالي</td>
                       <td style={{ textAlign: "center" }}>-</td>
-                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_calls, 0)}</td>
-                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_hot_calls, 0)}</td>
-                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_walk_ins, 0)}</td>
-                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_branch_leads, 0)}</td>
-                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_online_leads, 0)}</td>
-                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_extra_leads, 0)}</td>
-                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.total_visits, 0)}</td>
-                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + (s.reports_count || 0), 0)}</td>
+                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_calls, 0), 0)}</td>
+                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_hot_calls, 0), 0)}</td>
+                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_walk_ins, 0), 0)}</td>
+                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_branch_leads, 0), 0)}</td>
+                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_online_leads, 0), 0)}</td>
+                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_extra_leads, 0), 0)}</td>
+                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_visits, 0), 0)}</td>
+                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + (s.reports_count || 0), 0), 0)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -614,10 +625,10 @@ export default function StatisticsPage() {
                       <tr key={staff.staff_id}>
                         <td style={{ fontWeight: 600, textAlign: "center" }}>{staff.staff_name}</td>
                         <td style={{ textAlign: "center" }}>{staff.branch_name}</td>
-                        <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{parseFloat(staff.total_sales).toFixed(2)} درهم</td>
-                        <td style={{ textAlign: "center" }}>{staff.contracts_count}</td>
-                        <td style={{ fontWeight: 600, textAlign: "center" }}>{parseFloat(staff.contracts_value).toFixed(2)} درهم</td>
-                        <td style={{ fontWeight: 600, color: "#28A745", textAlign: "center" }}>{parseFloat(staff.total_net_amount || 0).toFixed(2)} درهم</td>
+                        <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{formatNumber(parseFloat(staff.total_sales))} درهم</td>
+                        <td style={{ textAlign: "center" }}>{formatNumber(staff.contracts_count, 0)}</td>
+                        <td style={{ fontWeight: 600, textAlign: "center" }}>{formatNumber(parseFloat(staff.contracts_value))} درهم</td>
+                        <td style={{ fontWeight: 600, color: "#28A745", textAlign: "center" }}>{formatNumber(parseFloat(staff.total_net_amount || 0))} درهم</td>
                       </tr>
                     ))}
                     {/* صف الإجمالي */}
@@ -625,14 +636,14 @@ export default function StatisticsPage() {
                       <td style={{ textAlign: "center" }}>الإجمالي</td>
                       <td style={{ textAlign: "center" }}>-</td>
                       <td style={{ color: "#5A7ACD", textAlign: "center" }}>
-                        {statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_sales), 0).toFixed(2)} درهم
+                        {formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_sales), 0))} درهم
                       </td>
-                      <td style={{ textAlign: "center" }}>{statistics.sales_staff_details.reduce((sum, s) => sum + s.contracts_count, 0)}</td>
+                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.contracts_count, 0), 0)}</td>
                       <td style={{ textAlign: "center" }}>
-                        {statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.contracts_value), 0).toFixed(2)} درهم
+                        {formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.contracts_value), 0))} درهم
                       </td>
                       <td style={{ color: "#28A745", textAlign: "center" }}>
-                        {statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_net_amount || 0), 0).toFixed(2)} درهم
+                        {formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_net_amount || 0), 0))} درهم
                       </td>
                     </tr>
                   </tbody>
@@ -675,10 +686,10 @@ export default function StatisticsPage() {
                       <td>{contract.sales_staff_name}</td>
                       <td>{contract.course_name}</td>
                       <td>{contract.registration_source}</td>
-                      <td>{parseFloat(contract.total_amount).toFixed(2)} درهم</td>
-                      <td>{parseFloat(contract.paid_amount).toFixed(2)} درهم</td>
-                      <td style={{ fontWeight: 600, color: "#DC3545" }}>{parseFloat(contract.remaining_amount).toFixed(2)} درهم</td>
-                      <td style={{ fontWeight: 600, color: "#5A7ACD" }}>{parseFloat(contract.net_amount).toFixed(2)} درهم</td>
+                      <td>{formatNumber(parseFloat(contract.total_amount))} درهم</td>
+                      <td>{formatNumber(parseFloat(contract.paid_amount))} درهم</td>
+                      <td style={{ fontWeight: 600, color: "#DC3545" }}>{formatNumber(parseFloat(contract.remaining_amount))} درهم</td>
+                      <td style={{ fontWeight: 600, color: "#5A7ACD" }}>{formatNumber(parseFloat(contract.net_amount))} درهم</td>
                     </tr>
                   ))}
                 </tbody>
@@ -712,30 +723,30 @@ export default function StatisticsPage() {
                   {statistics.course_registration_details.map(course => (
                     <tr key={course.course_id}>
                       <td style={{ fontWeight: 600, textAlign: "center" }}>{course.course_name}</td>
-                      <td style={{ textAlign: "center" }}>{course.branches_count}</td>
-                      <td style={{ textAlign: "center" }}>{course.total_registrations}</td>
-                      <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{parseFloat(course.total_value).toFixed(2)} درهم</td>
-                      <td style={{ textAlign: "center" }}>{parseFloat(course.paid_amount).toFixed(2)} درهم</td>
-                      <td style={{ fontWeight: 600, color: "#DC3545", textAlign: "center" }}>{parseFloat(course.remaining_amount).toFixed(2)} درهم</td>
-                      <td style={{ fontWeight: 600, color: "#28A745", textAlign: "center" }}>{parseFloat(course.net_amount).toFixed(2)} درهم</td>
+                      <td style={{ textAlign: "center" }}>{formatNumber(course.branches_count, 0)}</td>
+                      <td style={{ textAlign: "center" }}>{formatNumber(course.total_registrations, 0)}</td>
+                      <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{formatNumber(parseFloat(course.total_value))} درهم</td>
+                      <td style={{ textAlign: "center" }}>{formatNumber(parseFloat(course.paid_amount))} درهم</td>
+                      <td style={{ fontWeight: 600, color: "#DC3545", textAlign: "center" }}>{formatNumber(parseFloat(course.remaining_amount))} درهم</td>
+                      <td style={{ fontWeight: 600, color: "#28A745", textAlign: "center" }}>{formatNumber(parseFloat(course.net_amount))} درهم</td>
                     </tr>
                   ))}
                   {/* صف الإجمالي */}
                   <tr style={{ backgroundColor: "#F9FAFB", fontWeight: 600 }}>
                     <td style={{ textAlign: "center" }}>الإجمالي</td>
                     <td style={{ textAlign: "center" }}>-</td>
-                    <td style={{ textAlign: "center" }}>{statistics.course_registration_details.reduce((sum, c) => sum + c.total_registrations, 0)}</td>
+                    <td style={{ textAlign: "center" }}>{formatNumber(statistics.course_registration_details.reduce((sum, c) => sum + c.total_registrations, 0), 0)}</td>
                     <td style={{ color: "#5A7ACD", textAlign: "center" }}>
-                      {statistics.course_registration_details.reduce((sum, c) => sum + parseFloat(c.total_value), 0).toFixed(2)} درهم
+                      {formatNumber(statistics.course_registration_details.reduce((sum, c) => sum + parseFloat(c.total_value), 0))} درهم
                     </td>
                     <td style={{ textAlign: "center" }}>
-                      {statistics.course_registration_details.reduce((sum, c) => sum + parseFloat(c.paid_amount), 0).toFixed(2)} درهم
+                      {formatNumber(statistics.course_registration_details.reduce((sum, c) => sum + parseFloat(c.paid_amount), 0))} درهم
                     </td>
                     <td style={{ color: "#DC3545", textAlign: "center" }}>
-                      {statistics.course_registration_details.reduce((sum, c) => sum + parseFloat(c.remaining_amount), 0).toFixed(2)} درهم
+                      {formatNumber(statistics.course_registration_details.reduce((sum, c) => sum + parseFloat(c.remaining_amount), 0))} درهم
                     </td>
                     <td style={{ color: "#28A745", textAlign: "center" }}>
-                      {statistics.course_registration_details.reduce((sum, c) => sum + parseFloat(c.net_amount), 0).toFixed(2)} درهم
+                      {formatNumber(statistics.course_registration_details.reduce((sum, c) => sum + parseFloat(c.net_amount), 0))} درهم
                     </td>
                   </tr>
                 </tbody>

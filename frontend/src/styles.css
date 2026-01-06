@@ -391,7 +391,7 @@ body,
   background: var(--bg-white);
   border: var(--border-width) solid var(--border-color);
   border-radius: var(--border-radius);
-  overflow: hidden;
+  overflow-x: auto;
   margin-top: var(--spacing-md);
   box-shadow: var(--shadow-sm);
 }

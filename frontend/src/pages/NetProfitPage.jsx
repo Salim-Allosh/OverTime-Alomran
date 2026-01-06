@@ -9,6 +9,13 @@ const monthNames = {
   5: "مايو", 6: "يونيو", 7: "يوليو", 8: "أغسطس",
   9: "سبتمبر", 10: "أكتوبر", 11: "نوفمبر", 12: "ديسمبر"
 };
+const formatNumber = (num, decimals = 2) => {
+  if (num === undefined || num === null || isNaN(num)) return num;
+  return Number(num).toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  });
+};
 
 export default function NetProfitPage() {
   const token = localStorage.getItem("token") || "";
@@ -226,10 +233,10 @@ export default function NetProfitPage() {
               { text: 'صافي الربح النهائي', style: 'tableHeader', alignment: 'center' }
             ],
             [
-              { text: totalRevenue.toFixed(2) + ' درهم', alignment: 'center' },
-              { text: totalExpenses.toFixed(2) + ' درهم', alignment: 'center' },
+              { text: formatNumber(totalRevenue) + ' درهم', alignment: 'center' },
+              { text: formatNumber(totalExpenses) + ' درهم', alignment: 'center' },
               {
-                text: totalNetProfit.toFixed(2) + ' درهم',
+                text: formatNumber(totalNetProfit) + ' درهم',
                 alignment: 'center',
                 bold: true
               }
@@ -262,10 +269,10 @@ export default function NetProfitPage() {
                 { text: 'صافي الربح النهائي', style: 'tableHeader', alignment: 'center' }
               ],
               [
-                { text: parseFloat(branchData.revenue || 0).toFixed(2) + ' درهم', alignment: 'center' },
-                { text: parseFloat(branchData.expenses || 0).toFixed(2) + ' درهم', alignment: 'center' },
+                { text: formatNumber(parseFloat(branchData.revenue || 0)) + ' درهم', alignment: 'center' },
+                { text: formatNumber(parseFloat(branchData.expenses || 0)) + ' درهم', alignment: 'center' },
                 {
-                  text: parseFloat(branchData.net_profit || 0).toFixed(2) + ' درهم',
+                  text: formatNumber(parseFloat(branchData.net_profit || 0)) + ' درهم',
                   alignment: 'center',
                   bold: true
                 }
@@ -293,7 +300,7 @@ export default function NetProfitPage() {
           branchData.expenses_list.forEach(expense => {
             expensesTableBody.push([
               { text: expense.title || '-', alignment: 'center' },
-              { text: parseFloat(expense.amount || 0).toFixed(2) + ' درهم', alignment: 'center' }
+              { text: formatNumber(parseFloat(expense.amount || 0)) + ' درهم', alignment: 'center' }
             ]);
           });
 
@@ -447,11 +454,11 @@ export default function NetProfitPage() {
                           {group.month_name} {group.year}
                         </h4>
                         <span style={{ fontSize: "0.85rem", color: "#28a745", fontWeight: "600" }}>
-                          صافي المبلغ: {totalRevenue.toFixed(2)} درهم
+                          صافي المبلغ: {formatNumber(totalRevenue)} درهم
                         </span>
                       </div>
                       <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
-                        {group.branches.length} فرع • إجمالي صافي الربح: {totalNetProfit.toFixed(2)} درهم
+                        {group.branches.length} فرع • إجمالي صافي الربح: {formatNumber(totalNetProfit)} درهم
                       </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -491,7 +498,7 @@ export default function NetProfitPage() {
                                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                                     <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>المبلغ الصافي من العقود:</span>
                                     <span style={{ fontSize: "1rem", fontWeight: "600", color: "#28a745" }}>
-                                      {parseFloat(branchData.revenue || 0).toFixed(2)} درهم
+                                      {formatNumber(parseFloat(branchData.revenue || 0))} درهم
                                     </span>
                                   </div>
                                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -501,7 +508,7 @@ export default function NetProfitPage() {
                                       fontWeight: "bold",
                                       color: branchData.net_profit >= 0 ? "#28a745" : "#dc3545"
                                     }}>
-                                      {parseFloat(branchData.net_profit || 0).toFixed(2)} درهم
+                                      {formatNumber(parseFloat(branchData.net_profit || 0))} درهم
                                     </span>
                                   </div>
                                 </div>
@@ -534,7 +541,7 @@ export default function NetProfitPage() {
                                     {branchData.expenses_list.map((expense) => (
                                       <tr key={expense.id}>
                                         <td style={{ textAlign: "center" }}>{expense.title}</td>
-                                        <td data-type="number" style={{ textAlign: "center" }}>{parseFloat(expense.amount || 0).toFixed(2)} درهم</td>
+                                        <td data-type="number" style={{ textAlign: "center" }}>{formatNumber(parseFloat(expense.amount || 0))} درهم</td>
                                         <td style={{ textAlign: "center" }}>
                                           <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
                                             <button

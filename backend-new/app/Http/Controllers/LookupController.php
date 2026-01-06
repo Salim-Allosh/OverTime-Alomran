@@ -21,7 +21,8 @@ class LookupController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|unique:courses,name',
-            'type' => 'nullable|string'
+            'type' => 'nullable|string',
+            'is_active' => 'boolean'
         ]);
         
         // Set sort_order to the max + 1
@@ -51,7 +52,8 @@ class LookupController extends Controller
         
         $validated = $request->validate([
             'name' => 'required|unique:courses,name,' . $id,
-            'type' => 'nullable|string'
+            'type' => 'nullable|string',
+            'is_active' => 'boolean'
         ]);
         
         $course->update($validated);

@@ -477,7 +477,7 @@ export default function ReportsPage() {
       success("تم تحديث الجلسة بنجاح!");
       setShowEditModal(false);
       setEditingSession(null);
-      loadSessions();
+      loadSessions(selectedBranchId);
     } catch (err) {
       showError("حدث خطأ أثناء تحديث الجلسة: " + err.message);
     }
@@ -662,7 +662,7 @@ export default function ReportsPage() {
             <span>${session.session_date}</span>
             <span>${convertTo12Hour(session.start_time)}</span>
             <span>${convertTo12Hour(session.end_time)}</span>
-            <span>${session.duration_text}</span>
+            <span>${session.duration_hours} - ${session.duration_text}</span>
             <span style="font-weight: bold; color: #007bff;">${session.contract_number}</span>
             <span>${parseFloat(session.hourly_rate || 0).toFixed(2)} درهم</span>
             <span style="font-weight: bold; color: #28a745;">${parseFloat(session.calculated_amount || 0).toFixed(2)} درهم</span>
@@ -1543,7 +1543,7 @@ export default function ReportsPage() {
                                         <td style={{ textAlign: "center" }}>{session.session_date}</td>
                                         <td style={{ textAlign: "center" }}>{convertTo12Hour(session.start_time)}</td>
                                         <td style={{ textAlign: "center" }}>{convertTo12Hour(session.end_time)}</td>
-                                        <td style={{ textAlign: "center" }}>{session.duration_text}</td>
+                                        <td style={{ textAlign: "center" }}>{session.duration_hours} - {session.duration_text}</td>
                                         <td style={{ textAlign: "center", fontWeight: 600, color: "#5A7ACD" }}>{session.contract_number}</td>
                                         <td data-type="number" style={{ textAlign: "center" }}>{parseFloat(session.hourly_rate || 0).toFixed(2)} درهم</td>
                                         <td data-type="number" style={{ textAlign: "center", fontWeight: 600, color: "#10B981" }}>

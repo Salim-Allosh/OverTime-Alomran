@@ -34,7 +34,17 @@ class SessionController extends Controller
     public function update(Request $request, $id)
     {
         $session = Session::findOrFail($id);
-        $session->update($request->all());
+        
+        $data = $request->all();
+        
+        // Recalculate calculated_amount if hourly_rate or duration_hours is changed
+        if (isset($data['hourly_rate']) || isset($data['duration_hours'])) {
+            $rate = $data['hourly_rate'] ?? $session->hourly_rate;
+            $hours = $data['duration_hours'] ?? $session->duration_hours;
+            $data['calculated_amount'] = $rate * $hours;
+        }
+
+        $session->update($data);
         return $session;
     }
 

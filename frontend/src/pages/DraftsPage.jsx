@@ -561,7 +561,7 @@ export default function DraftsPage() {
 
                         {isExpanded && (
                           <div className="table-container">
-                            <table>
+                            <table style={{ minWidth: "1000px" }}>
                               <thead>
                                 <tr>
                                   <th>المدرس</th>
