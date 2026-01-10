@@ -69,6 +69,9 @@ class ContractsController extends Controller
             // Split total amount equally
             $mainContractData['total_amount'] = ($originalTotal / 2);
         }
+        if ($request->contract_type === 'old_payment') {
+            $mainContractData['contract_number'] = ($request->contract_number ?? 'OLD') . '-P' . time();
+        }
 
         // Create the contract
         $contract = Contract::create($mainContractData);
@@ -121,6 +124,18 @@ class ContractsController extends Controller
         }
         
         $contract->save();
+
+        // Update parent contract if it's an old payment
+        if ($contract->contract_type === 'old_payment' && $contract->parent_contract_id) {
+            $parentContract = Contract::find($contract->parent_contract_id);
+            if ($parentContract) {
+                // Ensure values are treated as floats to prevent string concatenation or other issues
+                $parentContract->payment_amount = floatval($parentContract->payment_amount) + $totalPaid;
+                $parentContract->net_amount = floatval($parentContract->net_amount) + $totalNet;
+                $parentContract->remaining_amount = floatval($parentContract->remaining_amount) - $totalPaid;
+                $parentContract->save();
+            }
+        }
 
         // Handle Joint Contract: Create a copy for the shared branch/staff
         if ($isShared) {
@@ -278,9 +293,15 @@ class ContractsController extends Controller
         if ($request->has('student_name')) {
             $query->where('student_name', 'like', '%' . $request->student_name . '%');
         }
+
+        if ($request->has('client_phone')) {
+            $query->where('client_phone', 'like', '%' . $request->client_phone . '%');
+        }
         
         // Match Python logic: Exclude SHARED suffix if needed, and sort
-        $query->where('contract_number', 'not like', '%-SHARED');
+        $query->where('contract_number', 'not like', '%-SHARED')
+              ->where('contract_number', 'not like', '%-S')
+              ->where('contract_type', '!=', 'old_payment');
         
         return $query->orderBy('created_at', 'desc')->limit(20)->get();
     }

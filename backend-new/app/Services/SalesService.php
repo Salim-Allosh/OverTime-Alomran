@@ -123,10 +123,21 @@ class SalesService
 
     public function updateDailyReport($id, $data)
     {
-        $report = DailySalesReport::findOrFail($id);
-        $report->update(collect($data)->except('visits')->toArray());
-        // Note: Visits update logic isn't in original controller, so keeping it simple as per original
-        return $report;
+        return DB::transaction(function () use ($id, $data) {
+            $report = DailySalesReport::findOrFail($id);
+            $report->update(collect($data)->except('visits')->toArray());
+
+            if (isset($data['visits']) && is_array($data['visits'])) {
+                // Delete old visits and recreate
+                $report->visits()->delete();
+                foreach ($data['visits'] as $visitData) {
+                    $visitData['daily_sales_report_id'] = $report->id;
+                    SalesVisit::create($visitData);
+                }
+            }
+
+            return $report->load(['visits', 'salesStaff']);
+        });
     }
 
     public function deleteDailyReport($id)

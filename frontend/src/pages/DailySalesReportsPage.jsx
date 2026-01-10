@@ -52,6 +52,7 @@ export default function DailySalesReportsPage() {
     parent_contract_id: null,
     search_contract_number: "",
     search_student_name: "",
+    search_client_phone: "",
     searched_contracts: [],
     total_amount: "",
     payment_amount: "", // للتوافق مع البيانات القديمة
@@ -160,6 +161,34 @@ export default function DailySalesReportsPage() {
       loadContracts();
     }
   }, [selectedContractBranchId, selectedContractYear, selectedContractMonth, selectedContractSalesStaffId]);
+
+  // Debounced search for old contracts
+  useEffect(() => {
+    if (!token || contractForm.contract_type !== "old_payment" || editingContract) return;
+
+    const hasSearchQuery =
+      (contractForm.search_contract_number && contractForm.search_contract_number.trim() !== "") ||
+      (contractForm.search_student_name && contractForm.search_student_name.trim() !== "") ||
+      (contractForm.search_client_phone && contractForm.search_client_phone.trim() !== "");
+
+    if (!hasSearchQuery) {
+      if (contractForm.searched_contracts.length > 0) {
+        setContractForm(prev => ({ ...prev, searched_contracts: [] }));
+      }
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      searchContracts();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [
+    contractForm.search_contract_number,
+    contractForm.search_student_name,
+    contractForm.search_client_phone,
+    contractForm.contract_type
+  ]);
 
   const loadSalesStaff = async (branchId = null) => {
     try {
@@ -734,17 +763,27 @@ export default function DailySalesReportsPage() {
     e.preventDefault();
     if (!editingReport) return;
 
+    const actualVisitsCount = form.visits ? form.visits.filter(v => v.branch_id && v.branch_id.trim() !== "").length : 0;
+
     try {
       await apiPatch(`/daily-sales-reports/${editingReport.id}`, {
-        number_of_deals: form.number_of_deals ? parseInt(form.number_of_deals) : undefined,
-        daily_calls: form.daily_calls ? parseInt(form.daily_calls) : undefined,
-        hot_calls: form.hot_calls ? parseInt(form.hot_calls) : undefined,
-        walk_ins: form.walk_ins ? parseInt(form.walk_ins) : undefined,
-        branch_leads: form.branch_leads ? parseInt(form.branch_leads) : undefined,
-        online_leads: form.online_leads ? parseInt(form.online_leads) : undefined,
-        extra_leads: form.extra_leads ? parseInt(form.extra_leads) : undefined,
-        number_of_visits: form.number_of_visits ? parseInt(form.number_of_visits) : undefined,
-        notes: form.notes || null
+        branch_id: parseInt(form.branch_id),
+        sales_staff_id: parseInt(form.sales_staff_id),
+        report_date: form.report_date,
+        number_of_deals: parseInt(form.number_of_deals) || 0,
+        daily_calls: parseInt(form.daily_calls) || 0,
+        hot_calls: parseInt(form.hot_calls) || 0,
+        walk_ins: parseInt(form.walk_ins) || 0,
+        branch_leads: parseInt(form.branch_leads) || 0,
+        online_leads: parseInt(form.online_leads) || 0,
+        extra_leads: parseInt(form.extra_leads) || 0,
+        number_of_visits: actualVisitsCount,
+        notes: form.notes || null,
+        visits: form.visits.filter(v => v.branch_id && v.branch_id.trim() !== "").map((v, idx) => ({
+          branch_id: parseInt(v.branch_id),
+          update_details: v.update_details || null,
+          visit_order: idx + 1
+        }))
       }, token);
       success("تم تحديث التقرير بنجاح!");
       setShowForm(false);
@@ -771,21 +810,34 @@ export default function DailySalesReportsPage() {
   };
 
   const handleEdit = (report) => {
+    const numVisits = parseInt(report.number_of_visits || 0);
+    const existingVisits = Array.isArray(report.visits) ? report.visits : [];
+
+    // Ensure visits array length matches number_of_visits
+    const visitsForForm = [];
+    for (let i = 0; i < numVisits; i++) {
+      const v = existingVisits[i] || {};
+      visitsForForm.push({
+        branch_id: v.branch_id?.toString() || "",
+        update_details: v.update_details || ""
+      });
+    }
+
     setEditingReport(report);
     setForm({
       branch_id: report.branch_id.toString(),
       sales_staff_id: report.sales_staff_id?.toString() || "",
       report_date: report.report_date,
-      number_of_deals: report.number_of_deals.toString(),
+      number_of_deals: (report.number_of_deals || 0).toString(),
       daily_calls: (report.daily_calls || 0).toString(),
       hot_calls: (report.hot_calls || 0).toString(),
       walk_ins: (report.walk_ins || 0).toString(),
       branch_leads: (report.branch_leads || 0).toString(),
       online_leads: (report.online_leads || 0).toString(),
       extra_leads: (report.extra_leads || 0).toString(),
-      number_of_visits: (report.number_of_visits || 0).toString(),
+      number_of_visits: numVisits.toString(),
       notes: report.notes || "",
-      visits: report.visits || []
+      visits: visitsForForm
     });
     setShowForm(true);
   };
@@ -799,11 +851,35 @@ export default function DailySalesReportsPage() {
       if (contractForm.search_student_name) {
         params.append("student_name", contractForm.search_student_name);
       }
+      if (contractForm.search_client_phone) {
+        params.append("client_phone", contractForm.search_client_phone);
+      }
       const data = await apiGet(`/contracts/search?${params.toString()}`, token);
       setContractForm({ ...contractForm, searched_contracts: data || [] });
     } catch (err) {
       showError("حدث خطأ أثناء البحث: " + err.message);
     }
+  };
+
+  const selectOldContract = (c) => {
+    // تحميل الموظفين للفرع المقابل للعقد القديم
+    if (c.branch_id) {
+      loadSalesStaff(parseInt(c.branch_id));
+    }
+
+    setContractForm({
+      ...contractForm,
+      parent_contract_id: c.id,
+      student_name: c.student_name,
+      client_phone: c.client_phone || "",
+      course_id: c.course_id ? c.course_id.toString() : "",
+      branch_id: c.branch_id.toString(),
+      sales_staff_id: c.sales_staff_id ? c.sales_staff_id.toString() : "",
+      total_amount: "0", // نضعه 0 لكي لا يتم احتسابه كقيمة عقد جديد في الاحصائيات
+      contract_number: c.contract_number,
+      registration_source: "عقد قديم (دفعة)",
+      searched_contracts: []
+    });
   };
 
   const handleCreateContract = async (e) => {
@@ -868,8 +944,6 @@ export default function DailySalesReportsPage() {
         delete payload.shared_branch_id;
         delete payload.shared_sales_staff_id;
         delete payload.shared_amount;
-        delete payload.student_name;
-        delete payload.contract_number;
       }
 
       // إزالة الحقول الفارغة
@@ -992,6 +1066,7 @@ export default function DailySalesReportsPage() {
       parent_contract_id: contract.parent_contract_id || null,
       search_contract_number: "",
       search_student_name: "",
+      search_client_phone: "",
       searched_contracts: [],
       total_amount: contract.total_amount ? contract.total_amount.toString() : "",
       payment_amount: contract.payment_amount ? contract.payment_amount.toString() : "",
@@ -1108,6 +1183,7 @@ export default function DailySalesReportsPage() {
       parent_contract_id: null,
       search_contract_number: "",
       search_student_name: "",
+      search_client_phone: "",
       searched_contracts: [],
       total_amount: "",
       payment_amount: "",
@@ -1123,8 +1199,9 @@ export default function DailySalesReportsPage() {
   };
 
   const getBranchName = (branchId) => {
-    const branch = branches.find(b => b.id === branchId);
-    return branch ? branch.name : `فرع ${branchId}`;
+    const id = parseInt(branchId);
+    const branch = allBranches.find(b => b.id === id) || branches.find(b => b.id === id);
+    return branch ? branch.name : `فرع ${id}`;
   };
 
   const getSalesStaffName = (staffId) => {
@@ -2039,6 +2116,7 @@ export default function DailySalesReportsPage() {
         const branchSummaryBody = [
           [
             { text: formatArabicText('صافي المبيعات'), style: 'tableHeader' },
+            { text: formatArabicText('إجمالي المبيعات'), style: 'tableHeader' },
             { text: formatArabicText('المدفوع'), style: 'tableHeader' },
             { text: formatArabicText('عدد العقود'), style: 'tableHeader' },
             { text: formatArabicText('الزيارات'), style: 'tableHeader' },
@@ -2055,6 +2133,7 @@ export default function DailySalesReportsPage() {
 
           branchSummaryBody.push([
             { text: formatArabicText(formatNumber(b.financials.net_total)), style: 'tableCell', color: '#5A7ACD', bold: true },
+            { text: formatArabicText(formatNumber(b.financials.total_amount)), style: 'tableCell', color: '#5A7ACD' },
             { text: formatArabicText(formatNumber(b.financials.paid_total)), style: 'tableCell', color: '#10B981' },
             { text: formatNumber(b.contracts.length), style: 'tableCell' },
             { text: formatNumber(b.stats.visits_count), style: 'tableCell' },
@@ -2068,6 +2147,7 @@ export default function DailySalesReportsPage() {
         // Add Grand Total row
         branchSummaryBody.push([
           { text: formatArabicText(formatNumber(grandTotal.net_total)), style: 'tableCell', bold: true, fillColor: '#F3F4F6', color: '#5A7ACD' },
+          { text: formatArabicText(formatNumber(grandTotal.total_contracts_value)), style: 'tableCell', bold: true, fillColor: '#F3F4F6', color: '#5A7ACD' },
           { text: formatArabicText(formatNumber(grandTotal.paid_total)), style: 'tableCell', bold: true, fillColor: '#F3F4F6', color: '#10B981' },
           { text: formatNumber(grandTotal.total_contracts), style: 'tableCell', bold: true, fillColor: '#F3F4F6' },
           { text: formatNumber(grandTotal.visits_count), style: 'tableCell', bold: true, fillColor: '#F3F4F6' },
@@ -2080,7 +2160,7 @@ export default function DailySalesReportsPage() {
         docDefinition.content.push({
           table: {
             headerRows: 1,
-            widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*'],
+            widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*'],
             body: branchSummaryBody
           },
           layout: {
@@ -2119,6 +2199,14 @@ export default function DailySalesReportsPage() {
               stack: [
                 { text: formatArabicText('صافي المبيعات'), style: 'statLabel' },
                 { text: formatArabicText(formatNumber(branch.financials.net_total, true)), style: 'statValue', color: '#5A7ACD' }
+              ],
+              margin: [1, 0, 1, 0]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('إجمالي المبيعات'), style: 'statLabel' },
+                { text: formatArabicText(formatNumber(branch.financials.total_amount, true)), style: 'statValue', color: '#5A7ACD' }
               ],
               margin: [1, 0, 1, 0]
             },
@@ -2201,7 +2289,8 @@ export default function DailySalesReportsPage() {
           ];
 
           branch.reports.forEach(r => {
-            const staffName = r.sales_staff ? r.sales_staff.name : getSalesStaffName(r.sales_staff_id);
+            const staff = r.salesStaff || r.sales_staff;
+            const staffName = staff ? staff.name : getSalesStaffName(r.sales_staff_id);
             staffBody.push([
               { text: formatArabicText(staffName), style: 'tableCell', bold: true },
               { text: formatNumber(parseInt(r.daily_calls) || 0), style: 'tableCell' },
@@ -2235,58 +2324,6 @@ export default function DailySalesReportsPage() {
           });
         }
 
-        // 3. Visit Details
-        const visitsList = [];
-        branch.reports.forEach(r => {
-          if (r.visits && r.visits.length > 0) {
-            r.visits.forEach(v => {
-              visitsList.push({
-                staffName: r.sales_staff ? r.sales_staff.name : getSalesStaffName(r.sales_staff_id),
-                details: v.update_details,
-                targetBranch: v.branch_id ? getBranchName(v.branch_id) : '-'
-              });
-            });
-          }
-        });
-
-        if (visitsList.length > 0) {
-          docDefinition.content.push({ text: formatArabicText('تفاصيل الزيارات'), style: 'sectionTitle' });
-
-          const visitsBody = [
-            [
-              { text: formatArabicText('الموظف'), style: 'tableHeader' },
-              { text: formatArabicText('الوجهة (الفرع)'), style: 'tableHeader' },
-              { text: formatArabicText('تفاصيل الزيارة'), style: 'tableHeader' }
-            ]
-          ];
-
-          visitsList.forEach(v => {
-            visitsBody.push([
-              { text: formatArabicText(v.staffName), style: 'tableCell' },
-              { text: formatArabicText(v.targetBranch), style: 'tableCell' },
-              { text: formatArabicText(v.details || '-'), style: 'tableCell', alignment: 'right' }
-            ]);
-          });
-
-          docDefinition.content.push({
-            table: {
-              headerRows: 1,
-              widths: ['auto', 'auto', '*'],
-              body: visitsBody
-            },
-            layout: {
-              hLineWidth: function (i, node) { return (i === 0 || i === node.table.body.length) ? 0.8 : 0.3; },
-              vLineWidth: function (i, node) { return 0.3; },
-              hLineColor: function (i, node) { return (i === 0 || i === node.table.body.length) ? '#5A7ACD' : '#E5E7EB'; },
-              vLineColor: function (i, node) { return '#E5E7EB'; },
-              paddingLeft: function (i) { return 4; },
-              paddingRight: function (i) { return 4; },
-              paddingTop: function (i) { return 3; },
-              paddingBottom: function (i) { return 3; }
-            },
-            margin: [0, 0, 0, 15]
-          });
-        }
 
         // 4. Contracts
         docDefinition.content.push({ text: formatArabicText('العقود المنجزة'), style: 'sectionTitle' });
@@ -2343,6 +2380,60 @@ export default function DailySalesReportsPage() {
             text: formatArabicText('لا يوجد عقود لهذا اليوم'),
             style: 'subtitle2',
             margin: [0, 10, 0, 20]
+          });
+        }
+
+        // 4. Visit Details (Moved here to be after Contracts)
+        const visitsList = [];
+        branch.reports.forEach(r => {
+          if (r.visits && r.visits.length > 0) {
+            r.visits.forEach(v => {
+              const staff = r.salesStaff || r.sales_staff;
+              visitsList.push({
+                staffName: staff ? staff.name : getSalesStaffName(r.sales_staff_id),
+                details: v.update_details,
+                targetBranch: v.branch_id ? getBranchName(v.branch_id) : '-'
+              });
+            });
+          }
+        });
+
+        if (visitsList.length > 0) {
+          docDefinition.content.push({ text: formatArabicText('تفاصيل الزيارات'), style: 'sectionTitle' });
+
+          const visitsBody = [
+            [
+              { text: formatArabicText('اسم الموظف'), style: 'tableHeader' },
+              { text: formatArabicText('الفرع المرسل إليه'), style: 'tableHeader' },
+              { text: formatArabicText('تفاصيل الزيارة'), style: 'tableHeader' }
+            ]
+          ];
+
+          visitsList.forEach(v => {
+            visitsBody.push([
+              { text: formatArabicText(v.staffName), style: 'tableCell' },
+              { text: formatArabicText(v.targetBranch), style: 'tableCell' },
+              { text: formatArabicText(v.details || '-'), style: 'tableCell', alignment: 'right' }
+            ]);
+          });
+
+          docDefinition.content.push({
+            table: {
+              headerRows: 1,
+              widths: ['auto', 'auto', '*'],
+              body: visitsBody
+            },
+            layout: {
+              hLineWidth: function (i, node) { return (i === 0 || i === node.table.body.length) ? 0.8 : 0.3; },
+              vLineWidth: function (i, node) { return 0.3; },
+              hLineColor: function (i, node) { return (i === 0 || i === node.table.body.length) ? '#5A7ACD' : '#E5E7EB'; },
+              vLineColor: function (i, node) { return '#E5E7EB'; },
+              paddingLeft: function (i) { return 4; },
+              paddingRight: function (i) { return 4; },
+              paddingTop: function (i) { return 3; },
+              paddingBottom: function (i) { return 3; }
+            },
+            margin: [0, 0, 0, 15]
           });
         }
 
@@ -3115,7 +3206,7 @@ export default function DailySalesReportsPage() {
                                       style={{ padding: "0.6rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px", width: "100%" }}
                                     >
                                       <option value="">اختر الفرع</option>
-                                      {branches.map(b => (
+                                      {allBranches.map(b => (
                                         <option key={b.id} value={b.id}>{b.name}</option>
                                       ))}
                                     </select>
@@ -3635,7 +3726,16 @@ export default function DailySalesReportsPage() {
                       <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 600 }}>نوع العقد</label>
                       <select
                         value={contractForm.contract_type}
-                        onChange={(e) => setContractForm({ ...contractForm, contract_type: e.target.value, parent_contract_id: null, searched_contracts: [] })}
+                        onChange={(e) => {
+                          const type = e.target.value;
+                          setContractForm({
+                            ...contractForm,
+                            contract_type: type,
+                            parent_contract_id: null,
+                            searched_contracts: [],
+                            registration_source: type === "old_payment" ? "عقد قديم (دفعة)" : contractForm.registration_source
+                          });
+                        }}
                         style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo", width: "100%" }}
                         required
                       >
@@ -3648,42 +3748,73 @@ export default function DailySalesReportsPage() {
                   )}
 
                   {contractForm.contract_type === "old_payment" && !editingContract && (
-                    <div style={{ marginBottom: "1rem", padding: "1rem", backgroundColor: "#f5f5f5", borderRadius: "8px" }}>
-                      <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 600 }}>البحث عن العقد</label>
-                      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
-                        <input
-                          placeholder="رقم العقد"
-                          value={contractForm.search_contract_number}
-                          onChange={(e) => setContractForm({ ...contractForm, search_contract_number: e.target.value })}
-                          style={{ flex: 1 }}
-                        />
-                        <input
-                          placeholder="اسم صاحب العقد"
-                          value={contractForm.search_student_name}
-                          onChange={(e) => setContractForm({ ...contractForm, search_student_name: e.target.value })}
-                          style={{ flex: 1 }}
-                        />
-                        <button type="button" className="btn primary" onClick={searchContracts}>بحث</button>
+                    <div style={{ marginBottom: "1.5rem", padding: "1.25rem", backgroundColor: "#F9FAFB", borderRadius: "12px", border: "1px solid #E5E7EB" }}>
+                      <label style={{ display: "block", marginBottom: "0.75rem", fontWeight: 700, color: "#374151", fontSize: "14px" }}>البحث عن العقد القديم</label>
+                      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem" }}>
+                        <div style={{ flex: 1 }}>
+                          <input
+                            placeholder="رقم العقد"
+                            value={contractForm.search_contract_number}
+                            onChange={(e) => setContractForm({ ...contractForm, search_contract_number: e.target.value })}
+                            style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #D1D5DB", width: "100%", fontSize: "14px" }}
+                          />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <input
+                            placeholder="اسم العميل"
+                            value={contractForm.search_student_name}
+                            onChange={(e) => setContractForm({ ...contractForm, search_student_name: e.target.value })}
+                            style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #D1D5DB", width: "100%", fontSize: "14px" }}
+                          />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <input
+                            placeholder="رقم الهاتف"
+                            value={contractForm.search_client_phone}
+                            onChange={(e) => setContractForm({ ...contractForm, search_client_phone: e.target.value })}
+                            style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #D1D5DB", width: "100%", fontSize: "14px" }}
+                          />
+                        </div>
                       </div>
+
                       {contractForm.searched_contracts.length > 0 && (
-                        <div style={{ maxHeight: "200px", overflowY: "auto" }}>
+                        <div style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                          gap: "1rem",
+                          maxHeight: "350px",
+                          overflowY: "auto",
+                          padding: "0.5rem",
+                          backgroundColor: "#F3F4F6",
+                          borderRadius: "8px"
+                        }}>
                           {contractForm.searched_contracts.map(c => (
                             <div
                               key={c.id}
-                              onClick={() => setContractForm({ ...contractForm, parent_contract_id: c.id })}
+                              onClick={() => selectOldContract(c)}
                               style={{
-                                padding: "0.75rem",
-                                marginBottom: "0.5rem",
-                                border: contractForm.parent_contract_id === c.id ? "2px solid #5a7acd" : "1px solid #dcdcdc",
-                                borderRadius: "6px",
+                                padding: "1rem",
+                                border: contractForm.parent_contract_id === c.id ? "2px solid #5A7ACD" : "1px solid #E5E7EB",
+                                borderRadius: "10px",
                                 cursor: "pointer",
-                                backgroundColor: contractForm.parent_contract_id === c.id ? "#e8edff" : "white"
+                                backgroundColor: contractForm.parent_contract_id === c.id ? "#EEF2FF" : "white",
+                                transition: "all 0.2s",
+                                boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
                               }}
                             >
-                              <div style={{ fontWeight: 600 }}>{c.contract_number}</div>
-                              <div style={{ fontSize: "0.875rem", color: "#666" }}>{c.student_name}</div>
-                              <div style={{ fontSize: "0.75rem", color: "#999" }}>
-                                المتبقي: {c.remaining_amount ? c.remaining_amount.toFixed(2) : "0.00"} ر.س
+                              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+                                <span style={{ fontWeight: 800, color: "#1F2937", fontSize: "15px" }}>{c.contract_number}</span>
+                                <span style={{ fontSize: "12px", padding: "2px 8px", backgroundColor: "#E5E7EB", borderRadius: "12px", color: "#4B5563" }}>
+                                  {getBranchName(c.branch_id)}
+                                </span>
+                              </div>
+                              <div style={{ fontWeight: 600, color: "#4B5563", marginBottom: "0.25rem", fontSize: "14px" }}>{c.student_name}</div>
+                              <div style={{ fontSize: "13px", color: "#6B7280", marginBottom: "0.5rem" }}>{c.client_phone || "بدون رقم هاتف"}</div>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #F3F4F6", paddingTop: "0.5rem" }}>
+                                <span style={{ fontSize: "12px", color: "#9CA3AF" }}>المتبقي:</span>
+                                <span style={{ fontWeight: 700, color: "#DC2626", fontSize: "14px" }}>
+                                  {c.remaining_amount ? parseFloat(c.remaining_amount).toFixed(2) : "0.00"} ر.س
+                                </span>
                               </div>
                             </div>
                           ))}
@@ -3693,63 +3824,63 @@ export default function DailySalesReportsPage() {
                   )}
 
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem" }}>
-                    {contractForm.contract_type !== "old_payment" && (
-                      <>
-                        <select
-                          value={contractForm.branch_id}
-                          onChange={(e) => {
-                            const branchId = e.target.value;
-                            setContractForm({ ...contractForm, branch_id: branchId, sales_staff_id: "" });
-                            if (branchId) {
-                              loadSalesStaff(parseInt(branchId));
-                            } else {
-                              loadSalesStaff();
-                            }
-                          }}
-                          required
-                          disabled={userInfo?.is_sales_manager && !userInfo?.is_super_admin && !userInfo?.is_backdoor}
-                          style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo" }}
-                        >
-                          <option value="">اختر الفرع</option>
-                          {branches.map(b => (
-                            <option key={b.id} value={b.id}>{b.name}</option>
-                          ))}
-                        </select>
-                        <select
-                          value={contractForm.sales_staff_id}
-                          onChange={(e) => setContractForm({ ...contractForm, sales_staff_id: e.target.value })}
-                          required
-                          style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo" }}
-                        >
-                          <option value="">اختر موظف المبيعات *</option>
-                          {salesStaff.filter(s => {
-                            if (contractForm.branch_id && s.branch_id !== parseInt(contractForm.branch_id)) {
-                              return false;
-                            }
-                            return s.is_active || s.id === parseInt(contractForm.sales_staff_id);
-                          }).map(s => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
-                          ))}
-                        </select>
-                        <input
-                          placeholder="اسم صاحب العقد"
-                          value={contractForm.student_name}
-                          onChange={(e) => setContractForm({ ...contractForm, student_name: e.target.value })}
-                          required
-                        />
-                        <input
-                          placeholder="رقم هاتف العميل"
-                          value={contractForm.client_phone || ""}
-                          onChange={(e) => setContractForm({ ...contractForm, client_phone: e.target.value })}
-                        />
-                        <input
-                          placeholder="رقم العقد"
-                          value={contractForm.contract_number}
-                          onChange={(e) => setContractForm({ ...contractForm, contract_number: e.target.value })}
-                          required
-                        />
-                      </>
-                    )}
+                    <select
+                      value={contractForm.branch_id}
+                      onChange={(e) => {
+                        const branchId = e.target.value;
+                        setContractForm({ ...contractForm, branch_id: branchId, sales_staff_id: "" });
+                        if (branchId) {
+                          loadSalesStaff(parseInt(branchId));
+                        } else {
+                          loadSalesStaff();
+                        }
+                      }}
+                      required
+                      disabled={(userInfo?.is_sales_manager && !userInfo?.is_super_admin && !userInfo?.is_backdoor) || (contractForm.contract_type === "old_payment" && contractForm.parent_contract_id)}
+                      style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo" }}
+                    >
+                      <option value="">اختر الفرع</option>
+                      {branches.map(b => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={contractForm.sales_staff_id}
+                      onChange={(e) => setContractForm({ ...contractForm, sales_staff_id: e.target.value })}
+                      required
+                      disabled={contractForm.contract_type === "old_payment" && contractForm.parent_contract_id}
+                      style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo" }}
+                    >
+                      <option value="">اختر موظف المبيعات *</option>
+                      {salesStaff.filter(s => {
+                        if (contractForm.branch_id && s.branch_id !== parseInt(contractForm.branch_id)) {
+                          return false;
+                        }
+                        return s.is_active || s.id === parseInt(contractForm.sales_staff_id);
+                      }).map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                    <input
+                      placeholder="اسم صاحب العقد"
+                      value={contractForm.student_name}
+                      onChange={(e) => setContractForm({ ...contractForm, student_name: e.target.value })}
+                      required
+                      disabled={contractForm.contract_type === "old_payment" && contractForm.parent_contract_id}
+                    />
+                    <input
+                      placeholder="رقم هاتف العميل"
+                      value={contractForm.client_phone || ""}
+                      onChange={(e) => setContractForm({ ...contractForm, client_phone: e.target.value })}
+                      disabled={contractForm.contract_type === "old_payment" && contractForm.parent_contract_id}
+                    />
+                    <input
+                      placeholder="رقم العقد"
+                      value={contractForm.contract_number}
+                      onChange={(e) => setContractForm({ ...contractForm, contract_number: e.target.value })}
+                      required
+                      disabled={contractForm.contract_type === "old_payment" && contractForm.parent_contract_id}
+                    />
 
                     {contractForm.contract_type === "shared" && (
                       <>
@@ -3810,31 +3941,40 @@ export default function DailySalesReportsPage() {
                       value={contractForm.total_amount || ""}
                       onChange={(e) => setContractForm({ ...contractForm, total_amount: e.target.value })}
                       required={contractForm.contract_type !== "old_payment"}
+                      disabled={contractForm.contract_type === "old_payment" && contractForm.parent_contract_id}
                     />
-                    {contractForm.contract_type !== "old_payment" && (
-                      <>
-                        <select
-                          value={contractForm.registration_source || ""}
-                          onChange={(e) => setContractForm({ ...contractForm, registration_source: e.target.value })}
-                          style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo" }}
-                        >
-                          <option value="">اختر مصدر التسجيل</option>
-                          <option value="تجديد">تجديد</option>
-                          <option value="داتا شخصية">داتا شخصية</option>
-                          <option value="Leads">Leads</option>
-                          <option value="ووك ان">ووك ان</option>
-                          <option value="هوت كول">هوت كول</option>
-                          <option value="كولد كول">كولد كول</option>
-                          <option value="دفعة قديمة">دفعة قديمة</option>
-                        </select>
-                        <input
-                          type="date"
-                          placeholder="تاريخ العقد"
-                          value={contractForm.contract_date || ""}
-                          onChange={(e) => setContractForm({ ...contractForm, contract_date: e.target.value })}
-                        />
-                      </>
+
+                    {contractForm.contract_type !== "old_payment" ? (
+                      <select
+                        value={contractForm.registration_source || ""}
+                        onChange={(e) => setContractForm({ ...contractForm, registration_source: e.target.value })}
+                        style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo" }}
+                      >
+                        <option value="">اختر مصدر التسجيل</option>
+                        <option value="تجديد">تجديد</option>
+                        <option value="داتا شخصية">داتا شخصية</option>
+                        <option value="Leads">Leads</option>
+                        <option value="ووك ان">ووك ان</option>
+                        <option value="هوت كول">هوت كول</option>
+                        <option value="كولد كول">كولد كول</option>
+                        <option value="دفعة قديمة">دفعة قديمة</option>
+                      </select>
+                    ) : (
+                      <input
+                        placeholder="مصدر التسجيل"
+                        value={contractForm.registration_source || "عقد قديم (دفعة)"}
+                        disabled
+                      />
                     )}
+
+                    <input
+                      type="date"
+                      placeholder="تاريخ اليوم"
+                      value={contractForm.contract_date || ""}
+                      onChange={(e) => setContractForm({ ...contractForm, contract_date: e.target.value })}
+                      required
+                    />
+
                     {contractForm.contract_type === "old_payment" && (
                       <input
                         placeholder="رقم الدفعة"
@@ -3842,160 +3982,148 @@ export default function DailySalesReportsPage() {
                         onChange={(e) => setContractForm({ ...contractForm, payment_number: e.target.value })}
                       />
                     )}
-                    {contractForm.contract_type !== "old_payment" && (
-                      <>
-                        <select
-                          value={contractForm.course_id || ""}
-                          onChange={(e) => setContractForm({ ...contractForm, course_id: e.target.value })}
-                          style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo" }}
+
+                    <select
+                      value={contractForm.course_id || ""}
+                      onChange={(e) => setContractForm({ ...contractForm, course_id: e.target.value })}
+                      style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo" }}
+                      disabled={contractForm.contract_type === "old_payment" && contractForm.parent_contract_id}
+                    >
+                      <option value="">اختر الدورة (اختياري)</option>
+                      {courses.filter(c => c.is_active).map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+
+                    {/* الدفعات المتعددة */}
+                    <div style={{ gridColumn: "1 / -1", marginTop: "1rem", padding: "1rem", backgroundColor: "#f5f5f5", borderRadius: "8px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                        <label style={{ fontWeight: 600 }}>الدفعات</label>
+                        <button
+                          type="button"
+                          className="btn primary"
+                          onClick={() => {
+                            setContractForm({
+                              ...contractForm,
+                              payments: [...contractForm.payments, { payment_amount: "", payment_method_id: "", payment_number: "" }]
+                            });
+                          }}
+                          style={{ padding: "0.5rem 1rem", fontSize: "0.875rem" }}
                         >
-                          <option value="">اختر الدورة (اختياري)</option>
-                          {courses.filter(c => c.is_active).map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                          ))}
-                        </select>
-                        {/* الدفعات المتعددة */}
-                        <div style={{ gridColumn: "1 / -1", marginTop: "1rem", padding: "1rem", backgroundColor: "#f5f5f5", borderRadius: "8px" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                            <label style={{ fontWeight: 600 }}>الدفعات</label>
-                            <button
-                              type="button"
-                              className="btn primary"
-                              onClick={() => {
-                                setContractForm({
-                                  ...contractForm,
-                                  payments: [...contractForm.payments, { payment_amount: "", payment_method_id: "", payment_number: "" }]
-                                });
-                              }}
-                              style={{ padding: "0.5rem 1rem", fontSize: "0.875rem" }}
-                            >
-                              + إضافة دفعة
-                            </button>
-                          </div>
-                          {/* عرض صافي المبلغ والمتبقي */}
-                          {(() => {
-                            const totalAmount = parseFloat(contractForm.total_amount || 0);
-                            const totalPayments = contractForm.payments.reduce((sum, p) => sum + parseFloat(p.payment_amount || 0), 0);
-                            const remainingAmount = totalAmount - totalPayments;
+                          + إضافة دفعة
+                        </button>
+                      </div>
+                      {/* عرض صافي المبلغ والمتبقي */}
+                      {(() => {
+                        const totalAmount = parseFloat(contractForm.total_amount || 0);
+                        const totalPayments = contractForm.payments.reduce((sum, p) => sum + parseFloat(p.payment_amount || 0), 0);
+                        const remainingAmount = totalAmount - totalPayments;
 
-                            // حساب الصافي بناءً على طريقة الدفع لكل دفعة
-                            const calculateNetAmount = (paymentAmount, paymentMethodId) => {
-                              if (!paymentAmount || paymentAmount <= 0) return 0;
+                        // حساب الصافي بناءً على طريقة الدفع لكل دفعة
+                        const calculateNetAmount = (paymentAmount, paymentMethodId) => {
+                          if (!paymentAmount || paymentAmount <= 0) return 0;
 
-                              const paymentMethod = paymentMethods.find(pm => pm.id === parseInt(paymentMethodId));
+                          const paymentMethod = paymentMethods.find(pm => pm.id === parseInt(paymentMethodId));
 
-                              if (!paymentMethod) {
-                                return paymentAmount;
-                              }
+                          if (!paymentMethod) {
+                            return paymentAmount;
+                          }
 
-                              const taxPercentage = parseFloat(paymentMethod.tax_percentage || 0);
-                              const baseAmount = paymentAmount / (1 + taxPercentage);
-                              const discountPercentage = parseFloat(paymentMethod.discount_percentage || 0);
+                          const taxPercentage = parseFloat(paymentMethod.tax_percentage || 0);
+                          const baseAmount = paymentAmount / (1 + taxPercentage);
+                          const discountPercentage = parseFloat(paymentMethod.discount_percentage || 0);
 
-                              // Formula: (Amount / (1 + Tax)) - (Amount * Discount)
-                              return baseAmount - (paymentAmount * discountPercentage);
-                            };
+                          // Formula: (Amount / (1 + Tax)) - (Amount * Discount)
+                          return baseAmount - (paymentAmount * discountPercentage);
+                        };
 
-                            const totalNetAmount = contractForm.payments.reduce((sum, p) => {
-                              const paymentAmount = parseFloat(p.payment_amount || 0);
-                              const net = calculateNetAmount(paymentAmount, p.payment_method_id);
-                              return sum + net;
-                            }, 0);
+                        const totalNetAmount = contractForm.payments.reduce((sum, p) => {
+                          const paymentAmount = parseFloat(p.payment_amount || 0);
+                          const net = calculateNetAmount(paymentAmount, p.payment_method_id);
+                          return sum + net;
+                        }, 0);
 
-                            return (
-                              <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", padding: "0.75rem", backgroundColor: "white", borderRadius: "6px", border: "1px solid #dcdcdc" }}>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: "0.75rem", color: "#666", marginBottom: "0.25rem" }}>صافي المبلغ (المدفوع)</div>
-                                  <div style={{ fontSize: "1rem", fontWeight: "600", color: "#28a745" }}>{totalNetAmount.toFixed(2)} درهم</div>
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: "0.75rem", color: "#666", marginBottom: "0.25rem" }}>المتبقي</div>
-                                  <div style={{ fontSize: "1rem", fontWeight: "600", color: remainingAmount >= 0 ? "#dc3545" : "#28a745" }}>{remainingAmount.toFixed(2)} درهم</div>
-                                </div>
-                              </div>
-                            );
-                          })()}
-                          {contractForm.payments.map((payment, index) => (
-                            <div key={index} style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem", marginBottom: "0.75rem", padding: "0.5rem", backgroundColor: "white", borderRadius: "6px", border: "1px solid #dcdcdc" }}>
-                              <input
-                                type="number"
-                                step="0.01"
-                                placeholder="قيمة الدفعة"
-                                value={payment.payment_amount || ""}
-                                onChange={(e) => {
-                                  const newPayments = [...contractForm.payments];
-                                  newPayments[index].payment_amount = e.target.value;
-                                  setContractForm({ ...contractForm, payments: newPayments });
-                                }}
-                                required
-                                style={{ padding: "0.5rem" }}
-                              />
-                              <select
-                                value={payment.payment_method_id || ""}
-                                onChange={(e) => {
-                                  const newPayments = [...contractForm.payments];
-                                  newPayments[index].payment_method_id = e.target.value;
-                                  setContractForm({ ...contractForm, payments: newPayments });
-                                }}
-                                style={{ padding: "0.5rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo" }}
-                                required
-                              >
-                                <option value="">اختر طريقة الدفع</option>
-                                {paymentMethods.filter(pm => pm.is_active).map(pm => (
-                                  <option key={pm.id} value={pm.id}>{pm.name}</option>
-                                ))}
-                              </select>
-                              <div style={{ display: "flex", gap: "0.5rem" }}>
-                                <input
-                                  placeholder="رقم الدفعة"
-                                  value={payment.payment_number || ""}
-                                  onChange={(e) => {
-                                    const newPayments = [...contractForm.payments];
-                                    newPayments[index].payment_number = e.target.value;
-                                    setContractForm({ ...contractForm, payments: newPayments });
-                                  }}
-                                  style={{ flex: 1, padding: "0.5rem" }}
-                                />
-                                {contractForm.payments.length > 1 && (
-                                  <button
-                                    type="button"
-                                    className="btn btn-danger"
-                                    onClick={() => {
-                                      const newPayments = contractForm.payments.filter((_, i) => i !== index);
-                                      setContractForm({ ...contractForm, payments: newPayments });
-                                    }}
-                                    style={{ padding: "0.5rem", minWidth: "40px" }}
-                                    title="حذف"
-                                  >
-                                    ×
-                                  </button>
-                                )}
-                              </div>
+                        return (
+                          <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", padding: "0.75rem", backgroundColor: "white", borderRadius: "6px", border: "1px solid #dcdcdc" }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: "0.75rem", color: "#666", marginBottom: "0.25rem" }}>صافي المبلغ (المدفوع)</div>
+                              <div style={{ fontSize: "1rem", fontWeight: "600", color: "#28a745" }}>{totalNetAmount.toFixed(2)} ر.س</div>
                             </div>
-                          ))}
+                            {contractForm.contract_type !== "old_payment" && (
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: "0.75rem", color: "#666", marginBottom: "0.25rem" }}>المتبقي</div>
+                                <div style={{ fontSize: "1rem", fontWeight: "600", color: remainingAmount >= 0 ? "#dc3545" : "#28a745" }}>{remainingAmount.toFixed(2)} ر.س</div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                      {contractForm.payments.map((payment, index) => (
+                        <div key={index} style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem", marginBottom: "0.75rem", padding: "0.5rem", backgroundColor: "white", borderRadius: "6px", border: "1px solid #dcdcdc" }}>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="قيمة الدفعة"
+                            value={payment.payment_amount || ""}
+                            onChange={(e) => {
+                              const newPayments = [...contractForm.payments];
+                              newPayments[index].payment_amount = e.target.value;
+                              setContractForm({ ...contractForm, payments: newPayments });
+                            }}
+                            required
+                            style={{ padding: "0.5rem" }}
+                          />
+                          <select
+                            value={payment.payment_method_id || ""}
+                            onChange={(e) => {
+                              const newPayments = [...contractForm.payments];
+                              newPayments[index].payment_method_id = e.target.value;
+                              setContractForm({ ...contractForm, payments: newPayments });
+                            }}
+                            style={{ padding: "0.5rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo" }}
+                            required
+                          >
+                            <option value="">اختر طريقة الدفع</option>
+                            {paymentMethods.filter(pm => pm.is_active).map(pm => (
+                              <option key={pm.id} value={pm.id}>{pm.name}</option>
+                            ))}
+                          </select>
+                          <div style={{ display: "flex", gap: "0.5rem" }}>
+                            <input
+                              placeholder="رقم الدفعة"
+                              value={payment.payment_number || ""}
+                              onChange={(e) => {
+                                const newPayments = [...contractForm.payments];
+                                newPayments[index].payment_number = e.target.value;
+                                setContractForm({ ...contractForm, payments: newPayments });
+                              }}
+                              style={{ flex: 1, padding: "0.5rem" }}
+                            />
+                            {contractForm.payments.length > 1 && (
+                              <button
+                                type="button"
+                                className="btn btn-danger"
+                                onClick={() => {
+                                  const newPayments = contractForm.payments.filter((_, i) => i !== index);
+                                  setContractForm({ ...contractForm, payments: newPayments });
+                                }}
+                                style={{ padding: "0.5rem", minWidth: "40px" }}
+                                title="حذف"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <textarea
-                          placeholder="ملاحظات (اختياري)"
-                          value={contractForm.notes || ""}
-                          onChange={(e) => setContractForm({ ...contractForm, notes: e.target.value })}
-                          rows={3}
-                          style={{ gridColumn: "1 / -1" }}
-                        />
-                      </>
-                    )}
-                    {contractForm.contract_type === "old_payment" && (
-                      <select
-                        value={contractForm.payment_method_id || ""}
-                        onChange={(e) => setContractForm({ ...contractForm, payment_method_id: e.target.value })}
-                        style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo" }}
-                        required
-                      >
-                        <option value="">اختر طريقة الدفع</option>
-                        {paymentMethods.filter(pm => pm.is_active).map(pm => (
-                          <option key={pm.id} value={pm.id}>{pm.name}</option>
-                        ))}
-                      </select>
-                    )}
+                      ))}
+                    </div>
+                    <textarea
+                      placeholder="ملاحظات (اختياري)"
+                      value={contractForm.notes || ""}
+                      onChange={(e) => setContractForm({ ...contractForm, notes: e.target.value })}
+                      rows={3}
+                      style={{ gridColumn: "1 / -1" }}
+                    />
                   </div>
                 </div>
                 <div className="modal-footer">
@@ -4017,7 +4145,7 @@ export default function DailySalesReportsPage() {
             </div>
           </div>
         )}
-      </div >
+      </div>
     </>
   );
 }
