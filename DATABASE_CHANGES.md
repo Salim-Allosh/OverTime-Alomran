@@ -65,4 +65,22 @@ ALTER TABLE `payment_methods` ADD `tax_percentage` DECIMAL(10, 4) NOT NULL DEFAU
 php artisan migrate --path=database/migrations/2026_01_05_000002_add_tax_percentage_to_payment_methods.php
 ```
 
+## [2026-01-15] Shared Contract Deletion Confirmation
+
+### Description
+Added a `deletion_requested_by_branch_id` column to the `contracts` table to support a two-step deletion process for shared contracts, requiring confirmation from both involved branches.
+
+### SQL Migration
+```sql
+ALTER TABLE `contracts` ADD `deletion_requested_by_branch_id` BIGINT UNSIGNED NULL AFTER `notes`;
+ALTER TABLE `contracts` ADD CONSTRAINT `contracts_deletion_requested_by_branch_id_foreign` FOREIGN KEY (`deletion_requested_by_branch_id`) REFERENCES `branches` (`id`) ON DELETE SET NULL;
+```
+
+### Laravel Migration
+```bash
+php artisan migrate --path=database/migrations/2026_01_15_000000_add_deletion_request_to_contracts.php
+```
+
+---
+
 *Keep this file updated for any future schema changes.*

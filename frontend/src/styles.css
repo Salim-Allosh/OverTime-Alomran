@@ -305,12 +305,10 @@ body,
 }
 
 .container {
-  flex: 1;
   padding: var(--spacing-xl);
-  max-width: 1400px;
+  max-width: 1800px;
   width: 100%;
   margin: 0 auto;
-  background: var(--bg-primary);
 }
 
 /* ============================================

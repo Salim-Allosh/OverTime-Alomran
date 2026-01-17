@@ -30,7 +30,7 @@ class Contract extends Model
         'shared_amount',
         'parent_contract_id',
         'contract_date',
-        'notes',
+        'deletion_requested_by_branch_id',
     ];
 
     protected $casts = [
@@ -40,11 +40,17 @@ class Contract extends Model
         'remaining_amount' => 'decimal:2',
         'net_amount' => 'decimal:2',
         'shared_amount' => 'decimal:2',
+        'deletion_requested_by_branch_id' => 'integer',
     ];
 
     public function branch()
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function deletionRequestedBy()
+    {
+        return $this->belongsTo(Branch::class, 'deletion_requested_by_branch_id');
     }
 
     public function salesStaff()

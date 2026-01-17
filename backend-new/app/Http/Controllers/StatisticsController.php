@@ -487,18 +487,39 @@ class StatisticsController extends Controller
 
         foreach ($reportsWithVisits as $report) {
             foreach ($report->visits as $visit) {
-                $visitsDetails[] = [
+                $vItem = [
                     'date' => $report->report_date,
                     'sales_staff_name' => $report->salesStaff->name ?? '',
+                    'branch_id' => $report->branch_id,
                     'branch_name' => $report->branch->name ?? '',
-                    'customer_name' => $visit->customer_name ?? 'N/A', // Assuming visits have customer_name or we use update_details
+                    'customer_name' => $visit->customer_name ?? 'N/A', 
                     'details' => $visit->update_details ?? '-',
                     'visit_time' => $visit->visit_time ?? '-'
                 ];
+                $visitsDetails[] = $vItem;
+                
+                if (isset($branchStats[$report->branch_id])) {
+                    if (!isset($branchStats[$report->branch_id]['visits_details'])) {
+                        $branchStats[$report->branch_id]['visits_details'] = [];
+                    }
+                    $branchStats[$report->branch_id]['visits_details'][] = $vItem;
+                }
             }
         }
 
-        \Illuminate\Support\Facades\Log::info('Final Branch Stats:', $branchesComprehensive);
+        // --- 9. registration_sources_details ---
+        $registrationSourcesGlobal = $this->getRegistrationSourcesDetails($year, $month, $branchId, $salesStaffId);
+        foreach ($registrationSourcesGlobal as $source) {
+            $bId = $source['branch_id'];
+            if (isset($branchStats[$bId])) {
+                if (!isset($branchStats[$bId]['registration_sources_stats'])) {
+                    $branchStats[$bId]['registration_sources_stats'] = [];
+                }
+                $branchStats[$bId]['registration_sources_stats'][] = $source;
+            }
+        }
+
+        $branchesComprehensive = array_values($branchStats);
 
         return response()->json([
             'total_unique_days' => $totalUniqueDays,
@@ -508,7 +529,52 @@ class StatisticsController extends Controller
             'sales_staff_details' => $salesStaffDetails,
             'incomplete_payment_contracts' => $incompleteContracts,
             'course_registration_details' => $courseDetails,
-            'visits_details' => $visitsDetails
+            'visits_details' => $visitsDetails,
+            'registration_sources_details' => $registrationSourcesGlobal
         ]);
+    }
+
+    private function getRegistrationSourcesDetails($year, $month, $branchId, $salesStaffId)
+    {
+        $query = Contract::query();
+        if ($year) $query->whereYear('contract_date', $year);
+        if ($month) $query->whereMonth('contract_date', $month);
+        if ($branchId) $query->where('branch_id', $branchId);
+        if ($salesStaffId) $query->where('sales_staff_id', $salesStaffId);
+
+        // We exclude 'old_payment' if we want to focus on "Sales Sources" for new contracts, 
+        // but often users want to see ALL sources. Let's include all for now unless specified.
+        // Actually, 'old_payment' is a type, not a source. Source is like 'Facebook', 'Walk-in', etc.
+
+        $statsRaw = $query->leftJoin('contract_payments', 'contracts.id', '=', 'contract_payments.contract_id')
+            ->select(
+                'contracts.branch_id',
+                'contracts.registration_source',
+                DB::raw('COUNT(DISTINCT contracts.id) as total_contracts'),
+                DB::raw('SUM(contract_payments.payment_amount) as total_paid'),
+                DB::raw('SUM(contract_payments.net_amount) as total_net')
+            )
+            ->groupBy('contracts.branch_id', 'contracts.registration_source')
+            ->get();
+
+        $allBranches = Branch::all()->keyBy('id');
+        $details = [];
+
+        foreach ($statsRaw as $stat) {
+            $source = $stat->registration_source ?: 'Unknown';
+            $bId = $stat->branch_id;
+            $bName = $allBranches[$bId]->name ?? 'Unknown';
+
+            $details[] = [
+                'registration_source' => $source,
+                'branch_id' => $bId,
+                'branch_name' => $bName,
+                'total_contracts' => (int)$stat->total_contracts,
+                'total_paid' => (float)$stat->total_paid,
+                'total_net' => (float)$stat->total_net
+            ];
+        }
+
+        return $details;
     }
 }

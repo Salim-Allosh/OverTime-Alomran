@@ -141,6 +141,17 @@ export default function StatisticsPage() {
   const totalRemainingAmount = statistics.branches_comprehensive?.reduce((sum, b) => sum + safeParse(b.total_remaining_amount), 0) || 0;
   const totalNetAmount = statistics.branches_comprehensive?.reduce((sum, b) => sum + safeParse(b.total_net_amount), 0) || 0;
 
+  const formatDateArabic = (dateStr) => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    const dayNames = ["الأحد", "الأثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+    const dayName = dayNames[date.getDay()];
+    const day = date.getDate();
+    const monthName = monthNames[date.getMonth() + 1];
+    const year = date.getFullYear();
+    return `${dayName} ${day} ${monthName} ${year}`;
+  };
+
   const handleDownloadPDF = async () => {
     setIsGeneratingPDF(true);
     setPdfProgress(0);
@@ -545,6 +556,49 @@ export default function StatisticsPage() {
         )
       }
 
+      {/* 4. إحصائيات حسب مصدر التسجيل */}
+      {
+        statistics.registration_sources_details && statistics.registration_sources_details.length > 0 && (
+          <div className="panel" style={{ marginBottom: "2rem" }}>
+            <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
+              إحصائيات حسب مصدر التسجيل
+            </h2>
+            <div className="table-container">
+              <table style={{ width: "100%", fontSize: "13px" }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "center" }}>مصدر التسجيل</th>
+                    <th style={{ textAlign: "center" }}>الفرع</th>
+                    <th style={{ textAlign: "center" }}>عدد العقود</th>
+                    <th style={{ textAlign: "center" }}>المبلغ المدفوع</th>
+                    <th style={{ textAlign: "center" }}>المبلغ الصافي</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {statistics.registration_sources_details.map((source, idx) => (
+                    <tr key={idx}>
+                      <td style={{ fontWeight: 600, textAlign: "center" }}>{source.registration_source}</td>
+                      <td style={{ textAlign: "center" }}>{source.branch_name}</td>
+                      <td style={{ textAlign: "center" }}>{formatNumber(source.total_contracts, 0)}</td>
+                      <td style={{ textAlign: "center" }}>{formatNumber(source.total_paid)} درهم</td>
+                      <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{formatNumber(source.total_net)} درهم</td>
+                    </tr>
+                  ))}
+                  {/* صف الإجمالي */}
+                  <tr style={{ backgroundColor: "#F9FAFB", fontWeight: 600 }}>
+                    <td style={{ textAlign: "center" }}>الإجمالي</td>
+                    <td style={{ textAlign: "center" }}>-</td>
+                    <td style={{ textAlign: "center" }}>{formatNumber(statistics.registration_sources_details.reduce((sum, s) => sum + s.total_contracts, 0), 0)}</td>
+                    <td style={{ textAlign: "center" }}>{formatNumber(statistics.registration_sources_details.reduce((sum, s) => sum + s.total_paid, 0))} درهم</td>
+                    <td style={{ color: "#5A7ACD", textAlign: "center" }}>{formatNumber(statistics.registration_sources_details.reduce((sum, s) => sum + s.total_net, 0))} درهم</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      }
+
       {/* 4. إحصائيات الموظف */}
       {
         statistics.sales_staff_details && statistics.sales_staff_details.length > 0 && (
@@ -690,6 +744,39 @@ export default function StatisticsPage() {
                       <td>{formatNumber(parseFloat(contract.paid_amount))} درهم</td>
                       <td style={{ fontWeight: 600, color: "#DC3545" }}>{formatNumber(parseFloat(contract.remaining_amount))} درهم</td>
                       <td style={{ fontWeight: 600, color: "#5A7ACD" }}>{formatNumber(parseFloat(contract.net_amount))} درهم</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      }
+
+      {/* تفاصيل الزيارات */}
+      {
+        statistics.visits_details && statistics.visits_details.length > 0 && (
+          <div className="panel" style={{ marginBottom: "2rem" }}>
+            <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
+              تفاصيل الزيارات
+            </h2>
+            <div className="table-container">
+              <table style={{ width: "100%", fontSize: "13px" }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "center" }}>التاريخ</th>
+                    <th style={{ textAlign: "center" }}>اسم الموظف</th>
+                    <th style={{ textAlign: "center" }}>الفرع</th>
+                    <th style={{ textAlign: "center" }}>تفاصيل الزيارة</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {statistics.visits_details.map((visit, idx) => (
+                    <tr key={idx}>
+                      <td style={{ textAlign: "center" }}>{formatDateArabic(visit.date)}</td>
+                      <td style={{ textAlign: "center" }}>{visit.sales_staff_name}</td>
+                      <td style={{ textAlign: "center" }}>{visit.branch_name}</td>
+                      <td style={{ textAlign: "right" }}>{visit.details}</td>
                     </tr>
                   ))}
                 </tbody>

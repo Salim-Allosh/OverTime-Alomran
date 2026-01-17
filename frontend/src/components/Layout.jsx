@@ -248,14 +248,19 @@ export default function Layout({ children }) {
                   <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: "16px", height: "16px" }}>
                     <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                   </svg>
-                  <span>
-                    {userInfo.is_backdoor ? "باكدور" :
-                      userInfo.is_super_admin ? "Super Admin" :
-                        userInfo.is_sales_manager ? "مدير مبيعات" :
-                          userInfo.is_operation_manager ? "مدير أوبريشن" :
-                            userInfo.is_branch_account ? "حساب الفرع" :
-                              "موظف"}
-                  </span>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: "1.2" }}>
+                    <span style={{ fontSize: "11px", opacity: 0.8, fontWeight: 500 }}>
+                      {userInfo.is_backdoor ? "باكدور" :
+                        userInfo.is_super_admin ? "Super Admin" :
+                          userInfo.is_sales_manager ? "مدير مبيعات" :
+                            userInfo.is_operation_manager ? "مدير أوبريشن" :
+                              userInfo.is_branch_account ? "حساب الفرع" :
+                                "موظف"}
+                    </span>
+                    <span style={{ fontSize: "14px", fontWeight: 700 }}>
+                      {userInfo.username}
+                    </span>
+                  </div>
                 </div>
               )}
               <a
