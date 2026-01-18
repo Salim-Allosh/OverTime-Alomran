@@ -83,4 +83,16 @@ php artisan migrate --path=database/migrations/2026_01_15_000000_add_deletion_re
 
 ---
 
+## [2026-01-18] Add Cascade to Parent Contract ID
+
+### Description
+Modified the `parent_contract_id` foreign key in the `contracts` table to support `ON DELETE CASCADE`. This prevents integrity constraint violations when a parent contract is deleted, ensuring all associated "old payment" records are also removed.
+
+### Laravel Migration
+```bash
+php artisan migrate --path=database/migrations/2026_01_18_100000_add_cascade_to_parent_contract_id.php
+```
+
+---
+
 *Keep this file updated for any future schema changes.*

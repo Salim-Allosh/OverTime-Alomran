@@ -111,12 +111,14 @@ class ContractsController extends Controller
 
         // Prepare data for Main Contract
         $mainContractData = $request->except(['payments', 'shared_sales_staff_id', 'shared_amount']);
+        $sharedTimestamp = time(); // Synchronized timestamp for both copies
+        
         if ($isShared && !$isOldPayment) {
             // Split total amount equally for new shared contracts
             $mainContractData['total_amount'] = ($originalTotal / 2);
         }
         if ($isOldPayment) {
-            $mainContractData['contract_number'] = ($request->contract_number ?? 'OLD') . '-P' . time();
+            $mainContractData['contract_number'] = ($request->contract_number ?? 'OLD') . '-P' . $sharedTimestamp;
             // total_amount is 0 for old payments to avoid double-counting in stats
             $mainContractData['total_amount'] = 0;
         }
@@ -202,8 +204,8 @@ class ContractsController extends Controller
             // Sales Staff: Use shared_sales_staff_id if provided
             $sharedContract->sales_staff_id = $request->shared_sales_staff_id ?? null;
             
-            // Append -S to contract number
-            $sharedContract->contract_number = $request->contract_number . ($isOldPayment ? '-SP' . time() : '-S'); 
+            // Append -S or -SP to contract number
+            $sharedContract->contract_number = $request->contract_number . ($isOldPayment ? '-SP' . $sharedTimestamp : '-S'); 
             
             $sharedContract->student_name = $request->student_name;
             $sharedContract->client_phone = $request->client_phone;
@@ -366,32 +368,52 @@ class ContractsController extends Controller
         $userBranchId = $user->branch_id;
 
         // Check if it's a shared contract
-        $isShared = str_ends_with($contract->contract_number, '-S') || 
+        $isSharedSuffix = str_ends_with($contract->contract_number, '-S');
+        $isOldPaymentMain = str_contains($contract->contract_number, '-P');
+        $isOldPaymentShared = str_contains($contract->contract_number, '-SP');
+        
+        $isShared = $isSharedSuffix || 
                     $contract->contract_type === 'shared' || 
-                    $contract->contract_type === 'shared_same_branch';
+                    $contract->contract_type === 'shared_same_branch' ||
+                    $isOldPaymentMain ||
+                    $isOldPaymentShared;
 
         if ($isShared) {
             // Finding the partner contract
-            // If current is -S, look for base. If current is base, look for -S.
             $partner = null;
-            if (str_ends_with($contract->contract_number, '-S')) {
+            if ($isSharedSuffix) {
+                // Regular shared
                 $baseNumber = substr($contract->contract_number, 0, -2);
                 $partner = Contract::where('contract_number', $baseNumber)->first();
+            } else if ($isOldPaymentMain) {
+                // Old payment main (-P...) -> look for -SP...
+                $partnerNumber = str_replace('-P', '-SP', $contract->contract_number);
+                $partner = Contract::where('contract_number', $partnerNumber)->first();
+            } else if ($isOldPaymentShared) {
+                // Old payment shared (-SP...) -> look for -P...
+                $partnerNumber = str_replace('-SP', '-P', $contract->contract_number);
+                $partner = Contract::where('contract_number', $partnerNumber)->first();
             } else {
+                // Fallback for contract_type (base contract)
                 $partner = Contract::where('contract_number', $contract->contract_number . '-S')->first();
             }
 
             if ($partner) {
-                // If partner already has a deletion request from a DIFFERENT branch (meaning the other side), delete both.
-                // We should also check if the user is a super admin/backdoor to allow immediate deletion if needed,
-                // but for now let's follow the requested flow of confirmation.
+                // If partner already has a deletion request from a DIFFERENT branch, delete both.
                 if ($partner->deletion_requested_by_branch_id && $partner->deletion_requested_by_branch_id != $userBranchId) {
-                    // Both confirmed/requested. Delete both.
-                    $contract->delete();
-                    $partner->delete();
+                    
+                    DB::transaction(function () use ($contract, $partner) {
+                        // If these are old payments, update the parent contract totals first
+                        $this->revertParentTotals($contract);
+                        $this->revertParentTotals($partner);
+                        
+                        $contract->delete();
+                        $partner->delete();
+                    });
+                    
                     return response()->json(['message' => 'Shared contract and its partner deleted successfully']);
                 } else {
-                    // First branch requesting deletion. Mark both (or just this one, but both is safer for UI consistency)
+                    // First branch requesting deletion.
                     $contract->deletion_requested_by_branch_id = $userBranchId;
                     $contract->save();
                     
@@ -404,8 +426,28 @@ class ContractsController extends Controller
         }
 
         // Default: Not shared or partner not found
-        $contract->delete();
+        DB::transaction(function () use ($contract) {
+            $this->revertParentTotals($contract);
+            $contract->delete();
+        });
+        
         return response()->noContent();
+    }
+
+    private function revertParentTotals(Contract $contract)
+    {
+        if ($contract->contract_type === 'old_payment' && $contract->parent_contract_id) {
+            $parentContract = Contract::find($contract->parent_contract_id);
+            if ($parentContract) {
+                $paymentAmount = floatval($contract->payment_amount);
+                $netAmount = floatval($contract->net_amount);
+                
+                $parentContract->payment_amount = max(0, floatval($parentContract->payment_amount) - $paymentAmount);
+                $parentContract->net_amount = max(0, floatval($parentContract->net_amount) - $netAmount);
+                $parentContract->remaining_amount = floatval($parentContract->remaining_amount) + $paymentAmount;
+                $parentContract->save();
+            }
+        }
     }
 
     public function search(Request $request)

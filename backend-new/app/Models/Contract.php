@@ -8,6 +8,16 @@ use Illuminate\Database\Eloquent\Model;
 class Contract extends Model
 {
     use HasFactory;
+    
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::deleting(function ($contract) {
+            // Recursively delete child contracts
+            $contract->childContracts()->get()->each->delete();
+        });
+    }
 
     protected $table = 'contracts';
 
@@ -77,6 +87,12 @@ class Contract extends Model
     {
         return $this->belongsTo(Contract::class, 'parent_contract_id');
     }
+
+    public function childContracts()
+    {
+        return $this->hasMany(Contract::class, 'parent_contract_id');
+    }
+
 
     public function payments()
     {
