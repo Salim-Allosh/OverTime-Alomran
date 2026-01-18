@@ -144,8 +144,13 @@ class ReportService
     {
         if (!$year) return [];
 
-        $contracts = Contract::whereYear('contract_date', $year)->get();
-        // Use Branch::all() since is_active column does not exist
+        // Use ContractPayment ledger for accurate monthly revenue based on cashflow
+        $payments = \App\Models\ContractPayment::query()
+            ->join('contracts', 'contract_payments.contract_id', '=', 'contracts.id')
+            ->whereYear('contract_payments.created_at', $year)
+            ->select('contract_payments.*', 'contracts.branch_id')
+            ->get();
+            
         $branches = Branch::all(); 
         $branchesMap = $branches->keyBy('id');
         
@@ -158,11 +163,10 @@ class ReportService
                 $data[$key] = [
                     'year' => $year,
                     'month' => $month,
-                    'month_name' => '', // Will act populate later or here
+                    'month_name' => '', 
                     'branches' => []
                 ];
                 
-                // Pre-fill all branches with 0
                 foreach ($branches as $branch) {
                     $data[$key]['branches'][$branch->id] = [
                         'branch_id' => $branch->id,
@@ -177,22 +181,16 @@ class ReportService
             return $key;
         };
 
-        foreach ($contracts as $contract) {
-            $date = $contract->contract_date ?? $contract->created_at;
+        foreach ($payments as $payment) {
+            $date = $payment->created_at;
             if (!$date) continue;
 
             $month = $date->month;
-            // This will ensure the month exists with all branches initialized
             $key = $getGroup($month); 
-            $bId = $contract->branch_id;
+            $bId = $payment->branch_id;
             
-            // Safety check: if branch exists (it should because we pre-filled from Branch::all())
             if (isset($data[$key]['branches'][$bId])) {
-                $data[$key]['branches'][$bId]['revenue'] += $contract->net_amount;
-            } else {
-                // If contract references a deleted branch not in Branch::all(), we ignore or add it dynamic?
-                // Let's add it dynamically if we have the name, otherwise strict match.
-                // For now, assume strict match with current branches.
+                $data[$key]['branches'][$bId]['revenue'] += (float)$payment->net_amount;
             }
         }
 

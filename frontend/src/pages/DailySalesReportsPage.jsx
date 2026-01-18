@@ -1062,6 +1062,21 @@ export default function DailySalesReportsPage() {
     );
   };
 
+  const handleCancelDeletionRequest = async (contractId) => {
+    confirm(
+      "هل أنت متأكد من إلغاء/رفض طلب الحذف؟",
+      async () => {
+        try {
+          await apiPost(`/contracts/${contractId}/cancel-deletion`, {}, token);
+          success("تم إلغاء طلب الحذف بنجاح!");
+          loadContracts();
+        } catch (err) {
+          showError("حدث خطأ أثناء إلغاء طلب الحذف");
+        }
+      }
+    );
+  };
+
   const handleEditContract = (contract, isAssignment = false) => {
     setEditingContract({ ...contract, isAssignment });
     // تعيين تاريخ اليوم كتاريخ افتراضي للعقد إذا لم يكن موجوداً
@@ -2863,7 +2878,7 @@ export default function DailySalesReportsPage() {
                       ⚠️ تنبيه: طلبات حذف بانتظار تأكيدك ({pendingForMe.length})
                     </h3>
                     <p style={{ margin: "0.25rem 0 0 0", fontSize: "12px", color: "#B91C1C" }}>
-                      فروع أخرى تطلب حذف هذه العقود المشتركة معك. يرجى التأكيد أو التجاهل.
+                      فروع أخرى تطلب حذف هذه العقود المشتركة معك. يرجى التأكيد أو رفض الطلب.
                     </p>
                   </div>
                   <div style={{ padding: "1rem" }}>
@@ -2890,13 +2905,22 @@ export default function DailySalesReportsPage() {
                               <td>{c.total_amount}</td>
                               <td>{c.contract_date ? new Date(c.contract_date).toISOString().split('T')[0] : '-'}</td>
                               <td style={{ textAlign: "center" }}>
-                                <button
-                                  className="btn btn-small"
-                                  onClick={() => handleDeleteContract(c.id)}
-                                  style={{ backgroundColor: "#DC2626", color: "white", border: "none", padding: "0.4rem 1rem" }}
-                                >
-                                  تأكيد الحذف النهائي
-                                </button>
+                                <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
+                                  <button
+                                    className="btn btn-small"
+                                    onClick={() => handleCancelDeletionRequest(c.id)}
+                                    style={{ backgroundColor: "#6B7280", color: "white", border: "none", padding: "0.4rem 1rem" }}
+                                  >
+                                    رفض الحذف
+                                  </button>
+                                  <button
+                                    className="btn btn-small"
+                                    onClick={() => handleDeleteContract(c.id)}
+                                    style={{ backgroundColor: "#DC2626", color: "white", border: "none", padding: "0.4rem 1rem" }}
+                                  >
+                                    تأكيد الحذف النهائي
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -2915,10 +2939,28 @@ export default function DailySalesReportsPage() {
                     </h3>
                   </div>
                   <div style={{ padding: "0.75rem 1rem" }}>
-                    <ul style={{ margin: 0, padding: "0 1.25rem", color: "#0369A1", fontSize: "13px" }}>
+                    <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
                       {pendingByMe.map(c => (
-                        <li key={c.id} style={{ marginBottom: "0.25rem" }}>
-                          العقد رقم <strong>{c.contract_number}</strong> ({c.student_name}) - بانتظار الفرع المشترك.
+                        <li key={c.id} style={{
+                          marginBottom: "0.5rem",
+                          padding: "0.5rem",
+                          backgroundColor: "white",
+                          borderRadius: "6px",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          border: "1px solid #E0F2FE"
+                        }}>
+                          <span style={{ fontSize: "13px", color: "#0369A1" }}>
+                            العقد رقم <strong>{c.contract_number}</strong> ({c.student_name}) - بانتظار الفرع المشترك.
+                          </span>
+                          <button
+                            className="btn btn-small"
+                            onClick={() => handleCancelDeletionRequest(c.id)}
+                            style={{ backgroundColor: "#6B7280", color: "white", border: "none", padding: "0.2rem 0.6rem", fontSize: "11px" }}
+                          >
+                            إلغاء الطلب
+                          </button>
                         </li>
                       ))}
                     </ul>
@@ -3064,6 +3106,24 @@ export default function DailySalesReportsPage() {
 
         {/* Today's Contracts Card - Only show when activeTab is "contracts" */}
         {activeTab === "contracts" && (() => {
+          const unassignedSharedContracts = contracts.filter(c => {
+            // If user is branch account, only show their unassigned ones
+            if (userInfo?.is_branch_account) {
+              const myBranchId = parseInt(userInfo.branch_id);
+              const isRelevant = c.branch_id === myBranchId && !c.sales_staff_id;
+              const isSharedType = c.contract_type === "shared" ||
+                c.contract_type === "shared_same_branch" ||
+                (c.registration_source && c.registration_source.includes("مشترك"));
+              return isRelevant && isSharedType;
+            }
+            // For Super Admins, show if staff is missing
+            const isAnyUnassigned = !c.sales_staff_id;
+            const isSharedType = c.contract_type === "shared" ||
+              c.contract_type === "shared_same_branch" ||
+              (c.registration_source && c.registration_source.includes("مشترك"));
+            return isAnyUnassigned && isSharedType;
+          });
+
           const today = new Date();
           const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
 
@@ -3076,24 +3136,11 @@ export default function DailySalesReportsPage() {
               const contractDateStr = contractDate.toISOString().split('T')[0];
               return contractDateStr === todayStr;
             } catch (e) {
-              console.error("[Today's Card] Error parsing contract date:", dateToUse, e);
               return false;
             }
           });
 
-          console.log("[Today's Card] Today's date:", todayStr);
-          console.log("[Today's Card] Total contracts:", contracts.length);
-          console.log("[Today's Card] Today's contracts:", todayContracts.length);
-          if (contracts.length > 0) {
-            console.log("[Today's Card] Sample contract:", {
-              id: contracts[0].id,
-              contract_date: contracts[0].contract_date,
-              created_at: contracts[0].created_at,
-              dateToUse: contracts[0].contract_date || contracts[0].created_at
-            });
-          }
-
-          if (todayContracts.length === 0) return null;
+          if (unassignedSharedContracts.length === 0 && todayContracts.length === 0) return null;
 
           const arabicDate = today.toLocaleDateString('ar-SA', {
             weekday: 'long',
@@ -3103,130 +3150,201 @@ export default function DailySalesReportsPage() {
           });
 
           return (
-            <div className="panel" style={{ marginBottom: "1.5rem", backgroundColor: "#FFF7ED", border: "2px solid #FEB05D" }}>
-              <div style={{ padding: "1rem", borderBottom: "1px solid #E5E7EB" }}>
-                <h3 style={{ margin: 0, color: "#2B2A2A", fontSize: "18px", fontWeight: 600 }}>
-                  العقود الخاصة باليوم - {arabicDate}
-                </h3>
-              </div>
+            <>
+              {unassignedSharedContracts.length > 0 && (
+                <div className="panel" style={{
+                  border: "1px solid #FEF3C7",
+                  backgroundColor: "#FFFBEB",
+                  marginBottom: "2rem",
+                  padding: "1.5rem",
+                  borderRadius: "12px",
+                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                    <div style={{
+                      backgroundColor: "#F59E0B",
+                      color: "white",
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                      </svg>
+                    </div>
+                    <h3 style={{ margin: 0, color: "#92400E", fontSize: "16px", fontWeight: 700 }}>عقود مشتركة بانتظار إسناد موظف ({unassignedSharedContracts.length})</h3>
+                  </div>
 
-              {/* Today's Contracts */}
-              <div style={{ padding: "1rem" }}>
-                <h4 style={{ margin: "0 0 1rem 0", color: "#2B2A2A", fontSize: "16px", fontWeight: 600 }}>
-                  العقود ({todayContracts.length})
-                </h4>
-                <div className="table-container" style={{ width: "100%", overflowX: "auto" }}>
-                  <table style={{ width: "100%", minWidth: "1200px" }}>
-                    <thead>
-                      <tr>
-                        <th>رقم العقد</th>
-                        <th>اسم الطالب</th>
-                        <th>رقم هاتف العميل</th>
-                        <th>الفرع</th>
-                        <th>موظف المبيعات</th>
-                        <th>الدورة</th>
-                        <th style={{ textAlign: "left" }}>المبلغ الإجمالي</th>
-                        <th style={{ textAlign: "left" }}>المبلغ المدفوع</th>
-                        <th style={{ textAlign: "left" }}>طريقة الدفع</th>
-                        <th style={{ textAlign: "left" }}>رقم الدفعة</th>
-                        <th style={{ textAlign: "left" }}>المتبقي</th>
-                        <th style={{ textAlign: "left" }}>المبلغ الصافي</th>
-                        <th>تاريخ العقد</th>
-                        {!userInfo?.is_branch_account && <th>الإجراءات</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {todayContracts.map(contract => {
-                        const totalPaid = parseFloat(contract.payment_amount || 0);
+                  <div className="table-container" style={{ backgroundColor: "white", borderRadius: "8px", border: "1px solid #FEF3C7" }}>
+                    <table style={{ width: "100%", fontSize: "12px" }}>
+                      <thead>
+                        <tr style={{ backgroundColor: "#FEF3C7" }}>
+                          <th style={{ color: "#92400E", padding: "0.75rem" }}>رقم العقد</th>
+                          <th style={{ color: "#92400E", padding: "0.75rem" }}>الفرع الأساسي</th>
+                          <th style={{ color: "#92400E", padding: "0.75rem" }}>اسم الطالب</th>
+                          <th style={{ color: "#92400E", padding: "0.75rem" }}>المصدر</th>
+                          <th style={{ color: "#92400E", padding: "0.75rem" }}>الإجراء</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {unassignedSharedContracts.map(contract => (
+                          <tr key={contract.id} style={{ borderBottom: "1px solid #FEF3C7" }}>
+                            <td style={{ textAlign: "center", padding: "0.75rem", fontWeight: 600 }}>{contract.contract_number}</td>
+                            <td style={{ textAlign: "center", padding: "0.75rem" }}>{getBranchName(contract.branch_id)}</td>
+                            <td style={{ textAlign: "center", padding: "0.75rem" }}>{contract.student_name}</td>
+                            <td style={{ textAlign: "center", padding: "0.75rem" }}>{contract.registration_source}</td>
+                            <td style={{ textAlign: "center", padding: "0.75rem" }}>
+                              <button
+                                className="btn btn-small"
+                                onClick={() => handleEditContract(contract, true)}
+                                style={{
+                                  backgroundColor: "#F59E0B",
+                                  color: "white",
+                                  border: "none",
+                                  padding: "0.3rem 0.8rem",
+                                  fontSize: "11px"
+                                }}
+                              >
+                                تعديل وإسناد
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
-                        const contractDate = contract.contract_date || contract.created_at;
-                        const dateToDisplay = contractDate ? new Date(contractDate).toISOString().split('T')[0] : '-';
+              {todayContracts.length > 0 && (
+                <div className="panel" style={{ marginBottom: "1.5rem", backgroundColor: "#FFF7ED", border: "2px solid #FEB05D" }}>
+                  <div style={{ padding: "1rem", borderBottom: "1px solid #E5E7EB" }}>
+                    <h3 style={{ margin: 0, color: "#2B2A2A", fontSize: "18px", fontWeight: 600 }}>
+                      العقود الخاصة باليوم - {arabicDate}
+                    </h3>
+                  </div>
 
-                        // Fallback mechanism for Payment Method and Number
-                        const displayPaymentMethodId = contract.payment_method_id || (contract.payments && contract.payments.length > 0 ? contract.payments[0].payment_method_id : null);
-                        const displayPaymentNumber = contract.payment_number || (contract.payments && contract.payments.length > 0 ? contract.payments[0].payment_number : "-");
+                  <div style={{ padding: "1rem" }}>
+                    <h4 style={{ margin: "0 0 1rem 0", color: "#2B2A2A", fontSize: "16px", fontWeight: 600 }}>
+                      العقود ({todayContracts.length})
+                    </h4>
+                    <div className="table-container" style={{ width: "100%", overflowX: "auto" }}>
+                      <table style={{ width: "100%", minWidth: "1200px" }}>
+                        <thead>
+                          <tr>
+                            <th>رقم العقد</th>
+                            <th>اسم الطالب</th>
+                            <th>رقم هاتف العميل</th>
+                            <th>الفرع</th>
+                            <th>موظف المبيعات</th>
+                            <th>الدورة</th>
+                            <th style={{ textAlign: "left" }}>المبلغ الإجمالي</th>
+                            <th style={{ textAlign: "left" }}>المبلغ المدفوع</th>
+                            <th style={{ textAlign: "left" }}>طريقة الدفع</th>
+                            <th style={{ textAlign: "left" }}>رقم الدفعة</th>
+                            <th style={{ textAlign: "left" }}>المتبقي</th>
+                            <th style={{ textAlign: "left" }}>المبلغ الصافي</th>
+                            <th>تاريخ العقد</th>
+                            {!userInfo?.is_branch_account && <th>الإجراءات</th>}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {todayContracts.map(contract => {
+                            const totalPaid = parseFloat(contract.payment_amount || 0);
+                            const contractDate = contract.contract_date || contract.created_at;
+                            const dateToDisplay = contractDate ? new Date(contractDate).toISOString().split('T')[0] : '-';
+                            const displayPaymentMethodId = contract.payment_method_id || (contract.payments && contract.payments.length > 0 ? contract.payments[0].payment_method_id : null);
+                            const displayPaymentNumber = contract.payment_number || (contract.payments && contract.payments.length > 0 ? contract.payments[0].payment_number : "-");
 
-                        return (
-                          <tr key={contract.id}>
-                            <td>{contract.contract_number}</td>
-                            <td>{contract.student_name}</td>
-                            <td>{contract.client_phone || "-"}</td>
-                            <td>{getBranchName(contract.branch_id)}</td>
-                            <td>{getSalesStaffName(contract.sales_staff_id)}</td>
-                            <td>{contract.course ? contract.course.name : "-"}</td>
-                            <td className="number" data-type="number" style={{ direction: 'ltr' }}>{parseFloat(contract.total_amount || 0).toFixed(2)} درهم</td>
-                            <td className="number" data-type="number" style={{ direction: 'ltr' }}>{totalPaid.toFixed(2)} درهم</td>
-                            <td>{getPaymentMethodName(displayPaymentMethodId)}</td>
-                            <td>{displayPaymentNumber}</td>
-                            <td className="number" data-type="number" style={{ direction: 'ltr' }}>{parseFloat(contract.remaining_amount || 0).toFixed(2)} درهم</td>
-                            <td className="number" data-type="number" style={{ direction: 'ltr' }}>{parseFloat(contract.net_amount || 0).toFixed(2)} درهم</td>
-                            <td>{dateToDisplay}</td>
-                            {!userInfo?.is_branch_account && (
-                              <td>
-                                <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
-                                  <button
-                                    className="btn btn-small"
-                                    onClick={() => handleEditContract(contract)}
-                                    style={{
-                                      padding: "0.25rem 0.5rem",
-                                      backgroundColor: "#FEB05D",
-                                      color: "white",
-                                      border: "none"
-                                    }}
-                                    title="تعديل"
-                                  >
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-                                    </svg>
-                                  </button>
-                                  {contract.deletion_requested_by_branch_id ? (
-                                    contract.deletion_requested_by_branch_id === userBranchId ? (
-                                      <span style={{ fontSize: '11px', color: '#6B7280', alignSelf: 'center', backgroundColor: '#F3F4F6', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>
-                                        بانتظار التأكيد
-                                      </span>
-                                    ) : (
+                            return (
+                              <tr key={contract.id}>
+                                <td>{contract.contract_number}</td>
+                                <td>{contract.student_name}</td>
+                                <td>{contract.client_phone || "-"}</td>
+                                <td>{getBranchName(contract.branch_id)}</td>
+                                <td>{getSalesStaffName(contract.sales_staff_id)}</td>
+                                <td>{contract.course ? contract.course.name : "-"}</td>
+                                <td className="number" data-type="number" style={{ direction: 'ltr' }}>{parseFloat(contract.total_amount || 0).toFixed(2)} درهم</td>
+                                <td className="number" data-type="number" style={{ direction: 'ltr' }}>{totalPaid.toFixed(2)} درهم</td>
+                                <td>{getPaymentMethodName(displayPaymentMethodId)}</td>
+                                <td>{displayPaymentNumber}</td>
+                                <td className="number" data-type="number" style={{ direction: 'ltr' }}>{parseFloat(contract.remaining_amount || 0).toFixed(2)} درهم</td>
+                                <td className="number" data-type="number" style={{ direction: 'ltr' }}>{parseFloat(contract.net_amount || 0).toFixed(2)} درهم</td>
+                                <td>{dateToDisplay}</td>
+                                {!userInfo?.is_branch_account && (
+                                  <td>
+                                    <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
                                       <button
                                         className="btn btn-small"
-                                        onClick={() => handleDeleteContract(contract.id)}
+                                        onClick={() => handleEditContract(contract)}
                                         style={{
                                           padding: "0.25rem 0.5rem",
-                                          backgroundColor: "#10B981",
+                                          backgroundColor: "#FEB05D",
                                           color: "white",
                                           border: "none"
                                         }}
-                                        title="تأكيد الحذف"
+                                        title="تعديل"
                                       >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <polyline points="20 6 9 17 4 12"></polyline>
-                                          </svg>
-                                          <span style={{ fontSize: '11px' }}>تأكيد</span>
-                                        </div>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                                        </svg>
                                       </button>
-                                    )
-                                  ) : (
-                                    <button
-                                      className="btn btn-small btn-danger"
-                                      onClick={() => handleDeleteContract(contract.id)}
-                                      title="حذف"
-                                    >
-                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <polyline points="3 6 5 6 21 6"></polyline>
-                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                      </svg>
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            )}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                                      {contract.deletion_requested_by_branch_id ? (
+                                        contract.deletion_requested_by_branch_id === userBranchId ? (
+                                          <span style={{ fontSize: '11px', color: '#6B7280', alignSelf: 'center', backgroundColor: '#F3F4F6', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>
+                                            بانتظار التأكيد
+                                          </span>
+                                        ) : (
+                                          <button
+                                            className="btn btn-small"
+                                            onClick={() => handleDeleteContract(contract.id)}
+                                            style={{
+                                              padding: "0.25rem 0.5rem",
+                                              backgroundColor: "#10B981",
+                                              color: "white",
+                                              border: "none"
+                                            }}
+                                            title="تأكيد الحذف"
+                                          >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="20 6 9 17 4 12"></polyline>
+                                              </svg>
+                                              <span style={{ fontSize: '11px' }}>تأكيد</span>
+                                            </div>
+                                          </button>
+                                        )
+                                      ) : (
+                                        <button
+                                          className="btn btn-small btn-danger"
+                                          onClick={() => handleDeleteContract(contract.id)}
+                                          title="حذف"
+                                        >
+                                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                          </svg>
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              )}
+            </>
           );
         })()}
 
@@ -3693,113 +3811,8 @@ export default function DailySalesReportsPage() {
               const filteredContracts = filterContractsByYearAndMonth(contracts);
               const branchGroups = groupContractsByBranchAndMonth(filteredContracts);
 
-              const unassignedSharedContracts = contracts.filter(c =>
-                !c.sales_staff_id &&
-                (c.contract_type === "shared" || c.contract_type === "shared_same_branch" || c.registration_source?.includes("مشترك"))
-              );
-
               return (
                 <div>
-                  {(() => {
-                    const unassignedSharedContracts = contracts.filter(c => {
-                      // If user is branch account, only show their unassigned ones
-                      if (userInfo?.is_branch_account) {
-                        const myBranchId = parseInt(userInfo.branch_id);
-
-                        // A contract is unassigned for ME if I'm the owner branch and my assigned staff is empty
-                        const isRelevant = c.branch_id === myBranchId && !c.sales_staff_id;
-
-                        // It must be a shared type
-                        const isSharedType = c.contract_type === "shared" ||
-                          c.contract_type === "shared_same_branch" ||
-                          (c.registration_source && c.registration_source.includes("مشترك"));
-
-                        return isRelevant && isSharedType;
-                      }
-
-                      // For Super Admins, show if staff is missing
-                      const isAnyUnassigned = !c.sales_staff_id;
-                      const isSharedType = c.contract_type === "shared" ||
-                        c.contract_type === "shared_same_branch" ||
-                        (c.registration_source && c.registration_source.includes("مشترك"));
-
-                      return isAnyUnassigned && isSharedType;
-                    });
-
-                    if (unassignedSharedContracts.length === 0) return null;
-
-                    return (
-                      <div className="panel" style={{
-                        border: "1px solid #FEF3C7",
-                        backgroundColor: "#FFFBEB",
-                        marginBottom: "2rem",
-                        padding: "1.5rem",
-                        borderRadius: "12px",
-                        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
-                      }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-                          <div style={{
-                            backgroundColor: "#F59E0B",
-                            color: "white",
-                            width: "28px",
-                            height: "28px",
-                            borderRadius: "50%",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            flexShrink: 0
-                          }}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-                              <line x1="12" y1="9" x2="12" y2="13"></line>
-                              <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                            </svg>
-                          </div>
-                          <h3 style={{ margin: 0, color: "#92400E", fontSize: "16px", fontWeight: 700 }}>عقود مشتركة بانتظار إسناد موظف ({unassignedSharedContracts.length})</h3>
-                        </div>
-
-                        <div className="table-container" style={{ backgroundColor: "white", borderRadius: "8px", border: "1px solid #FEF3C7" }}>
-                          <table style={{ width: "100%", fontSize: "12px" }}>
-                            <thead>
-                              <tr style={{ backgroundColor: "#FEF3C7" }}>
-                                <th style={{ color: "#92400E", padding: "0.75rem" }}>رقم العقد</th>
-                                <th style={{ color: "#92400E", padding: "0.75rem" }}>الفرع الأساسي</th>
-                                <th style={{ color: "#92400E", padding: "0.75rem" }}>اسم الطالب</th>
-                                <th style={{ color: "#92400E", padding: "0.75rem" }}>المصدر</th>
-                                <th style={{ color: "#92400E", padding: "0.75rem" }}>الإجراء</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {unassignedSharedContracts.map(contract => (
-                                <tr key={contract.id} style={{ borderBottom: "1px solid #FEF3C7" }}>
-                                  <td style={{ textAlign: "center", padding: "0.75rem", fontWeight: 600 }}>{contract.contract_number}</td>
-                                  <td style={{ textAlign: "center", padding: "0.75rem" }}>{getBranchName(contract.branch_id)}</td>
-                                  <td style={{ textAlign: "center", padding: "0.75rem" }}>{contract.student_name}</td>
-                                  <td style={{ textAlign: "center", padding: "0.75rem" }}>{contract.registration_source}</td>
-                                  <td style={{ textAlign: "center", padding: "0.75rem" }}>
-                                    <button
-                                      className="btn btn-small"
-                                      onClick={() => handleEditContract(contract, true)}
-                                      style={{
-                                        backgroundColor: "#F59E0B",
-                                        color: "white",
-                                        border: "none",
-                                        padding: "0.3rem 0.8rem",
-                                        fontSize: "11px"
-                                      }}
-                                    >
-                                      تعديل وإسناد
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
                   {filteredContracts.length === 0 ? (
                     <div className="panel" style={{ textAlign: "center", padding: "3rem" }}>
                       <p style={{ color: "#6B7280", fontSize: "14px" }}>

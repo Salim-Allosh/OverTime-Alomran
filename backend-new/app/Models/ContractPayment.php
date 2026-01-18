@@ -10,7 +10,7 @@ class ContractPayment extends Model
     use HasFactory;
 
     protected $table = 'contract_payments';
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
         'contract_id',

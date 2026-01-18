@@ -57,6 +57,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/contracts/{id}', [App\Http\Controllers\ContractsController::class, 'show']);
     Route::patch('/contracts/{id}', [App\Http\Controllers\ContractsController::class, 'update']);
     Route::delete('/contracts/{id}', [App\Http\Controllers\ContractsController::class, 'destroy']);
+    Route::post('/contracts/{id}/cancel-deletion', [App\Http\Controllers\ContractsController::class, 'cancelDeletion']);
     Route::post('/contracts/{id}/payments', [App\Http\Controllers\ContractsController::class, 'addPayment']);
 
     // Sales

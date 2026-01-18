@@ -165,29 +165,8 @@ class ContractsController extends Controller
             }
         }
 
-        // Update main contract calculated fields
-        $contract->payment_amount = $totalPaid;
-        $contract->net_amount = $totalNet;
-        $contract->remaining_amount = ($contract->total_amount ?? 0) - $totalPaid;
-        
-        // Store first payment details for legacy/display compatibility
-        if ($firstPayment) {
-             $contract->payment_method_id = $firstPayment['payment_method_id'] ?? null;
-             $contract->payment_number = $firstPayment['payment_number'] ?? null;
-        }
-        
-        $contract->save();
-
-        // Update parent contract if it's an old payment
-        if ($isOldPayment && $contract->parent_contract_id) {
-            $parentContract = Contract::find($contract->parent_contract_id);
-            if ($parentContract) {
-                $parentContract->payment_amount = floatval($parentContract->payment_amount) + $totalPaid;
-                $parentContract->net_amount = floatval($parentContract->net_amount) + $totalNet;
-                $parentContract->remaining_amount = floatval($parentContract->remaining_amount) - $totalPaid;
-                $parentContract->save();
-            }
-        }
+        // Unified synchronization for the main contract
+        $this->syncContractHeader($contract);
 
         // Handle Joint Contract: Create a copy for the shared branch/staff
         if ($isShared) {
@@ -257,35 +236,21 @@ class ContractsController extends Controller
                 $sharedTotalNet += $net;
             }
             
-            // Update Shared Contract totals
-            $sharedContract->payment_amount = $sharedTotalPaid;
-            $sharedContract->net_amount = $sharedTotalNet;
-            $sharedContract->remaining_amount = ($sharedContract->total_amount ?? 0) - $sharedTotalPaid;
-             if ($firstPayment) {
-                  $sharedContract->payment_method_id = $firstPayment['payment_method_id'] ?? null;
-                  $sharedContract->payment_number = $firstPayment['payment_number'] ?? null;
-             }
-            $sharedContract->save();
+            // Unified synchronization for the shared contract copy
+            $this->syncContractHeader($sharedContract);
 
             // Link to the partner parent contract if it's an old payment
             if ($isOldPayment && $request->parent_contract_id) {
                 // Find the shared partner of the parent contract
                 $parentContract = Contract::find($request->parent_contract_id);
                 if ($parentContract) {
-                    // Try to find a contract with the same number + '-S'
-                    $partnerParent = Contract::where('contract_number', $parentContract->contract_number . '-S')
-                                            ->orWhere('contract_number', str_replace('-S', '', $parentContract->contract_number))
-                                            ->where('id', '!=', $parentContract->id)
-                                            ->first();
-                    
+                    $partnerParent = $this->findPartner($parentContract);
                     if ($partnerParent) {
                         $sharedContract->parent_contract_id = $partnerParent->id;
                         $sharedContract->save();
                         
-                        $partnerParent->payment_amount = floatval($partnerParent->payment_amount) + $sharedTotalPaid;
-                        $partnerParent->net_amount = floatval($partnerParent->net_amount) + $sharedTotalNet;
-                        $partnerParent->remaining_amount = floatval($partnerParent->remaining_amount) - $sharedTotalPaid;
-                        $partnerParent->save();
+                        // Syncing the shared contract will trigger sync for partnerParent automatically
+                        $this->syncContractHeader($sharedContract);
                     }
                 }
             }
@@ -304,28 +269,12 @@ class ContractsController extends Controller
         $contract = Contract::findOrFail($id);
         $data = $request->except('payments');
         
-        // Halve total_amount for shared contracts if it seems to be the full amount
-        if (($contract->contract_type === 'shared' || $contract->contract_type === 'shared_same_branch') && isset($data['total_amount'])) {
-             // If the updated amount is > 0 and we are in a shared context, 
-             // we assume the user might have entered the full amount or we need to ensure it's halved.
-             // However, a better way is to check if it's roughly double the previous half or just strictly halve it if it's a new total.
-             // For now, let's assume if it's shared, the record MUST store the half.
-             // To avoid halving an already halved amount (if the user correctly entered the half),
-             // this is tricky. 
-             // But usually, shared contracts are created once and totals don't change often.
-             // The bug report suggests they are seeing 10000 (full) in statistics.
-        }
-
         $contract->update($data);
 
         // Handle payments update (Simple sync: Delete all and recreate)
         if ($request->has('payments') && is_array($request->payments)) {
             $contract->payments()->delete(); // Remove old payments
             
-            $totalPaid = 0;
-            $totalNet = 0;
-            $firstPayment = null;
-
             foreach ($request->payments as $index => $paymentData) {
                 if (!empty($paymentData['payment_amount'])) {
                     $amount = floatval($paymentData['payment_amount']);
@@ -337,25 +286,32 @@ class ContractsController extends Controller
                     $payment->contract_id = $contract->id;
                     $payment->net_amount = $net;
                     $payment->save();
-
-                    $totalPaid += $amount;
-                    $totalNet += $net;
-                    
-                    if ($index === 0) $firstPayment = $paymentData;
                 }
             }
+        }
 
-            // Update main contract calculated fields
-            $contract->payment_amount = $totalPaid;
-            $contract->net_amount = $totalNet;
-            $contract->remaining_amount = ($contract->total_amount ?? 0) - $totalPaid;
+        // Unified financial sync for this contract (including its parents/children)
+        $this->syncContractHeader($contract);
+
+        // Synchronize with partner if it's a shared contract
+        $partner = $this->findPartner($contract);
+        if ($partner) {
+            // Sync core fields to partner record
+            $partner->update([
+                'student_name' => $contract->student_name,
+                'client_phone' => $contract->client_phone,
+                'course_id'   => $contract->course_id,
+                'contract_date' => $contract->contract_date,
+                'total_amount' => $contract->total_amount,
+                // Note: registration_source is usually branch-specific (Shared with X), so we don't sync it.
+            ]);
             
-            if ($firstPayment) {
-                 $contract->payment_method_id = $firstPayment['payment_method_id'] ?? null;
-                 $contract->payment_number = $firstPayment['payment_number'] ?? null;
-            }
-
-            $contract->save();
+            // If payments were updated here, should we mirror them to the partner?
+            // For shared contracts, payments are SPLIT 50/50 during creation/addPayment.
+            // If the user is editing the list of payments in the 10-payment grid, we need to decide.
+            // But usually, only the assignment (sales_staff_id) is updated via this form.
+            
+            $this->syncContractHeader($partner);
         }
 
         return $contract->load('payments');
@@ -379,24 +335,7 @@ class ContractsController extends Controller
                     $isOldPaymentShared;
 
         if ($isShared) {
-            // Finding the partner contract
-            $partner = null;
-            if ($isSharedSuffix) {
-                // Regular shared
-                $baseNumber = substr($contract->contract_number, 0, -2);
-                $partner = Contract::where('contract_number', $baseNumber)->first();
-            } else if ($isOldPaymentMain) {
-                // Old payment main (-P...) -> look for -SP...
-                $partnerNumber = str_replace('-P', '-SP', $contract->contract_number);
-                $partner = Contract::where('contract_number', $partnerNumber)->first();
-            } else if ($isOldPaymentShared) {
-                // Old payment shared (-SP...) -> look for -P...
-                $partnerNumber = str_replace('-SP', '-P', $contract->contract_number);
-                $partner = Contract::where('contract_number', $partnerNumber)->first();
-            } else {
-                // Fallback for contract_type (base contract)
-                $partner = Contract::where('contract_number', $contract->contract_number . '-S')->first();
-            }
+            $partner = $this->findPartner($contract);
 
             if ($partner) {
                 // If partner already has a deletion request from a DIFFERENT branch, delete both.
@@ -432,6 +371,43 @@ class ContractsController extends Controller
         });
         
         return response()->noContent();
+    }
+
+    public function cancelDeletion(Request $request, $id)
+    {
+        $contract = Contract::findOrFail($id);
+        $partner = $this->findPartner($contract);
+
+        $contract->deletion_requested_by_branch_id = null;
+        $contract->save();
+
+        if ($partner) {
+            $partner->deletion_requested_by_branch_id = null;
+            $partner->save();
+        }
+
+        return response()->json(['message' => 'Deletion request cancelled successfully']);
+    }
+
+    private function findPartner(Contract $contract)
+    {
+        $isSharedSuffix = str_ends_with($contract->contract_number, '-S');
+        $isOldPaymentMain = str_contains($contract->contract_number, '-P');
+        $isOldPaymentShared = str_contains($contract->contract_number, '-SP');
+
+        if ($isSharedSuffix) {
+            $baseNumber = substr($contract->contract_number, 0, -2);
+            return Contract::where('contract_number', $baseNumber)->first();
+        } else if ($isOldPaymentMain) {
+            $partnerNumber = str_replace('-P', '-SP', $contract->contract_number);
+            return Contract::where('contract_number', $partnerNumber)->first();
+        } else if ($isOldPaymentShared) {
+            $partnerNumber = str_replace('-SP', '-P', $contract->contract_number);
+            return Contract::where('contract_number', $partnerNumber)->first();
+        } else {
+            // Fallback for contract_type (base contract)
+            return Contract::where('contract_number', $contract->contract_number . '-S')->first();
+        }
     }
 
     private function revertParentTotals(Contract $contract)
@@ -478,22 +454,100 @@ class ContractsController extends Controller
     {
         $contract = Contract::findOrFail($id);
         
+        $originalAmount = floatval($request->payment_amount);
+        
+        // Detect if shared
+        $isSharedSuffix = str_ends_with($contract->contract_number, '-S');
+        $isOldPaymentMain = str_contains($contract->contract_number, '-P') && !str_contains($contract->contract_number, '-SP');
+        $isOldPaymentShared = str_contains($contract->contract_number, '-SP');
+        
+        $isShared = $isSharedSuffix || 
+                    $contract->contract_type === 'shared' || 
+                    $contract->contract_type === 'shared_same_branch' ||
+                    $isOldPaymentMain ||
+                    $isOldPaymentShared;
+
+        $partner = null;
+        if ($isShared) {
+            if ($isSharedSuffix) {
+                $baseNumber = substr($contract->contract_number, 0, -2);
+                $partner = Contract::where('contract_number', $baseNumber)->first();
+            } else if ($isOldPaymentMain) {
+                $partnerNumber = str_replace('-P', '-SP', $contract->contract_number);
+                $partner = Contract::where('contract_number', $partnerNumber)->first();
+            } else if ($isOldPaymentShared) {
+                $partnerNumber = str_replace('-SP', '-P', $contract->contract_number);
+                $partner = Contract::where('contract_number', $partnerNumber)->first();
+            } else {
+                $partner = Contract::where('contract_number', $contract->contract_number . '-S')->first();
+            }
+        }
+
+        $amountForCurrent = $isShared ? ($originalAmount / 2) : $originalAmount;
+        
         $payment = new ContractPayment($request->all());
         $payment->contract_id = $contract->id;
+        $payment->payment_amount = $amountForCurrent;
         
-        // Calculate net amount for the new payment
         if ($payment->payment_amount && $payment->payment_method_id) {
             $payment->net_amount = $this->calculateNetAmount($payment->payment_amount, $payment->payment_method_id);
         }
         
         $payment->save();
-        
-        // Update contract totals
-        $totalPaid = $contract->payments()->sum('payment_amount');
-        $contract->payment_amount = $totalPaid;
-        $contract->remaining_amount = $contract->total_amount - $totalPaid;
-        $contract->save();
+        $this->syncContractHeader($contract);
+
+        if ($isShared && $partner) {
+            $partnerPayment = new ContractPayment($request->all());
+            $partnerPayment->contract_id = $partner->id;
+            $partnerPayment->payment_amount = $originalAmount - $amountForCurrent;
+            if ($partnerPayment->payment_amount && $partnerPayment->payment_method_id) {
+                $partnerPayment->net_amount = $this->calculateNetAmount($partnerPayment->payment_amount, $partnerPayment->payment_method_id);
+            }
+            $partnerPayment->save();
+            $this->syncContractHeader($partner);
+        }
 
         return $payment;
+    }
+
+    private function syncContractHeader(Contract $contract)
+    {
+        // Get directly attached payments
+        $directPaid = floatval($contract->payments()->sum('payment_amount'));
+        $directNet = floatval($contract->payments()->sum('net_amount'));
+        
+        // Add payments from child contracts (old_payment records)
+        $childPaid = 0;
+        $childNet = 0;
+        
+        $children = $contract->childContracts;
+        foreach ($children as $child) {
+            $childPaid += floatval($child->payments()->sum('payment_amount'));
+            $childNet += floatval($child->payments()->sum('net_amount'));
+        }
+
+        $totalPaid = $directPaid + $childPaid;
+        $totalNet = $directNet + $childNet;
+        
+        $contract->payment_amount = $totalPaid;
+        $contract->net_amount = $totalNet;
+        $contract->remaining_amount = ($contract->total_amount ?? 0) - $totalPaid;
+        
+        // Compatibility: Store details from the first payment if available
+        $firstPayment = $contract->payments()->orderBy('created_at', 'asc')->first();
+        if ($firstPayment) {
+            $contract->payment_method_id = $firstPayment->payment_method_id;
+            $contract->payment_number = $firstPayment->payment_number;
+        }
+
+        $contract->save();
+        
+        // If this is a child contract (old_payment), update the parent too
+        if ($contract->contract_type === 'old_payment' && $contract->parent_contract_id) {
+            $parent = Contract::find($contract->parent_contract_id);
+            if ($parent) {
+                $this->syncContractHeader($parent);
+            }
+        }
     }
 }
