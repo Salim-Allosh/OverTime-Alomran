@@ -1048,8 +1048,16 @@ export default function DailySalesReportsPage() {
   };
 
   const handleDeleteContract = async (contractId) => {
+    // حساب عدد العقود التابعة (الدفعات القديمة المرتبطة)
+    const childrenCount = contracts.filter(c => c.parent_contract_id === contractId).length;
+
+    let confirmMsg = "هل أنت متأكد من حذف هذا العقد؟";
+    if (childrenCount > 0) {
+      confirmMsg = `هذا العقد مرتبط به عدد (${childrenCount}) من العقود/الدفعات التابعة. حذف هذا العقد سيؤدي إلى حذف جميع هذه التوابع. هل أنت متأكد؟`;
+    }
+
     confirm(
-      "هل أنت متأكد من حذف هذا العقد؟",
+      confirmMsg,
       async () => {
         try {
           await apiDelete(`/contracts/${contractId}`, token);

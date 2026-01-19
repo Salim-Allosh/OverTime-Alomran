@@ -338,6 +338,19 @@ class ContractsController extends Controller
             $partner = $this->findPartner($contract);
 
             if ($partner) {
+                // If partner belongs to the SAME branch as the contract, delete immediately
+                if ($partner->branch_id == $contract->branch_id) {
+                    DB::transaction(function () use ($contract, $partner) {
+                        $this->revertParentTotals($contract);
+                        $this->revertParentTotals($partner);
+                        
+                        $contract->delete();
+                        $partner->delete();
+                    });
+                    
+                    return response()->json(['message' => 'Shared contract deleted successfully (intra-branch)']);
+                }
+
                 // If partner already has a deletion request from a DIFFERENT branch, delete both.
                 if ($partner->deletion_requested_by_branch_id && $partner->deletion_requested_by_branch_id != $userBranchId) {
                     
