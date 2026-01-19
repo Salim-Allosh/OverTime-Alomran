@@ -59,6 +59,8 @@ export default function DailySalesReportsPage() {
     payment_method_id: "", // للتوافق مع البيانات القديمة
     payment_number: "", // للتوافق مع البيانات القديمة
     payments: [], // الدفعات المتعددة [{ payment_amount, payment_method_id, payment_number }]
+    is_shared_old: false,
+    is_shared_same_branch_old: false,
     course_id: "",
     client_phone: "",
     registration_source: "",
@@ -870,7 +872,20 @@ export default function DailySalesReportsPage() {
     }
 
     // التحقق مما إذا كان العقد الأصلي مشتركاً
-    const isSharedParent = c.contract_type === "shared" || c.contract_type === "shared_same_branch" || c.contract_number.endsWith("-S");
+    const isSharedSameBranch = c.contract_type === "shared_same_branch";
+    const isSharedInterBranch = c.contract_type === "shared" || c.contract_number.endsWith("-S");
+    const isSharedParent = isSharedInterBranch || isSharedSameBranch;
+
+    let sharedSalesStaffId = "";
+    if (isSharedSameBranch) {
+      // البحث عن العقد الشريك في نتائج البحث الحالية لتحديد الموظف الثاني
+      const partner = contractForm.searched_contracts.find(pc =>
+        pc.contract_number === c.contract_number && pc.id !== c.id
+      );
+      if (partner) {
+        sharedSalesStaffId = partner.sales_staff_id ? partner.sales_staff_id.toString() : "";
+      }
+    }
 
     setContractForm({
       ...contractForm,
@@ -880,12 +895,14 @@ export default function DailySalesReportsPage() {
       course_id: c.course_id ? c.course_id.toString() : "",
       branch_id: c.branch_id.toString(),
       sales_staff_id: c.sales_staff_id ? c.sales_staff_id.toString() : "",
+      shared_sales_staff_id: sharedSalesStaffId,
       total_amount: "0", // نضعه 0 لكي لا يتم احتسابه كقيمة عقد جديد في الاحصائيات
       contract_number: c.contract_number,
       registration_source: "عقد قديم (دفعة)",
       // إذا كان العقد الأصلي مشتركاً، نقترح تفعيل المشاركة في الدفعة أيضاً
       shared_branch_id: c.shared_branch_id ? c.shared_branch_id.toString() : "",
       is_shared_old: isSharedParent,
+      is_shared_same_branch_old: isSharedSameBranch,
       searched_contracts: []
     });
   };
@@ -1219,6 +1236,7 @@ export default function DailySalesReportsPage() {
       shared_sales_staff_id: "",
       shared_amount: "",
       is_shared_old: false,
+      is_shared_same_branch_old: false,
       parent_contract_id: null,
       search_contract_number: "",
       search_student_name: "",
@@ -4282,7 +4300,7 @@ export default function DailySalesReportsPage() {
                             disabled={(contractForm.contract_type === "old_payment" && contractForm.parent_contract_id) || isFieldLocked}
                           />
 
-                          {(contractForm.contract_type === "shared" || (contractForm.contract_type === "old_payment" && contractForm.is_shared_old)) && (
+                          {(contractForm.contract_type === "shared" || (contractForm.contract_type === "old_payment" && contractForm.is_shared_old && !contractForm.is_shared_same_branch_old)) && (
                             <>
                               <select
                                 value={contractForm.shared_branch_id}
@@ -4308,7 +4326,7 @@ export default function DailySalesReportsPage() {
                             </>
                           )}
 
-                          {contractForm.contract_type === "shared_same_branch" && (
+                          {(contractForm.contract_type === "shared_same_branch" || (contractForm.contract_type === "old_payment" && contractForm.is_shared_same_branch_old)) && (
                             <>
                               <select
                                 value={contractForm.shared_sales_staff_id}

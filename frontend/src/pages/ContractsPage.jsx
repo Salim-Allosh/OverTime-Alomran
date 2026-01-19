@@ -27,19 +27,19 @@ export default function ContractsPage() {
 
   useEffect(() => {
     if (!token) return;
-    
+
     apiGet("/auth/me", token)
       .then(setUserInfo)
       .catch(console.error);
-    
+
     apiGet("/branches", token)
       .then(setBranches)
       .catch(console.error);
-    
+
     apiGet("/courses", token)
       .then(setCourses)
       .catch(console.error);
-    
+
     loadContracts();
   }, [token, selectedBranchId, selectedStatus]);
 
@@ -50,7 +50,7 @@ export default function ContractsPage() {
       if (selectedBranchId) params.push(`branch_id=${selectedBranchId}`);
       if (selectedStatus) params.push(`status=${selectedStatus}`);
       if (params.length > 0) url += "?" + params.join("&");
-      
+
       const data = await apiGet(url, token);
       setContracts(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -92,7 +92,7 @@ export default function ContractsPage() {
   const handleUpdate = async (e) => {
     e.preventDefault();
     if (!editingContract) return;
-    
+
     try {
       const updateData = {
         ...form,
@@ -104,7 +104,7 @@ export default function ContractsPage() {
       };
       // Remove undefined values
       Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
-      
+
       await apiPatch(`/contracts/${editingContract.id}`, updateData, token);
       success("تم تحديث العقد بنجاح!");
       setShowForm(false);
@@ -116,8 +116,16 @@ export default function ContractsPage() {
   };
 
   const handleDelete = async (contractId) => {
+    // حساب عدد العقود التابعة (الدفعات القديمة المرتبطة)
+    const childrenCount = contracts.filter(c => c.parent_contract_id === contractId).length;
+
+    let confirmMsg = "هل أنت متأكد من حذف هذا العقد؟";
+    if (childrenCount > 0) {
+      confirmMsg = `هذا العقد مرتبط به عدد (${childrenCount}) من العقود/الدفعات التابعة. حذف هذا العقد سيؤدي إلى حذف جميع هذه التوابع. هل أنت متأكد؟`;
+    }
+
     confirm(
-      "هل أنت متأكد من حذف هذا العقد؟",
+      confirmMsg,
       async () => {
         try {
           await apiDelete(`/contracts/${contractId}`, token);
@@ -169,8 +177,8 @@ export default function ContractsPage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "1rem" }}>
             <h3 style={{ fontSize: "1rem", margin: 0 }}>قائمة العقود</h3>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              <select 
-                value={selectedBranchId || ""} 
+              <select
+                value={selectedBranchId || ""}
                 onChange={(e) => setSelectedBranchId(e.target.value ? parseInt(e.target.value) : null)}
                 style={{ padding: "0.4rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "0.85rem" }}
               >
@@ -179,8 +187,8 @@ export default function ContractsPage() {
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </select>
-              <select 
-                value={selectedStatus} 
+              <select
+                value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
                 style={{ padding: "0.4rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "0.85rem" }}
               >
@@ -329,14 +337,14 @@ export default function ContractsPage() {
                       <td>
                         {!userInfo?.is_branch_account && (
                           <>
-                            <button 
-                              className="btn btn-small" 
+                            <button
+                              className="btn btn-small"
                               style={{ marginLeft: "0.5rem" }}
                               onClick={() => handleEdit(contract)}
                             >
                               تعديل
                             </button>
-                            <button 
+                            <button
                               className="btn btn-small btn-danger"
                               onClick={() => handleDelete(contract.id)}
                             >

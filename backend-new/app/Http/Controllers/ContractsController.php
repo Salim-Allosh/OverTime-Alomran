@@ -65,18 +65,20 @@ class ContractsController extends Controller
         if ($request->contract_type === 'old_payment' && $request->parent_contract_id && !$isShared) {
             $parentContract = Contract::find($request->parent_contract_id);
             if ($parentContract) {
-                // Find if this parent has a partner contract
-                $partnerParent = Contract::where('contract_number', $parentContract->contract_number . '-S')
-                                        ->orWhere('contract_number', str_replace('-S', '', $parentContract->contract_number))
-                                        ->where('id', '!=', $parentContract->id)
-                                        ->first();
+                // Use findPartner helper to identify related contract
+                $partnerParent = $this->findPartner($parentContract);
                 
                 if ($partnerParent) {
                     $isShared = true;
-                    // For old_payment, we need to know the target branch for the shared copy
-                    // If shared_branch_id is not provided, use the partner's branch
+                    // For old_payment, we need to know the target branch or staff for the shared copy
+                    // If no sharing info provided, use the partner's details
                     if (!$request->shared_branch_id && !$request->shared_sales_staff_id) {
-                        $request->merge(['shared_branch_id' => $partnerParent->branch_id]);
+                        if ($partnerParent->branch_id == $parentContract->branch_id) {
+                            $request->merge(['shared_sales_staff_id' => $partnerParent->sales_staff_id]);
+                        } else {
+                            $request->merge(['shared_branch_id' => $partnerParent->branch_id]);
+                        }
+                        
                         // Suggest 50/50 split if not provided
                         if (!$request->shared_amount) {
                             $totalPaymentAmount = collect($request->payments ?? [])->sum('payment_amount');
