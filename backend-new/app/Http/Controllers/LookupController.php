@@ -107,7 +107,16 @@ class LookupController extends Controller
     public function expenses(Request $request)
     {
         $query = Expense::query();
-        if($request->branch_id) $query->where('branch_id', $request->branch_id);
+        if ($request->branch_id) {
+            $query->where('branch_id', $request->branch_id);
+        }
+        if ($request->year) {
+            $query->where('year', $request->year);
+        }
+        if ($request->month) {
+            $query->where('month', $request->month);
+        }
+        
         return $query->orderBy('created_at', 'desc')->get();
     }
 

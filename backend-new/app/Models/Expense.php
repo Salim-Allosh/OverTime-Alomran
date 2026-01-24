@@ -10,14 +10,14 @@ class Expense extends Model
     use HasFactory;
 
     protected $table = 'expenses';
-    public $timestamps = false;
 
     protected $fillable = [
         'branch_id',
+        'month',
+        'year',
         'teacher_name',
         'title',
         'amount',
-        'created_at',
     ];
 
     protected $casts = [

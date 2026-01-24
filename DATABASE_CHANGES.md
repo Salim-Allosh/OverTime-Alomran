@@ -93,6 +93,22 @@ Modified the `parent_contract_id` foreign key in the `contracts` table to suppor
 php artisan migrate --path=database/migrations/2026_01_18_100000_add_cascade_to_parent_contract_id.php
 ```
 
+## [2026_01_24] Add Month and Year to Reports Expenses
+
+### Description
+Added `month` and `year` columns to the `expenses` table to allow persistent storage and filtering of additional expenses in training reports.
+
+### SQL Migration
+```sql
+ALTER TABLE `expenses` ADD `month` INT NULL AFTER `branch_id`;
+ALTER TABLE `expenses` ADD `year` INT NULL AFTER `month`;
+```
+
+### Laravel Migration
+```bash
+php artisan migrate --path=database/migrations/2026_01_24_190000_add_month_year_to_expenses_table.php
+```
+
 ---
 
 *Keep this file updated for any future schema changes.*

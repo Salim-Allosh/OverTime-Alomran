@@ -162,24 +162,34 @@ export default function ReportsPage() {
 
     const loadExpenses = async () => {
       const branchGroups = groupSessionsByBranchAndMonth(sessions);
-      const expensesData = {};
+      const uniqueMonthKeys = new Set();
+      branchGroups.forEach(bg => {
+        bg.months.forEach(m => {
+          uniqueMonthKeys.add(`${m.year}-${m.month}`);
+        });
+      });
 
-      for (const branchGroup of branchGroups) {
-        for (const group of branchGroup.months) {
-          const monthKey = `${group.year}-${group.month}`;
-          if (!expensesData[monthKey]) {
-            try {
-              const data = await apiGet(`/expenses/monthly?year=${group.year}&month=${group.month}`, token);
-              expensesData[monthKey] = Array.isArray(data) ? data : [];
-            } catch (err) {
-              console.error(`Error loading expenses for ${group.year}-${group.month}:`, err);
-              expensesData[monthKey] = [];
-            }
+      const expensesData = { ...expenses }; // Preserve existing
+      let changed = false;
+
+      for (const monthYearKey of uniqueMonthKeys) {
+        if (!expensesData[monthYearKey] || expensesData[monthYearKey].length === 0) {
+          const [year, month] = monthYearKey.split("-");
+          try {
+            const data = await apiGet(`/expenses/monthly?year=${year}&month=${month}`, token);
+            expensesData[monthYearKey] = Array.isArray(data) ? data : [];
+            changed = true;
+          } catch (err) {
+            console.error(`Error loading expenses for ${monthYearKey}:`, err);
+            expensesData[monthYearKey] = [];
+            changed = true;
           }
         }
       }
 
-      setExpenses(expensesData);
+      if (changed) {
+        setExpenses(expensesData);
+      }
     };
 
     loadExpenses();
@@ -1195,19 +1205,20 @@ export default function ReportsPage() {
                   </h2>
 
                   {branchGroup.months.map((group) => {
-                    const monthKey = `${branchGroup.branchId}-${group.year}-${group.month}`;
-                    const isExpanded = expandedMonth === monthKey;
+                    const branchMonthKey = `${branchGroup.branchId}-${group.year}-${group.month}`;
+                    const monthYearKey = `${group.year}-${group.month}`;
+                    const isExpanded = expandedMonth === branchMonthKey;
                     // Diagnostic log for render
-                    if (isExpanded) console.log("[Render] Month Group Expanded:", monthKey);
+                    if (isExpanded) console.log("[Render] Month Group Expanded:", branchMonthKey);
                     // Filter expenses for this specific branch only
-                    const allMonthExpenses = expenses[monthKey] || [];
+                    const allMonthExpenses = expenses[monthYearKey] || [];
                     const monthExpenses = allMonthExpenses.filter(e => e.branch_id === branchGroup.branchId);
                     const teacherStats = calculateTeacherStats(group.sessions);
                     const totals = calculateTotals(group.sessions, monthExpenses);
 
                     return (
                       <div
-                        key={monthKey}
+                        key={branchMonthKey}
                         className="panel"
                         style={{
                           marginBottom: "1.5rem"
@@ -1261,7 +1272,7 @@ export default function ReportsPage() {
 
                         {/* Expanded Content */}
                         {isExpanded && (
-                          <div data-month-key={monthKey}>
+                          <div data-month-key={branchMonthKey}>
                             {/* Statistics Cards */}
                             <div style={{
                               display: "grid",
@@ -1388,10 +1399,10 @@ export default function ReportsPage() {
 
                             {/* Add Expense Button */}
                             <div style={{ marginBottom: "1rem" }}>
-                              {!showExpenseForm[monthKey] ? (
+                              {!showExpenseForm[branchMonthKey] ? (
                                 <button
                                   className="btn primary"
-                                  onClick={() => setShowExpenseForm(prev => ({ ...prev, [monthKey]: true }))}
+                                  onClick={() => setShowExpenseForm(prev => ({ ...prev, [branchMonthKey]: true }))}
                                 >
                                   + إضافة مصروف إضافي
                                 </button>
