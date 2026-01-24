@@ -125,16 +125,15 @@ class LookupController extends Controller
         return Expense::create($request->all());
     }
 
-    public function updateExpense(Request $request, $id)
+    public function updateExpense(Request $request, Expense $expense)
     {
-        $expense = Expense::findOrFail($id);
         $expense->update($request->all());
         return $expense;
     }
 
-    public function deleteExpense($id)
+    public function deleteExpense(Expense $expense)
     {
-        Expense::destroy($id);
+        $expense->delete();
         return response()->noContent();
     }
 
@@ -219,22 +218,21 @@ class LookupController extends Controller
         return NetProfitExpense::create($validated);
     }
 
-    public function updateNetProfitExpense(Request $request, $id)
+    public function updateNetProfitExpense(Request $request, NetProfitExpense $netProfitExpense)
     {
-        $expense = NetProfitExpense::findOrFail($id);
         $validated = $request->validate([
             'title' => 'string',
             'amount' => 'numeric',
             'expense_date' => 'date'
         ]);
 
-        $expense->update($validated);
-        return $expense;
+        $netProfitExpense->update($validated);
+        return $netProfitExpense;
     }
 
-    public function deleteNetProfitExpense($id)
+    public function deleteNetProfitExpense(NetProfitExpense $netProfitExpense)
     {
-        NetProfitExpense::destroy($id);
+        $netProfitExpense->delete();
         return response()->noContent();
     }
 }

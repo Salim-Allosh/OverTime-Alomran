@@ -30,11 +30,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/branches/{id}', [BranchController::class, 'update']);
     Route::delete('/branches/{id}', [BranchController::class, 'destroy']);
 
-    // Expenses
+    // Expenses (Monthly Activity)
     Route::get('/expenses', [App\Http\Controllers\LookupController::class, 'expenses']);
     Route::post('/expenses', [App\Http\Controllers\LookupController::class, 'createExpense']);
-    Route::patch('/expenses/{id}', [App\Http\Controllers\LookupController::class, 'updateExpense']);
-    Route::delete('/expenses/{id}', [App\Http\Controllers\LookupController::class, 'deleteExpense']);
+    Route::patch('/expenses/{expense}', [App\Http\Controllers\LookupController::class, 'updateExpense']);
+    Route::delete('/expenses/{expense}', [App\Http\Controllers\LookupController::class, 'deleteExpense']);
 
     
     Route::get('/drafts', [DraftController::class, 'index']);
@@ -96,15 +96,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/payment-methods', [App\Http\Controllers\LookupController::class, 'createPaymentMethod']);
     Route::patch('/payment-methods/{id}', [App\Http\Controllers\LookupController::class, 'updatePaymentMethod']);
     Route::delete('/payment-methods/{id}', [App\Http\Controllers\LookupController::class, 'deletePaymentMethod']);
-    Route::get('/expenses', [App\Http\Controllers\LookupController::class, 'expenses']);
-    Route::post('/expenses', [App\Http\Controllers\LookupController::class, 'createExpense']);
-    Route::patch('/expenses/{id}', [App\Http\Controllers\LookupController::class, 'updateExpense']);
-    Route::delete('/expenses/{id}', [App\Http\Controllers\LookupController::class, 'deleteExpense']);
 
     Route::get('/net-profit-expenses', [App\Http\Controllers\LookupController::class, 'netProfitExpensesIndex']);
     Route::post('/net-profit-expenses', [App\Http\Controllers\LookupController::class, 'createNetProfitExpense']);
-    Route::patch('/net-profit-expenses/{id}', [App\Http\Controllers\LookupController::class, 'updateNetProfitExpense']);
-    Route::delete('/net-profit-expenses/{id}', [App\Http\Controllers\LookupController::class, 'deleteNetProfitExpense']);
+    Route::patch('/net-profit-expenses/{net_profit_expense}', [App\Http\Controllers\LookupController::class, 'updateNetProfitExpense']);
+    Route::delete('/net-profit-expenses/{net_profit_expense}', [App\Http\Controllers\LookupController::class, 'deleteNetProfitExpense']);
     
     // Sessions
     Route::get('/sessions/all', [App\Http\Controllers\SessionController::class, 'index']);
