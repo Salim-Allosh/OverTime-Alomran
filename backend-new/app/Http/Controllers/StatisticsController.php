@@ -163,7 +163,7 @@ class StatisticsController extends Controller
             if (!isset($branchStats[$bId])) continue;
 
             // 1. Deals & Sales Value (Based on Contract creation)
-            if ($contract->contract_type !== 'payment' && $contract->contract_type !== 'old_payment') {
+            if ($contract->contract_type !== 'payment' && $contract->contract_type !== 'old_payment' && $contract->contract_type !== 'cancellation') {
                 $branchStats[$bId]['total_monthly_contracts']++;
                 $branchStats[$bId]['total_contracts_value'] += (float)$contract->total_amount;
                 $branchStats[$bId]['total_remaining_amount'] += (float)$contract->remaining_amount;
@@ -218,7 +218,8 @@ class StatisticsController extends Controller
         // Total Discounted? From PaymentMethod discount?
         // Or is it `total_amount - net_amount` from Contracts?
         // Let's calculate it from Contracts.
-        $totalDiscounted = Contract::query()->where('contract_type', '!=', 'old_payment');
+        $totalDiscounted = Contract::query()->where('contract_type', '!=', 'old_payment')
+                                            ->where('contract_type', '!=', 'cancellation');
         if ($year) $totalDiscounted->whereYear('contract_date', $year);
         if ($month) $totalDiscounted->whereMonth('contract_date', $month);
         if ($branchId) $totalDiscounted->where('branch_id', $branchId);
@@ -306,7 +307,8 @@ class StatisticsController extends Controller
             // Contracts (Deals) count for this staff in period
             $cQuery = Contract::query()->where('sales_staff_id', $staff->id)
                 ->where('contract_type', '!=', 'old_payment')
-                ->where('contract_type', '!=', 'payment');
+                ->where('contract_type', '!=', 'payment')
+                ->where('contract_type', '!=', 'cancellation');
             if ($year) $cQuery->whereYear('contract_date', $year);
             if ($month) $cQuery->whereMonth('contract_date', $month);
             
@@ -432,7 +434,8 @@ class StatisticsController extends Controller
                 DB::raw('SUM(remaining_amount) as total_remaining')
             )
             ->where('contract_type', '!=', 'old_payment')
-            ->where('contract_type', '!=', 'payment');
+            ->where('contract_type', '!=', 'payment')
+            ->where('contract_type', '!=', 'cancellation');
 
         if ($year) $courseSalesQuery->whereYear('contract_date', $year);
         if ($month) $courseSalesQuery->whereMonth('contract_date', $month);

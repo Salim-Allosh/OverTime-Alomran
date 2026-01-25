@@ -22,6 +22,7 @@ export default function DailySalesReportsPage() {
   const [activeTab, setActiveTab] = useState("reports"); // "reports" or "contracts"
   const [showForm, setShowForm] = useState(false);
   const [showContractForm, setShowContractForm] = useState(false);
+  const [showCancellationForm, setShowCancellationForm] = useState(false);
   const [editingReport, setEditingReport] = useState(null);
   const [editingContract, setEditingContract] = useState(null);
   const [selectedContractBranchId, setSelectedContractBranchId] = useState(null);
@@ -168,7 +169,11 @@ export default function DailySalesReportsPage() {
 
   // Debounced search for old contracts
   useEffect(() => {
-    if (!token || contractForm.contract_type !== "old_payment" || editingContract) return;
+    if (!token || editingContract) return;
+
+    // Trigger search for either old payment (Add Payment) or if the Cancellation form is open
+    const isSearchMode = contractForm.contract_type === "old_payment" || showCancellationForm;
+    if (!isSearchMode) return;
 
     const hasSearchQuery =
       (contractForm.search_contract_number && contractForm.search_contract_number.trim() !== "") ||
@@ -191,7 +196,8 @@ export default function DailySalesReportsPage() {
     contractForm.search_contract_number,
     contractForm.search_student_name,
     contractForm.search_client_phone,
-    contractForm.contract_type
+    contractForm.contract_type,
+    showCancellationForm
   ]);
 
   const loadSalesStaff = async (branchId = null) => {
@@ -858,6 +864,14 @@ export default function DailySalesReportsPage() {
       if (contractForm.search_client_phone) {
         params.append("client_phone", contractForm.search_client_phone);
       }
+
+      // إضافة branch_id لتقييد البحث بفرع الموظف/الفرع المحدد فقط
+      if (contractForm.branch_id) {
+        params.append("branch_id", contractForm.branch_id);
+      } else if (selectedBranchId) {
+        params.append("branch_id", selectedBranchId);
+      }
+
       const data = await apiGet(`/contracts/search?${params.toString()}`, token);
       setContractForm({ ...contractForm, searched_contracts: data || [] });
     } catch (err) {
@@ -896,6 +910,8 @@ export default function DailySalesReportsPage() {
       branch_id: c.branch_id.toString(),
       sales_staff_id: c.sales_staff_id ? c.sales_staff_id.toString() : "",
       shared_sales_staff_id: sharedSalesStaffId,
+      original_total_amount: c.total_amount,
+      original_paid_amount: c.payment_amount,
       total_amount: "0", // نضعه 0 لكي لا يتم احتسابه كقيمة عقد جديد في الاحصائيات
       contract_number: c.contract_number,
       registration_source: "عقد قديم (دفعة)",
@@ -1001,6 +1017,68 @@ export default function DailySalesReportsPage() {
         response: err.response
       });
       showError("حدث خطأ أثناء إنشاء العقد: " + err.message);
+    }
+  };
+
+  const handleCreateCancellation = async (e) => {
+    e.preventDefault();
+    try {
+      if (!contractForm.parent_contract_id) {
+        showError("يجب اختيار العقد المراد كنسلته");
+        return;
+      }
+
+      if (!contractForm.payments || contractForm.payments.length === 0 || !contractForm.payments[0].payment_amount) {
+        showError("يجب تحديد مبلغ الكنسلة");
+        return;
+      }
+
+      if (!contractForm.sales_staff_id) {
+        showError("يجب اختيار موظف المبيعات");
+        return;
+      }
+
+      // Automatically negate amounts if they are positive
+      const payments = contractForm.payments
+        .filter(p => p.payment_amount && p.payment_method_id)
+        .map(p => ({
+          payment_amount: Math.abs(parseFloat(p.payment_amount)), // We'll let backend negate it based on contract_type
+          payment_method_id: parseInt(p.payment_method_id),
+          payment_number: p.payment_number || null
+        }));
+
+      const payload = {
+        ...contractForm,
+        branch_id: parseInt(contractForm.branch_id),
+        sales_staff_id: parseInt(contractForm.sales_staff_id),
+        contract_type: 'cancellation',
+        parent_contract_id: parseInt(contractForm.parent_contract_id),
+        payments: payments,
+        contract_date: contractForm.contract_date || new Date().toISOString().split('T')[0],
+        notes: contractForm.notes || null,
+        student_name: contractForm.student_name,
+        client_phone: contractForm.client_phone,
+        course_id: contractForm.course_id
+      };
+
+      // Ensure total_amount is also correct (though backend overrides it to 0 for the CAN record)
+      payload.total_amount = 0;
+
+      // Clean up sharing fields if not sharing
+      if (!contractForm.shared_branch_id && !contractForm.shared_sales_staff_id) {
+        delete payload.shared_branch_id;
+        delete payload.shared_sales_staff_id;
+        delete payload.shared_amount;
+      }
+
+      const response = await apiPost("/contracts", payload, token);
+      success("تمت عملية الكنسلة بنجاح!");
+      setShowCancellationForm(false);
+      resetContractForm();
+      loadContracts();
+    } catch (err) {
+      console.error("Error creating cancellation:", err);
+      showError("حدث خطأ أثناء الكنسلة: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -2862,16 +2940,29 @@ export default function DailySalesReportsPage() {
                         </button>
                       )}
                       {!userInfo?.is_branch_account && (userInfo?.is_sales_manager || userInfo?.is_super_admin) && (
-                        <button
-                          className="btn primary"
-                          onClick={() => {
-                            setEditingContract(null);
-                            resetContractForm();
-                            setShowContractForm(true);
-                          }}
-                        >
-                          إضافة عقد جديد
-                        </button>
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <button
+                            className="btn primary"
+                            onClick={() => {
+                              setEditingContract(null);
+                              resetContractForm();
+                              setShowContractForm(true);
+                            }}
+                          >
+                            إضافة عقد جديد
+                          </button>
+                          <button
+                            className="btn"
+                            onClick={() => {
+                              setEditingContract(null);
+                              resetContractForm();
+                              setShowCancellationForm(true);
+                            }}
+                            style={{ backgroundColor: "#DC2626", color: "white", border: "none" }}
+                          >
+                            كنسلة
+                          </button>
+                        </div>
                       )}
                     </div>
                   </>
@@ -4576,6 +4667,282 @@ export default function DailySalesReportsPage() {
               </form>
             </div>
           </div >
+        )}
+
+        {/* Cancellation Form Modal */}
+        {showCancellationForm && (
+          <div className="modal-overlay" onClick={() => {
+            setShowCancellationForm(false);
+          }}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "1100px", overflowY: "auto", overflowX: "hidden" }}>
+              <div className="modal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <h3 style={{ fontSize: "1rem", margin: 0, color: "#DC2626" }}>كنسلة عقد (إرجاع مبلغ)</h3>
+                </div>
+                <button className="modal-close" style={{ position: 'static' }} onClick={() => {
+                  setShowCancellationForm(false);
+                }}>×</button>
+              </div>
+              <form onSubmit={handleCreateCancellation}>
+                <div className="modal-body">
+                  <div style={{ marginBottom: "1.5rem", padding: "1.25rem", backgroundColor: "#FEF2F2", borderRadius: "12px", border: "1px solid #FECACA" }}>
+                    <label style={{ display: "block", marginBottom: "0.75rem", fontWeight: 700, color: "#991B1B", fontSize: "14px" }}>البحث عن العقد المراد كنسلته</label>
+                    <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem" }}>
+                      <div style={{ flex: 1 }}>
+                        <input
+                          placeholder="رقم العقد"
+                          value={contractForm.search_contract_number}
+                          onChange={(e) => setContractForm({ ...contractForm, search_contract_number: e.target.value })}
+                          style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #FCA5A5", width: "100%", fontSize: "14px" }}
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <input
+                          placeholder="اسم العميل"
+                          value={contractForm.search_student_name}
+                          onChange={(e) => setContractForm({ ...contractForm, search_student_name: e.target.value })}
+                          style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #FCA5A5", width: "100%", fontSize: "14px" }}
+                        />
+                      </div>
+                    </div>
+
+                    {contractForm.searched_contracts.length > 0 && (
+                      <div style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                        gap: "1rem",
+                        maxHeight: "350px",
+                        overflowY: "auto",
+                        padding: "0.5rem",
+                        backgroundColor: "#F3F4F6",
+                        borderRadius: "8px"
+                      }}>
+                        {contractForm.searched_contracts.map(c => (
+                          <div
+                            key={c.id}
+                            onClick={() => selectOldContract(c)}
+                            style={{
+                              padding: "1rem",
+                              border: contractForm.parent_contract_id === c.id ? "2px solid #5A7ACD" : "1px solid #E5E7EB",
+                              borderRadius: "10px",
+                              cursor: "pointer",
+                              backgroundColor: contractForm.parent_contract_id === c.id ? "#EEF2FF" : "white",
+                              transition: "all 0.2s",
+                              boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
+                            }}
+                          >
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+                              <span style={{ fontWeight: 800, color: "#1F2937", fontSize: "15px" }}>{c.contract_number}</span>
+                              <span style={{ fontSize: "12px", padding: "2px 8px", backgroundColor: "#E5E7EB", borderRadius: "12px", color: "#4B5563" }}>
+                                {getBranchName(c.branch_id)}
+                              </span>
+                            </div>
+                            <div style={{ fontWeight: 600, color: "#4B5563", marginBottom: "0.25rem", fontSize: "14px" }}>{c.student_name}</div>
+                            <div style={{ fontSize: "13px", color: "#6B7280", marginBottom: "0.5rem" }}>{c.client_phone || "بدون رقم هاتف"}</div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #F3F4F6", paddingTop: "0.5rem" }}>
+                              <span style={{ fontSize: "12px", color: "#9CA3AF" }}>المتبقي:</span>
+                              <span style={{ fontWeight: 700, color: "#DC2626", fontSize: "14px" }}>
+                                {c.remaining_amount ? parseFloat(c.remaining_amount).toFixed(2) : "0.00"} درهم
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {contractForm.parent_contract_id && (
+                    <div style={{ marginBottom: "1.5rem" }}>
+                      <div style={{
+                        padding: "1.25rem",
+                        backgroundColor: "white",
+                        borderRadius: "12px",
+                        border: "1px solid #E5E7EB",
+                        display: "grid",
+                        gridTemplateColumns: "repeat(4, 1fr)",
+                        gap: "1rem",
+                        boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+                      }}>
+                        <div style={{ gridColumn: "span 4", borderBottom: "1px solid #F3F4F6", paddingBottom: "0.75rem", marginBottom: "0.25rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontWeight: 800, color: "#1F2937", fontSize: "16px" }}>تفاصيل العقد المختار</span>
+                          <span style={{ backgroundColor: "#DC2626", color: "white", padding: "2px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 700 }}>{contractForm.contract_number}</span>
+                        </div>
+
+                        <div>
+                          <div style={{ color: "#6B7280", fontSize: "11px", marginBottom: "0.25rem" }}>اسم الطالب</div>
+                          <div style={{ fontWeight: 700, color: "#111827", fontSize: "14px" }}>{contractForm.student_name}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: "#6B7280", fontSize: "11px", marginBottom: "0.25rem" }}>الدورة</div>
+                          <div style={{ fontWeight: 700, color: "#111827", fontSize: "14px" }}>{getCourseName(contractForm.course_id)}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: "#6B7280", fontSize: "11px", marginBottom: "0.25rem" }}>الفرع</div>
+                          <div style={{ fontWeight: 700, color: "#111827", fontSize: "14px" }}>{getBranchName(contractForm.branch_id)}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: "#6B7280", fontSize: "11px", marginBottom: "0.25rem" }}>الموظف المسؤول</div>
+                          <div style={{ fontWeight: 700, color: "#111827", fontSize: "14px" }}>{getSalesStaffName(contractForm.sales_staff_id)}</div>
+                        </div>
+
+                        <div style={{ gridColumn: "span 4", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem", marginTop: "0.5rem", paddingTop: "0.75rem", borderTop: "1px solid #F3F4F6" }}>
+                          <div style={{ textAlign: "center", backgroundColor: "#F9FAFB", padding: "0.5rem", borderRadius: "8px" }}>
+                            <div style={{ color: "#6B7280", fontSize: "11px" }}>إجمالي العقد</div>
+                            <div style={{ fontWeight: 800, color: "#374151", fontSize: "15px" }}>{parseFloat(contractForm.original_total_amount || 0).toFixed(2)} <span style={{ fontSize: "10px" }}>درهم</span></div>
+                          </div>
+                          <div style={{ textAlign: "center", backgroundColor: "#F0FDF4", padding: "0.5rem", borderRadius: "8px" }}>
+                            <div style={{ color: "#059669", fontSize: "11px" }}>إجمالي المدفوع</div>
+                            <div style={{ fontWeight: 800, color: "#059669", fontSize: "15px" }}>{parseFloat(contractForm.original_paid_amount || 0).toFixed(2)} <span style={{ fontSize: "10px" }}>درهم</span></div>
+                          </div>
+                          <div style={{ textAlign: "center", backgroundColor: "#FEF2F2", padding: "0.5rem", borderRadius: "8px" }}>
+                            <div style={{ color: "#DC2626", fontSize: "11px" }}>المتبقي</div>
+                            <div style={{ fontWeight: 800, color: "#DC2626", fontSize: "15px" }}>
+                              {(parseFloat(contractForm.original_total_amount || 0) - parseFloat(contractForm.original_paid_amount || 0)).toFixed(2)} <span style={{ fontSize: "10px" }}>درهم</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {contractForm.parent_contract_id && (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem" }}>
+                      <div style={{ position: 'relative' }}>
+                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '12px', fontWeight: 700, color: '#4B5563' }}>فرع الكنسلة *</label>
+                        <select
+                          value={contractForm.branch_id}
+                          onChange={(e) => {
+                            const branchId = e.target.value;
+                            setContractForm({ ...contractForm, branch_id: branchId, sales_staff_id: "" });
+                            if (branchId) loadSalesStaff(parseInt(branchId));
+                          }}
+                          style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo", width: "100%" }}
+                          required
+                        >
+                          <option value="">اختر الفرع *</option>
+                          {branches.map(b => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div style={{ position: 'relative' }}>
+                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '12px', fontWeight: 700, color: '#4B5563' }}>الموظف المسؤول *</label>
+                        <select
+                          value={contractForm.sales_staff_id}
+                          onChange={(e) => setContractForm({ ...contractForm, sales_staff_id: e.target.value })}
+                          required
+                          style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo", width: "100%" }}
+                        >
+                          <option value="">اختر الموظف *</option>
+                          {salesStaff.filter(s => !contractForm.branch_id || s.branch_id === parseInt(contractForm.branch_id)).map(s => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div style={{ position: 'relative' }}>
+                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '12px', fontWeight: 700, color: '#4B5563' }}>تاريخ الكنسلة *</label>
+                        <input
+                          type="date"
+                          value={contractForm.contract_date || new Date().toISOString().split('T')[0]}
+                          onChange={(e) => setContractForm({ ...contractForm, contract_date: e.target.value })}
+                          style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", width: "100%" }}
+                          required
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {contractForm.parent_contract_id && (
+                    <div style={{ marginTop: "1.5rem", padding: "1.25rem", backgroundColor: "#FFF5F5", borderRadius: "12px", border: "1px solid #FECACA" }}>
+                      <h4 style={{ margin: "0 0 1rem 0", fontSize: "15px", fontWeight: 800, color: "#DC2626", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="12" y1="8" x2="12" y2="12"></line>
+                          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                        مبلغ الكنسلة (المسترجع)
+                      </h4>
+                      {contractForm.payments.map((p, index) => (
+                        <div key={index} style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr", gap: "1rem" }}>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '12px', fontWeight: 700, color: '#DC2626' }}>المبلغ المراد كنسلته (يدوي) *</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              placeholder="أدخل المبلغ هنا..."
+                              value={p.payment_amount}
+                              onChange={(e) => {
+                                const newPayments = [...contractForm.payments];
+                                newPayments[index].payment_amount = e.target.value;
+                                setContractForm({ ...contractForm, payments: newPayments });
+                              }}
+                              required
+                              style={{
+                                padding: "0.75rem",
+                                fontSize: "16px",
+                                fontWeight: 800,
+                                border: "2px solid #FCA5A5",
+                                borderRadius: "8px",
+                                width: "100%",
+                                color: "#DC2626",
+                                backgroundColor: "white"
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '12px', fontWeight: 700, color: '#4B5563' }}>طريقة الإرجاع *</label>
+                            <select
+                              value={p.payment_method_id}
+                              onChange={(e) => {
+                                const newPayments = [...contractForm.payments];
+                                newPayments[index].payment_method_id = e.target.value;
+                                setContractForm({ ...contractForm, payments: newPayments });
+                              }}
+                              required
+                              style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid #D1D5DB", fontFamily: "Cairo", width: "100%" }}
+                            >
+                              <option value="">طريقة الإرجاع</option>
+                              {paymentMethods.map(pm => (
+                                <option key={pm.id} value={pm.id}>{pm.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '12px', fontWeight: 700, color: '#4B5563' }}>رقم العملية (اختياري)</label>
+                            <input
+                              placeholder="رقم العملية..."
+                              value={p.payment_number || ""}
+                              onChange={(e) => {
+                                const newPayments = [...contractForm.payments];
+                                newPayments[index].payment_number = e.target.value;
+                                setContractForm({ ...contractForm, payments: newPayments });
+                              }}
+                              style={{ padding: "0.75rem", border: "1px solid #D1D5DB", borderRadius: "8px", width: "100%" }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: "1rem" }}>
+                    <textarea
+                      placeholder="سبب الكنسلة / ملاحظات إضافية"
+                      value={contractForm.notes}
+                      onChange={(e) => setContractForm({ ...contractForm, notes: e.target.value })}
+                      style={{ width: "100%", padding: "0.75rem", borderRadius: "8px", border: "1px solid #dcdcdc", fontFamily: "Cairo", minHeight: "80px" }}
+                    ></textarea>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn" onClick={() => setShowCancellationForm(false)}>إلغاء</button>
+                  <button type="submit" className="btn" style={{ backgroundColor: "#DC2626", color: "white", border: "none" }}>إتمام الكنسلة</button>
+                </div>
+              </form>
+            </div>
+          </div>
         )
         }
       </div >

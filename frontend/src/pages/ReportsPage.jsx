@@ -430,25 +430,46 @@ export default function ReportsPage() {
     if (!editingExpense) return;
 
     try {
-      await apiPatch(`/expenses/${editingExpense.id}`, expenseEditForm, token);
+      const updatedExpense = await apiPatch(`/expenses/${editingExpense.id}`, expenseEditForm, token);
       success("تم تحديث المصروف بنجاح!");
       setShowExpenseEditModal(false);
       setEditingExpense(null);
-      // Reload expenses by reloading sessions (which triggers the expense loader)
-      loadSessions(selectedBranchId);
+
+      // Robust state update: search across all keys to ensure the item is updated
+      setExpenses(prev => {
+        const next = { ...prev };
+        Object.keys(next).forEach(key => {
+          if (Array.isArray(next[key])) {
+            next[key] = next[key].map(exp =>
+              exp.id === updatedExpense.id ? updatedExpense : exp
+            );
+          }
+        });
+        return next;
+      });
     } catch (err) {
       showError("حدث خطأ أثناء تحديث المصروف: " + err.message);
     }
   };
 
-  const handleDeleteExpense = async (expenseId) => {
+  const handleDeleteExpense = async (expense) => {
     confirm(
       "هل أنت متأكد من حذف هذا المصروف؟",
       async () => {
         try {
-          await apiDelete(`/expenses/${expenseId}`, token);
+          await apiDelete(`/expenses/${expense.id}`, token);
           success("تم حذف المصروف بنجاح!");
-          loadSessions(selectedBranchId);
+
+          // Robust state update: search across all keys to ensure the item is removed
+          setExpenses(prev => {
+            const next = { ...prev };
+            Object.keys(next).forEach(key => {
+              if (Array.isArray(next[key])) {
+                next[key] = next[key].filter(exp => exp.id !== expense.id);
+              }
+            });
+            return next;
+          });
         } catch (err) {
           showError("حدث خطأ أثناء حذف المصروف: " + err.message);
         }
@@ -1447,7 +1468,7 @@ export default function ReportsPage() {
                                         type="button"
                                         className="btn"
                                         onClick={() => {
-                                          setShowExpenseForm(prev => ({ ...prev, [monthKey]: false }));
+                                          setShowExpenseForm(prev => ({ ...prev, [branchMonthKey]: false }));
                                           setExpenseForm({ title: "", amount: "", branch_id: branches[0]?.id || "", teacher_name: "" });
                                         }}
                                       >
@@ -1504,7 +1525,7 @@ export default function ReportsPage() {
                                               </button>
                                               <button
                                                 className="btn btn-small btn-danger"
-                                                onClick={() => handleDeleteExpense(expense.id)}
+                                                onClick={() => handleDeleteExpense(expense)}
                                                 title="حذف"
                                               >
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

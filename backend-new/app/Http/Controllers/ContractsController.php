@@ -57,12 +57,13 @@ class ContractsController extends Controller
             'payments.*.payment_method_id' => 'required_with:payments|exists:payment_methods,id',
         ]);
 
+        $isCancellation = $request->contract_type === 'cancellation';
         $isShared = ($request->contract_type === 'shared' && $request->shared_branch_id) || 
                     ($request->contract_type === 'shared_same_branch' && $request->shared_sales_staff_id) ||
-                    ($request->contract_type === 'old_payment' && ($request->shared_branch_id || $request->shared_sales_staff_id));
+                    (($request->contract_type === 'old_payment' || $isCancellation) && ($request->shared_branch_id || $request->shared_sales_staff_id));
         
-        // Auto-detect sharing for old payments if parent is shared
-        if ($request->contract_type === 'old_payment' && $request->parent_contract_id && !$isShared) {
+        // Auto-detect sharing for old payments or cancellations if parent is shared
+        if (($request->contract_type === 'old_payment' || $isCancellation) && $request->parent_contract_id && !$isShared) {
             $parentContract = Contract::find($request->parent_contract_id);
             if ($parentContract) {
                 // Use findPartner helper to identify related contract
@@ -94,17 +95,18 @@ class ContractsController extends Controller
 
         // For old_payment sharing, we use a custom split if provided, otherwise 50/50
         $isOldPayment = $request->contract_type === 'old_payment';
+        $isCancellation = $request->contract_type === 'cancellation';
         $sharedAmountTotal = $request->shared_amount ?? 0;
         
         // Recalculate if we auto-detected sharing
-        if ($isOldPayment && $isShared && $sharedAmountTotal == 0) {
+        if (($isOldPayment || $isCancellation) && $isShared && $sharedAmountTotal == 0) {
             $totalPaymentAmount = collect($originalPayments)->sum('payment_amount');
             $sharedAmountTotal = $totalPaymentAmount / 2;
         }
 
-        // Calculate ratio if old payment is shared
+        // Calculate ratio if old payment or cancellation is shared
         $sharingRatio = 0.5; // Default for new shared contracts
-        if ($isOldPayment && $isShared) {
+        if (($isOldPayment || $isCancellation) && $isShared) {
             $totalPaymentAmount = collect($originalPayments)->sum('payment_amount');
             if ($totalPaymentAmount > 0 && $sharedAmountTotal > 0) {
                 $sharingRatio = $sharedAmountTotal / $totalPaymentAmount;
@@ -123,6 +125,23 @@ class ContractsController extends Controller
             $mainContractData['contract_number'] = ($request->contract_number ?? 'OLD') . '-P' . $sharedTimestamp;
             // total_amount is 0 for old payments to avoid double-counting in stats
             $mainContractData['total_amount'] = 0;
+        }
+
+        if ($isCancellation) {
+            $mainContractData['contract_number'] = ($request->contract_number ?? 'CAN') . '-C' . $sharedTimestamp;
+            // total_amount is 0 for cancellations as well
+            $mainContractData['total_amount'] = 0;
+            
+            // Deduct the cancellation amount from the parent contract's total_amount
+            if ($request->parent_contract_id) {
+                $parent = Contract::find($request->parent_contract_id);
+                if ($parent) {
+                    $totalCancelAmount = collect($originalPayments)->sum('payment_amount');
+                    $deduction = $isShared ? ($totalCancelAmount * (1 - $sharingRatio)) : $totalCancelAmount;
+                    $parent->total_amount = max(0, $parent->total_amount - $deduction);
+                    $parent->save();
+                }
+            }
         }
 
         // Create the contract
@@ -147,8 +166,8 @@ class ContractsController extends Controller
                     
                     $payment = new ContractPayment($paymentData);
                     $payment->contract_id = $contract->id;
-                    $payment->payment_amount = $amountToRecord;
-                    $payment->net_amount = $net;
+                    $payment->payment_amount = $isCancellation ? -$amountToRecord : $amountToRecord;
+                    $payment->net_amount = $isCancellation ? -$net : $net;
                     $payment->save();
 
                     $totalPaid += $amountToRecord;
@@ -197,6 +216,25 @@ class ContractsController extends Controller
                 $sharedContract->contract_type = 'old_payment';
                 $sharedContract->parent_contract_id = $request->parent_contract_id; // Will link below
                 $sharedContract->total_amount = 0;
+            } else if ($isCancellation) {
+                $sharedContract->registration_source = "كنسلة عقد مشترك";
+                $sharedContract->contract_type = 'cancellation';
+                $sharedContract->parent_contract_id = $request->parent_contract_id;
+                $sharedContract->total_amount = 0;
+                
+                // Deduct from partner parent's total_amount
+                if ($request->parent_contract_id) {
+                    $parent = Contract::find($request->parent_contract_id);
+                    if ($parent) {
+                        $partnerParent = $this->findPartner($parent);
+                        if ($partnerParent) {
+                            $totalCancelAmount = collect($originalPayments)->sum('payment_amount');
+                            $deduction = $totalCancelAmount * $sharingRatio;
+                            $partnerParent->total_amount = max(0, $partnerParent->total_amount - $deduction);
+                            $partnerParent->save();
+                        }
+                    }
+                }
             } else if ($request->contract_type === 'shared_same_branch') {
                 $sharedContract->registration_source = "عقد مشترك (نفس الفرع)";
                 $sharedContract->contract_type = 'shared_same_branch';
@@ -228,10 +266,10 @@ class ContractsController extends Controller
                 
                 $sp = new ContractPayment();
                 $sp->contract_id = $sharedContract->id;
-                $sp->payment_amount = $amount;
+                $sp->payment_amount = $isCancellation ? -$amount : $amount;
                 $sp->payment_method_id = $pData['payment_method_id'];
                 $sp->payment_number = $pData['payment_number'];
-                $sp->net_amount = $net;
+                $sp->net_amount = $isCancellation ? -$net : $net;
                 $sp->save();
                 
                 $sharedTotalPaid += $amount;
@@ -241,8 +279,8 @@ class ContractsController extends Controller
             // Unified synchronization for the shared contract copy
             $this->syncContractHeader($sharedContract);
 
-            // Link to the partner parent contract if it's an old payment
-            if ($isOldPayment && $request->parent_contract_id) {
+            // Link to the partner parent contract if it's an old payment or cancellation
+            if (($isOldPayment || $isCancellation) && $request->parent_contract_id) {
                 // Find the shared partner of the parent contract
                 $parentContract = Contract::find($request->parent_contract_id);
                 if ($parentContract) {
@@ -456,11 +494,16 @@ class ContractsController extends Controller
         if ($request->has('client_phone')) {
             $query->where('client_phone', 'like', '%' . $request->client_phone . '%');
         }
+
+        if ($request->has('branch_id')) {
+            $query->where('branch_id', $request->branch_id);
+        }
         
         // Match Python logic: Exclude SHARED suffix if needed, and sort
         $query->where('contract_number', 'not like', '%-SHARED')
               ->where('contract_number', 'not like', '%-S')
-              ->where('contract_type', '!=', 'old_payment');
+              ->where('contract_type', '!=', 'old_payment')
+              ->where('contract_type', '!=', 'cancellation');
         
         return $query->orderBy('created_at', 'desc')->limit(20)->get();
     }
