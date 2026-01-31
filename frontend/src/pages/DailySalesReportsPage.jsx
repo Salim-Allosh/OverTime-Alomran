@@ -1942,7 +1942,6 @@ export default function DailySalesReportsPage() {
       // Group Reports by Branch
       const branchesData = {};
       // Helper to init branch object
-      // Helper to init branch object
       const getBranchObj = (id, name) => {
         if (!branchesData[id]) {
           branchesData[id] = {
@@ -1965,7 +1964,8 @@ export default function DailySalesReportsPage() {
               daily_calls: 0, hot_calls: 0, walk_ins: 0,
               branch_leads: 0, online_leads: 0, extra_leads: 0,
               visits_count: 0,
-              net_total: 0
+              net_total: 0,
+              paid_total: 0
             }
           };
         }
@@ -2000,23 +2000,43 @@ export default function DailySalesReportsPage() {
         branchObj.cumulative.visits_count += parseInt(report.number_of_visits) || 0;
       });
 
-      // Process Contracts (Today)
-      todayContracts.forEach(contract => {
+      // Process Contracts and Payments (Today and Cumulative)
+      // Logic: Iterate over ALL contracts to find payments in target dates
+      contractsArray.forEach(contract => {
         const branchName = contract.branch ? contract.branch.name : getBranchName(contract.branch_id);
         const branchObj = getBranchObj(contract.branch_id, branchName);
-        branchObj.contracts.push(contract);
 
-        branchObj.financials.net_total += parseFloat(contract.net_amount || 0);
-        branchObj.financials.paid_total += parseFloat(contract.payment_amount || 0);
-        branchObj.financials.remaining_total += parseFloat(contract.remaining_amount || 0);
-        branchObj.financials.total_amount += parseFloat(contract.total_amount || 0);
-      });
+        // A. Sales Stats (Based on contract creation date)
+        const dateToUse = contract.contract_date || contract.created_at;
+        if (dateToUse) {
+          const contractDateStr = new Date(dateToUse).toISOString().split('T')[0];
+          // Today's Sales Value
+          if (contractDateStr === todayStr) {
+            branchObj.contracts.push(contract);
+            branchObj.financials.total_amount += parseFloat(contract.total_amount || 0);
+            branchObj.financials.remaining_total += parseFloat(contract.remaining_amount || 0);
+          }
+        }
 
-      // Process Monthly Contracts (Cumulative)
-      monthlyContracts.forEach(contract => {
-        const branchName = contract.branch ? contract.branch.name : getBranchName(contract.branch_id);
-        const branchObj = getBranchObj(contract.branch_id, branchName);
-        branchObj.cumulative.net_total += parseFloat(contract.net_amount || 0);
+        // B. Cashflow Stats (Based on payment creation date)
+        if (Array.isArray(contract.payments)) {
+          contract.payments.forEach(payment => {
+            if (!payment.created_at) return;
+            const paymentDateStr = new Date(payment.created_at).toISOString().split('T')[0];
+
+            // Today's Payments
+            if (paymentDateStr === todayStr) {
+              branchObj.financials.paid_total += parseFloat(payment.payment_amount || 0);
+              branchObj.financials.net_total += parseFloat(payment.net_amount || 0);
+            }
+
+            // Monthly (Cumulative) Payments
+            if (paymentDateStr >= monthStartStr && paymentDateStr <= todayStr) {
+              branchObj.cumulative.paid_total += parseFloat(payment.payment_amount || 0);
+              branchObj.cumulative.net_total += parseFloat(payment.net_amount || 0);
+            }
+          });
+        }
       });
 
       const sortedBranches = Object.values(branchesData).sort((a, b) => a.id - b.id);
@@ -2050,9 +2070,9 @@ export default function DailySalesReportsPage() {
         total_reports: monthlyReportsArray.length,
         total_contracts: monthlyContracts.length,
         total_contracts_value: monthlyContracts.reduce((sum, c) => sum + parseFloat(c.total_amount || 0), 0),
-        paid_total: monthlyContracts.reduce((sum, c) => sum + parseFloat(c.payment_amount || 0), 0),
+        paid_total: sortedBranches.reduce((sum, b) => sum + b.cumulative.paid_total, 0),
         remaining_total: monthlyContracts.reduce((sum, c) => sum + parseFloat(c.remaining_amount || 0), 0),
-        net_total: monthlyContracts.reduce((sum, c) => sum + parseFloat(c.net_amount || 0), 0),
+        net_total: sortedBranches.reduce((sum, b) => sum + b.cumulative.net_total, 0),
         daily_calls: monthlyReportsArray.reduce((sum, r) => sum + (parseInt(r.daily_calls) || 0), 0),
         hot_calls: monthlyReportsArray.reduce((sum, r) => sum + (parseInt(r.hot_calls) || 0), 0),
         walk_ins: monthlyReportsArray.reduce((sum, r) => sum + (parseInt(r.walk_ins) || 0), 0),
