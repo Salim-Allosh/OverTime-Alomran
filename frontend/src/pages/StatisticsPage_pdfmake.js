@@ -12,7 +12,8 @@ export const buildStatisticsPDF = (
   salesStaffName,
   monthName,
   selectedYear,
-  isSuperAdmin = false
+  isSuperAdmin = false,
+  selectedBranchIds = []
 ) => {
   // Helper function to format Arabic text
   const formatArabicText = (text) => {
@@ -129,7 +130,7 @@ export const buildStatisticsPDF = (
         {
           width: '*',
           stack: [
-            { text: formatArabicText('إجمالي قيمة العقود'), style: 'statLabelSmall', alignment: 'center' },
+            { text: formatArabicText('إجمالي المبيعات'), style: 'statLabelSmall', alignment: 'center' },
             { text: formatArabicText(`${formatNumber(totalContractsValue)} درهم`), style: 'statValueSmall', color: '#5A7ACD', alignment: 'center' }
           ],
           margin: [2, 0, 2, 2]
@@ -165,8 +166,8 @@ export const buildStatisticsPDF = (
 
   docDefinition.content.push(...firstPageContent);
 
-  // If super admin and showing all branches, add summary table for all branches (on the same page as overall statistics)
-  if (isSuperAdmin && branchName === "جميع الفروع" && statistics.branches_comprehensive && statistics.branches_comprehensive.length > 0) {
+  // If super admin and showing multiple branches, add summary table for all selected branches
+  if (isSuperAdmin && (branchName === "جميع الفروع" || selectedBranchIds.length > 1) && statistics.branches_comprehensive && statistics.branches_comprehensive.length > 0) {
     // Add summary table for all branches
     const branchesSummaryContent = [
       {
@@ -184,7 +185,7 @@ export const buildStatisticsPDF = (
               { text: formatArabicText('اسم الفرع'), style: 'tableHeader', alignment: 'center' },
               { text: formatArabicText('عدد التقارير'), style: 'tableHeader', alignment: 'center' },
               { text: formatArabicText('عدد العقود'), style: 'tableHeader', alignment: 'center' },
-              { text: formatArabicText('قيمة العقود'), style: 'tableHeader', alignment: 'center' },
+              { text: formatArabicText('إجمالي المبيعات'), style: 'tableHeader', alignment: 'center' },
               { text: formatArabicText('المدفوع'), style: 'tableHeader', alignment: 'center' },
               { text: formatArabicText('المتبقي'), style: 'tableHeader', alignment: 'center' },
               { text: formatArabicText('الصافي'), style: 'tableHeader', alignment: 'center' }
@@ -567,7 +568,7 @@ export const buildStatisticsPDF = (
             { text: formatArabicText('الفرع'), style: 'tableHeader', alignment: 'center' },
             { text: formatArabicText('إجمالي المبيعات'), style: 'tableHeader', alignment: 'center' },
             { text: formatArabicText('عدد العقود'), style: 'tableHeader', alignment: 'center' },
-            { text: formatArabicText('قيمة العقود'), style: 'tableHeader', alignment: 'center' },
+            { text: formatArabicText('المبالغ المدفوعة'), style: 'tableHeader', alignment: 'center' },
             { text: formatArabicText('الصافي'), style: 'tableHeader', alignment: 'center' }
           ],
           ...statistics.sales_staff_details.map(staff => [
@@ -575,7 +576,7 @@ export const buildStatisticsPDF = (
             { text: formatArabicText(staff.branch_name), style: 'tableCell', alignment: 'center' },
             { text: formatArabicText(`${formatNumber(parseFloat(staff.total_sales))} درهم`), style: 'tableCell', bold: true, color: '#5A7ACD', alignment: 'center' },
             { text: formatNumber(staff.contracts_count, 0), style: 'tableCell', alignment: 'center' },
-            { text: formatArabicText(`${formatNumber(parseFloat(staff.contracts_value))} درهم`), style: 'tableCell', bold: true, alignment: 'center' },
+            { text: formatArabicText(`${formatNumber(parseFloat(staff.total_paid_amount || 0))} درهم`), style: 'tableCell', bold: true, alignment: 'center' },
             { text: formatArabicText(`${formatNumber(parseFloat(staff.total_net_amount || 0))} درهم`), style: 'tableCell', bold: true, color: '#28A745', alignment: 'center' }
           ]),
           [
@@ -583,7 +584,7 @@ export const buildStatisticsPDF = (
             { text: '-', style: 'tableCell', fillColor: '#F9FAFB', alignment: 'center' },
             { text: formatArabicText(`${formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_sales), 0))} درهم`), style: 'tableCell', bold: true, fillColor: '#F9FAFB', color: '#5A7ACD', alignment: 'center' },
             { text: formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.contracts_count, 0), 0), style: 'tableCell', bold: true, fillColor: '#F9FAFB', alignment: 'center' },
-            { text: formatArabicText(`${formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.contracts_value), 0))} درهم`), style: 'tableCell', bold: true, fillColor: '#F9FAFB', alignment: 'center' },
+            { text: formatArabicText(`${formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_paid_amount || 0), 0))} درهم`), style: 'tableCell', bold: true, fillColor: '#F9FAFB', alignment: 'center' },
             { text: formatArabicText(`${formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_net_amount || 0), 0))} درهم`), style: 'tableCell', bold: true, fillColor: '#F9FAFB', color: '#28A745', alignment: 'center' }
           ]
         ]
@@ -896,7 +897,7 @@ export const buildStatisticsPDF = (
             {
               width: '*',
               stack: [
-                { text: formatArabicText('قيمة العقود'), style: 'statLabelSmall', alignment: 'center' },
+                { text: formatArabicText('إجمالي المبيعات'), style: 'statLabelSmall', alignment: 'center' },
                 { text: formatArabicText(`${formatNumber(parseFloat(branch.total_contracts_value))} درهم`), style: 'statValueSmall', color: '#5A7ACD', alignment: 'center' }
               ],
               margin: [2, 0, 2, 2]
@@ -1148,21 +1149,21 @@ export const buildStatisticsPDF = (
                   { text: formatArabicText('اسم الموظف'), style: 'tableHeader', alignment: 'center' },
                   { text: formatArabicText('إجمالي المبيعات'), style: 'tableHeader', alignment: 'center' },
                   { text: formatArabicText('عدد العقود'), style: 'tableHeader', alignment: 'center' },
-                  { text: formatArabicText('قيمة العقود'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('المبالغ المدفوعة'), style: 'tableHeader', alignment: 'center' },
                   { text: formatArabicText('الصافي'), style: 'tableHeader', alignment: 'center' }
                 ],
                 ...branch.sales_staff_stats.map(staff => [
                   { text: formatArabicText(staff.staff_name), style: 'tableCell', bold: true, alignment: 'center' },
                   { text: formatArabicText(`${formatNumber(parseFloat(staff.total_sales))} درهم`), style: 'tableCell', bold: true, color: '#5A7ACD', alignment: 'center' },
                   { text: formatNumber(staff.contracts_count, 0), style: 'tableCell', alignment: 'center' },
-                  { text: formatArabicText(`${formatNumber(parseFloat(staff.contracts_value))} درهم`), style: 'tableCell', bold: true, alignment: 'center' },
+                  { text: formatArabicText(`${formatNumber(parseFloat(staff.total_paid_amount || 0))} درهم`), style: 'tableCell', bold: true, alignment: 'center' },
                   { text: formatArabicText(`${formatNumber(parseFloat(staff.total_net_amount || 0))} درهم`), style: 'tableCell', bold: true, color: '#28A745', alignment: 'center' }
                 ]),
                 [
                   { text: formatArabicText('الإجمالي'), style: 'tableCell', bold: true, fillColor: '#F9FAFB', alignment: 'center' },
                   { text: formatArabicText(`${formatNumber(branch.sales_staff_stats.reduce((sum, s) => sum + parseFloat(s.total_sales), 0))} درهم`), style: 'tableCell', bold: true, fillColor: '#F9FAFB', color: '#5A7ACD', alignment: 'center' },
                   { text: formatNumber(branch.sales_staff_stats.reduce((sum, s) => sum + s.contracts_count, 0), 0), style: 'tableCell', bold: true, fillColor: '#F9FAFB', alignment: 'center' },
-                  { text: formatArabicText(`${formatNumber(branch.sales_staff_stats.reduce((sum, s) => sum + parseFloat(s.contracts_value), 0))} درهم`), style: 'tableCell', bold: true, fillColor: '#F9FAFB', alignment: 'center' },
+                  { text: formatArabicText(`${formatNumber(branch.sales_staff_stats.reduce((sum, s) => sum + parseFloat(s.total_paid_amount || 0), 0))} درهم`), style: 'tableCell', bold: true, fillColor: '#F9FAFB', alignment: 'center' },
                   { text: formatArabicText(`${formatNumber(branch.sales_staff_stats.reduce((sum, s) => sum + parseFloat(s.total_net_amount || 0), 0))} درهم`), style: 'tableCell', bold: true, fillColor: '#F9FAFB', color: '#28A745', alignment: 'center' }
                 ]
               ]

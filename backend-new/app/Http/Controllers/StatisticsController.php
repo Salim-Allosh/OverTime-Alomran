@@ -17,21 +17,27 @@ class StatisticsController extends Controller
     public function comprehensive(Request $request)
     {
         $year = $request->input('year');
-        $month = $request->input('month');
-        $branchId = $request->input('branch_id');
-        $salesStaffId = $request->input('sales_staff_id');
+        $monthInput = $request->input('month');
+        
+        $branchIdInput = $request->input('branch_id');
+        $salesStaffIdInput = $request->input('sales_staff_id');
+
+        // Normalize IDs to arrays
+        $branchIds = $this->normalizeIds($branchIdInput);
+        $salesStaffIds = $this->normalizeIds($salesStaffIdInput);
+        $monthIds = $this->normalizeIds($monthInput);
 
         $user = $request->user();
         if (!$user->is_super_admin && !$user->is_backdoor) {
-            $branchId = $user->branch_id;
+            $branchIds = [$user->branch_id];
         }
 
         // --- 1. total_unique_days (Based on Daily Sales Reports) ---
         $uniqueDaysQuery = DailySalesReport::query();
         if ($year) $uniqueDaysQuery->whereYear('report_date', $year);
-        if ($month) $uniqueDaysQuery->whereMonth('report_date', $month);
-        if ($branchId) $uniqueDaysQuery->where('branch_id', $branchId);
-        if ($salesStaffId) $uniqueDaysQuery->where('sales_staff_id', $salesStaffId);
+        if (!empty($monthIds)) $uniqueDaysQuery->whereIn(DB::raw('MONTH(report_date)'), $monthIds);
+        if (!empty($branchIds)) $uniqueDaysQuery->whereIn('branch_id', $branchIds);
+        if (!empty($salesStaffIds)) $uniqueDaysQuery->whereIn('sales_staff_id', $salesStaffIds);
         $totalUniqueDays = $uniqueDaysQuery->distinct('report_date')->count('report_date');
 
         // --- 2. branches_comprehensive (Contracts Aggregation) ---
@@ -42,9 +48,9 @@ class StatisticsController extends Controller
         
         $contractsQuery = Contract::query();
         if ($year) $contractsQuery->whereYear('contract_date', $year);
-        if ($month) $contractsQuery->whereMonth('contract_date', $month);
-        if ($branchId) $contractsQuery->where('branch_id', $branchId);
-        if ($salesStaffId) $contractsQuery->where('sales_staff_id', $salesStaffId);
+        if (!empty($monthIds)) $contractsQuery->whereIn(DB::raw('MONTH(contract_date)'), $monthIds);
+        if (!empty($branchIds)) $contractsQuery->whereIn('branch_id', $branchIds);
+        if (!empty($salesStaffIds)) $contractsQuery->whereIn('sales_staff_id', $salesStaffIds);
 
 
         // We can group by branch to give the "branches_comprehensive" array
@@ -83,9 +89,9 @@ class StatisticsController extends Controller
             ->join('contracts', 'contract_payments.contract_id', '=', 'contracts.id');
         
         if ($year) $paymentLedgerQuery->whereYear('contract_payments.created_at', $year);
-        if ($month) $paymentLedgerQuery->whereMonth('contract_payments.created_at', $month);
-        if ($branchId) $paymentLedgerQuery->where('contracts.branch_id', $branchId);
-        if ($salesStaffId) $paymentLedgerQuery->where('contracts.sales_staff_id', $salesStaffId);
+        if (!empty($monthIds)) $paymentLedgerQuery->whereIn(DB::raw('MONTH(contract_payments.created_at)'), $monthIds);
+        if (!empty($branchIds)) $paymentLedgerQuery->whereIn('contracts.branch_id', $branchIds);
+        if (!empty($salesStaffIds)) $paymentLedgerQuery->whereIn('contracts.sales_staff_id', $salesStaffIds);
 
         $paymentsInPeriod = $paymentLedgerQuery->select(
             'contracts.branch_id',
@@ -95,7 +101,7 @@ class StatisticsController extends Controller
 
         // Initialize stats...
         $allBranchesQuery = Branch::query();
-        if ($branchId) $allBranchesQuery->where('id', $branchId);
+        if (!empty($branchIds)) $allBranchesQuery->whereIn('id', $branchIds);
         $allBranches = $allBranchesQuery->get();
 
         $branchStats = [];
@@ -127,8 +133,9 @@ class StatisticsController extends Controller
         // Calculate Daily Reports detailed stats per branch
         $reportsQuery = \App\Models\DailySalesReport::query();
         if ($year) $reportsQuery->whereYear('report_date', $year);
-        if ($month) $reportsQuery->whereMonth('report_date', $month);
-        if ($salesStaffId) $reportsQuery->where('sales_staff_id', $salesStaffId);
+        if (!empty($monthIds)) $reportsQuery->whereIn(DB::raw('MONTH(report_date)'), $monthIds);
+        if (!empty($salesStaffIds)) $reportsQuery->whereIn('sales_staff_id', $salesStaffIds);
+        if (!empty($branchIds)) $reportsQuery->whereIn('branch_id', $branchIds);
         
         $reportsPerBranch = $reportsQuery->select(
             'branch_id', 
@@ -201,9 +208,9 @@ class StatisticsController extends Controller
         // --- 3. daily_reports_details ---
         $dailyQuery = DailySalesReport::query();
         if ($year) $dailyQuery->whereYear('report_date', $year);
-        if ($month) $dailyQuery->whereMonth('report_date', $month);
-        if ($branchId) $dailyQuery->where('branch_id', $branchId);
-        if ($salesStaffId) $dailyQuery->where('sales_staff_id', $salesStaffId);
+        if (!empty($monthIds)) $dailyQuery->whereIn(DB::raw('MONTH(report_date)'), $monthIds);
+        if (!empty($branchIds)) $dailyQuery->whereIn('branch_id', $branchIds);
+        if (!empty($salesStaffIds)) $dailyQuery->whereIn('sales_staff_id', $salesStaffIds);
         
         $dailyStats = $dailyQuery->select(
             DB::raw('SUM(daily_calls) as total_calls'),
@@ -221,9 +228,9 @@ class StatisticsController extends Controller
         $totalDiscounted = Contract::query()->where('contract_type', '!=', 'old_payment')
                                             ->where('contract_type', '!=', 'cancellation');
         if ($year) $totalDiscounted->whereYear('contract_date', $year);
-        if ($month) $totalDiscounted->whereMonth('contract_date', $month);
-        if ($branchId) $totalDiscounted->where('branch_id', $branchId);
-        if ($salesStaffId) $totalDiscounted->where('sales_staff_id', $salesStaffId);
+        if (!empty($monthIds)) $totalDiscounted->whereIn(DB::raw('MONTH(contract_date)'), $monthIds);
+        if (!empty($branchIds)) $totalDiscounted->whereIn('branch_id', $branchIds);
+        if (!empty($salesStaffIds)) $totalDiscounted->whereIn('sales_staff_id', $salesStaffIds);
         $discountValue = $totalDiscounted->sum(DB::raw('total_amount - net_amount')); // Assuming net_amount is after discount
 
         $dailyReportsDetails = [
@@ -250,9 +257,9 @@ class StatisticsController extends Controller
             );
 
         if ($year) $paymentMethodsQuery->whereYear('contract_payments.created_at', $year);
-        if ($month) $paymentMethodsQuery->whereMonth('contract_payments.created_at', $month);
-        if ($branchId) $paymentMethodsQuery->where('contracts.branch_id', $branchId);
-        if ($salesStaffId) $paymentMethodsQuery->where('contracts.sales_staff_id', $salesStaffId);
+        if (!empty($monthIds)) $paymentMethodsQuery->whereIn(DB::raw('MONTH(contract_payments.created_at)'), $monthIds);
+        if (!empty($branchIds)) $paymentMethodsQuery->whereIn('contracts.branch_id', $branchIds);
+        if (!empty($salesStaffIds)) $paymentMethodsQuery->whereIn('contracts.sales_staff_id', $salesStaffIds);
         
         $paymentStats = $paymentMethodsQuery->groupBy('contracts.branch_id', 'contract_payments.payment_method_id')->get();
 
@@ -298,8 +305,8 @@ class StatisticsController extends Controller
         // Join SalesStaff, Contract, DailySalesReport
         // We need all staff, or just active ones?
         $staffQuery = SalesStaff::query();
-        if ($branchId) $staffQuery->where('branch_id', $branchId);
-        if ($salesStaffId) $staffQuery->where('id', $salesStaffId);
+        if (!empty($branchIds)) $staffQuery->whereIn('branch_id', $branchIds);
+        if (!empty($salesStaffIds)) $staffQuery->whereIn('id', $salesStaffIds);
         $staffMembers = $staffQuery->with('branch')->get(); // Eager load branch
         
         $salesStaffDetails = [];
@@ -310,7 +317,7 @@ class StatisticsController extends Controller
                 ->where('contract_type', '!=', 'payment')
                 ->where('contract_type', '!=', 'cancellation');
             if ($year) $cQuery->whereYear('contract_date', $year);
-            if ($month) $cQuery->whereMonth('contract_date', $month);
+            if (!empty($monthIds)) $cQuery->whereIn(DB::raw('MONTH(contract_date)'), $monthIds);
             
             $cStats = $cQuery->select(
                 DB::raw('COUNT(*) as count'),
@@ -325,7 +332,7 @@ class StatisticsController extends Controller
                 ->where('contracts.sales_staff_id', $staff->id);
                 
             if ($year) $pQuery->whereYear('contract_payments.created_at', $year);
-            if ($month) $pQuery->whereMonth('contract_payments.created_at', $month);
+            if (!empty($monthIds)) $pQuery->whereIn(DB::raw('MONTH(contract_payments.created_at)'), $monthIds);
             
             $pStats = $pQuery->select(
                 DB::raw('SUM(contract_payments.payment_amount) as total_paid'),
@@ -335,7 +342,7 @@ class StatisticsController extends Controller
             // Daily Report Stats
             $dQuery = DailySalesReport::query()->where('sales_staff_id', $staff->id);
             if ($year) $dQuery->whereYear('report_date', $year);
-            if ($month) $dQuery->whereMonth('report_date', $month);
+            if (!empty($monthIds)) $dQuery->whereIn(DB::raw('MONTH(report_date)'), $monthIds);
             
             $dStats = $dQuery->select(
                 DB::raw('COUNT(*) as reports_count'),
@@ -379,21 +386,21 @@ class StatisticsController extends Controller
         // We show contracts that are either created in the period OR had a payment in the period
         // AND still have a balance.
         $incQuery = Contract::where('remaining_amount', '>', 0);
-        $incQuery->where(function($q) use ($year, $month) {
-            $q->where(function($sq) use ($year, $month) {
+        $incQuery->where(function($q) use ($year, $monthIds) {
+            $q->where(function($sq) use ($year, $monthIds) {
                 if ($year) $sq->whereYear('contract_date', $year);
-                if ($month) $sq->whereMonth('contract_date', $month);
-            })->orWhereHas('payments', function($pq) use ($year, $month) {
+                if (!empty($monthIds)) $sq->whereIn(DB::raw('MONTH(contract_date)'), $monthIds);
+            })->orWhereHas('payments', function($pq) use ($year, $monthIds) {
                 if ($year) $pq->whereYear('created_at', $year);
-                if ($month) $pq->whereMonth('created_at', $month);
-            })->orWhereHas('childContracts.payments', function($pq) use ($year, $month) {
+                if (!empty($monthIds)) $pq->whereIn(DB::raw('MONTH(created_at)'), $monthIds);
+            })->orWhereHas('childContracts.payments', function($pq) use ($year, $monthIds) {
                 if ($year) $pq->whereYear('created_at', $year);
-                if ($month) $pq->whereMonth('created_at', $month);
+                if (!empty($monthIds)) $pq->whereIn(DB::raw('MONTH(created_at)'), $monthIds);
             });
         });
 
-        if ($branchId) $incQuery->where('branch_id', $branchId);
-        if ($salesStaffId) $incQuery->where('sales_staff_id', $salesStaffId);
+        if (!empty($branchIds)) $incQuery->whereIn('branch_id', $branchIds);
+        if (!empty($salesStaffIds)) $incQuery->whereIn('sales_staff_id', $salesStaffIds);
         
         $incompleteContracts = $incQuery->with(['branch', 'salesStaff', 'course'])->get()->map(function($c) {
             return [
@@ -438,9 +445,9 @@ class StatisticsController extends Controller
             ->where('contract_type', '!=', 'cancellation');
 
         if ($year) $courseSalesQuery->whereYear('contract_date', $year);
-        if ($month) $courseSalesQuery->whereMonth('contract_date', $month);
-        if ($branchId) $courseSalesQuery->where('branch_id', $branchId);
-        if ($salesStaffId) $courseSalesQuery->where('sales_staff_id', $salesStaffId);
+        if (!empty($monthIds)) $courseSalesQuery->whereIn(DB::raw('MONTH(contract_date)'), $monthIds);
+        if (!empty($branchIds)) $courseSalesQuery->whereIn('branch_id', $branchIds);
+        if (!empty($salesStaffIds)) $courseSalesQuery->whereIn('sales_staff_id', $salesStaffIds);
 
         $courseSalesRaw = $courseSalesQuery->groupBy('branch_id', 'course_id')->get()->keyBy(function($item) {
             return $item->branch_id . '-' . $item->course_id;
@@ -457,9 +464,9 @@ class StatisticsController extends Controller
             );
             
         if ($year) $courseCashflowQuery->whereYear('contract_payments.created_at', $year);
-        if ($month) $courseCashflowQuery->whereMonth('contract_payments.created_at', $month);
-        if ($branchId) $courseCashflowQuery->where('contracts.branch_id', $branchId);
-        if ($salesStaffId) $courseCashflowQuery->where('contracts.sales_staff_id', $salesStaffId);
+        if (!empty($monthIds)) $courseCashflowQuery->whereIn(DB::raw('MONTH(contract_payments.created_at)'), $monthIds);
+        if (!empty($branchIds)) $courseCashflowQuery->whereIn('contracts.branch_id', $branchIds);
+        if (!empty($salesStaffIds)) $courseCashflowQuery->whereIn('contracts.sales_staff_id', $salesStaffIds);
 
         $courseCashflowRaw = $courseCashflowQuery->groupBy('contracts.branch_id', 'contracts.course_id')->get()->keyBy(function($item) {
             return $item->branch_id . '-' . $item->course_id;
@@ -522,9 +529,9 @@ class StatisticsController extends Controller
         // --- 8. visits_details ---
         $visitsQuery = DailySalesReport::with(['visits', 'salesStaff', 'branch']);
         if ($year) $visitsQuery->whereYear('report_date', $year);
-        if ($month) $visitsQuery->whereMonth('report_date', $month);
-        if ($branchId) $visitsQuery->where('branch_id', $branchId);
-        if ($salesStaffId) $visitsQuery->where('sales_staff_id', $salesStaffId);
+        if (!empty($monthIds)) $visitsQuery->whereIn(DB::raw('MONTH(report_date)'), $monthIds);
+        if (!empty($branchIds)) $visitsQuery->whereIn('branch_id', $branchIds);
+        if (!empty($salesStaffIds)) $visitsQuery->whereIn('sales_staff_id', $salesStaffIds);
 
         $reportsWithVisits = $visitsQuery->get();
         $visitsDetails = [];
@@ -552,7 +559,7 @@ class StatisticsController extends Controller
         }
 
         // --- 9. registration_sources_details ---
-        $registrationSourcesGlobal = $this->getRegistrationSourcesDetails($year, $month, $branchId, $salesStaffId);
+        $registrationSourcesGlobal = $this->getRegistrationSourcesDetails($year, $monthIds, $branchIds, $salesStaffIds);
         foreach ($registrationSourcesGlobal as $source) {
             $bId = $source['branch_id'];
             if (isset($branchStats[$bId])) {
@@ -578,13 +585,13 @@ class StatisticsController extends Controller
         ]);
     }
 
-    private function getRegistrationSourcesDetails($year, $month, $branchId, $salesStaffId)
+    private function getRegistrationSourcesDetails($year, $monthIds, $branchIds, $salesStaffIds)
     {
         $query = Contract::query();
         if ($year) $query->whereYear('contract_date', $year);
-        if ($month) $query->whereMonth('contract_date', $month);
-        if ($branchId) $query->where('branch_id', $branchId);
-        if ($salesStaffId) $query->where('sales_staff_id', $salesStaffId);
+        if (!empty($monthIds)) $query->whereIn(DB::raw('MONTH(contract_date)'), $monthIds);
+        if (!empty($branchIds)) $query->whereIn('branch_id', $branchIds);
+        if (!empty($salesStaffIds)) $query->whereIn('sales_staff_id', $salesStaffIds);
 
         // We exclude 'old_payment' if we want to focus on "Sales Sources" for new contracts, 
         // but often users want to see ALL sources. Let's include all for now unless specified.
@@ -601,9 +608,9 @@ class StatisticsController extends Controller
             );
             
         if ($year) $statsRaw->whereYear('contract_payments.created_at', $year);
-        if ($month) $statsRaw->whereMonth('contract_payments.created_at', $month);
-        if ($branchId) $statsRaw->where('contracts.branch_id', $branchId);
-        if ($salesStaffId) $statsRaw->where('contracts.sales_staff_id', $salesStaffId);
+        if (!empty($monthIds)) $statsRaw->whereIn(DB::raw('MONTH(contract_payments.created_at)'), $monthIds);
+        if (!empty($branchIds)) $statsRaw->whereIn('contracts.branch_id', $branchIds);
+        if (!empty($salesStaffIds)) $statsRaw->whereIn('contracts.sales_staff_id', $salesStaffIds);
 
         $statsRaw = $statsRaw->groupBy('contracts.branch_id', 'contracts.registration_source')
             ->get();
@@ -627,5 +634,19 @@ class StatisticsController extends Controller
         }
 
         return $details;
+    }
+    private function normalizeIds($input)
+    {
+        if (is_array($input)) {
+            return array_filter($input);
+        }
+        if (is_string($input)) {
+            if (strpos($input, ',') !== false) {
+                return array_filter(explode(',', $input));
+            } elseif ($input !== '') {
+                return [$input];
+            }
+        }
+        return [];
     }
 }

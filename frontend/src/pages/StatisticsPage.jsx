@@ -24,15 +24,145 @@ const formatNumber = (num, decimals = 2) => {
   });
 };
 
+const MultiSelect = ({ options, selectedValues, onChange, placeholder, style }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = React.useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const toggleOption = (val) => {
+    if (selectedValues.includes(val)) {
+      onChange(selectedValues.filter(v => v !== val));
+    } else {
+      onChange([...selectedValues, val]);
+    }
+  };
+
+  const isAllSelected = options.length > 0 && selectedValues.length === options.length;
+
+  const toggleAll = () => {
+    if (isAllSelected) {
+      onChange([]);
+    } else {
+      onChange(options.map(o => o.value));
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="multiselect-container" style={{ position: "relative", ...style }}>
+      <div
+        className="multiselect-header"
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          padding: "0.4rem 0.5rem",
+          borderRadius: "6px",
+          border: "1px solid #dcdcdc",
+          backgroundColor: "white",
+          cursor: "pointer",
+          minWidth: "150px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          fontSize: "13px",
+          height: "36px"
+        }}
+      >
+        <span style={{
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          maxWidth: "140px",
+          fontFamily: "Cairo"
+        }}>
+          {selectedValues.length === 0
+            ? placeholder
+            : selectedValues.length === options.length
+              ? `الكل (${options.length})`
+              : selectedValues.length <= 2
+                ? options.filter(o => selectedValues.includes(o.value)).map(o => o.label).join('، ')
+                : `${selectedValues.length} مختار`}
+        </span>
+        <span style={{ fontSize: "10px", color: "#666" }}>{isOpen ? "▲" : "▼"}</span>
+      </div>
+
+      {isOpen && (
+        <div
+          className="multiselect-dropdown"
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            zIndex: 1000,
+            backgroundColor: "white",
+            border: "1px solid #dcdcdc",
+            borderRadius: "6px",
+            marginTop: "4px",
+            maxHeight: "200px",
+            overflowY: "auto",
+            boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+            padding: "4px 0"
+          }}
+        >
+          <div
+            style={{
+              padding: "0.5rem",
+              borderBottom: "1px solid #eee",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              fontWeight: "bold",
+              fontSize: "12px",
+              fontFamily: "Cairo"
+            }}
+            onClick={toggleAll}
+          >
+            <input type="checkbox" checked={isAllSelected} readOnly style={{ cursor: "pointer" }} />
+            الكل
+          </div>
+          {options.map(opt => (
+            <div
+              key={opt.value}
+              style={{
+                padding: "0.5rem",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                fontSize: "12px",
+                fontFamily: "Cairo",
+                backgroundColor: selectedValues.includes(opt.value) ? "#f0f7ff" : "transparent"
+              }}
+              onClick={() => toggleOption(opt.value)}
+            >
+              <input type="checkbox" checked={selectedValues.includes(opt.value)} readOnly style={{ cursor: "pointer" }} />
+              {opt.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function StatisticsPage() {
   const token = localStorage.getItem("token") || "";
   const { error: showError } = useNotification();
   const [branches, setBranches] = useState([]);
   const [salesStaff, setSalesStaff] = useState([]);
   const [userInfo, setUserInfo] = useState(null);
-  const [selectedBranchId, setSelectedBranchId] = useState(null);
-  const [selectedSalesStaffId, setSelectedSalesStaffId] = useState(null);
-  const [selectedMonth, setSelectedMonth] = useState(null);
+  const [selectedBranchIds, setSelectedBranchIds] = useState([]);
+  const [selectedSalesStaffIds, setSelectedSalesStaffIds] = useState([]);
+  const [selectedMonthIds, setSelectedMonthIds] = useState([new Date().getMonth() + 1]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [statistics, setStatistics] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -47,7 +177,7 @@ export default function StatisticsPage() {
       .then((userData) => {
         setUserInfo(userData);
         if (userData.is_sales_manager && !userData.is_super_admin && userData.branch_id) {
-          setSelectedBranchId(userData.branch_id);
+          setSelectedBranchIds([userData.branch_id]);
         }
       })
       .catch(console.error);
@@ -63,25 +193,25 @@ export default function StatisticsPage() {
 
   useEffect(() => {
     loadStatistics();
-  }, [selectedBranchId, selectedSalesStaffId, selectedMonth, selectedYear, token]);
+  }, [selectedBranchIds, selectedSalesStaffIds, selectedMonthIds, selectedYear, token]);
 
   const loadStatistics = async () => {
     setLoading(true);
     try {
-      let branchId = selectedBranchId;
+      let branchIds = selectedBranchIds;
       if (userInfo && userInfo.is_sales_manager && !userInfo.is_super_admin && userInfo.branch_id) {
-        branchId = userInfo.branch_id;
+        branchIds = [userInfo.branch_id];
       }
 
       let url = `/statistics/comprehensive?year=${selectedYear}`;
-      if (branchId) {
-        url += `&branch_id=${branchId}`;
+      if (branchIds.length > 0) {
+        url += `&branch_id=${branchIds.join(',')}`;
       }
-      if (selectedSalesStaffId) {
-        url += `&sales_staff_id=${selectedSalesStaffId}`;
+      if (selectedSalesStaffIds.length > 0) {
+        url += `&sales_staff_id=${selectedSalesStaffIds.join(',')}`;
       }
-      if (selectedMonth) {
-        url += `&month=${selectedMonth}`;
+      if (selectedMonthIds.length > 0) {
+        url += `&month=${selectedMonthIds.join(',')}`;
       }
 
       const data = await apiGet(url, token);
@@ -183,13 +313,15 @@ export default function StatisticsPage() {
       };
 
       // Get filter information for title
-      const branchName = selectedBranchId
-        ? branches.find(b => b.id === selectedBranchId)?.name || `فرع ${selectedBranchId}`
+      const branchName = selectedBranchIds.length > 0
+        ? selectedBranchIds.map(id => branches.find(b => b.id === id)?.name || id).join('، ')
         : "جميع الفروع";
-      const salesStaffName = selectedSalesStaffId
-        ? salesStaff.find(s => s.id === selectedSalesStaffId)?.name || `موظف ${selectedSalesStaffId}`
+      const salesStaffName = selectedSalesStaffIds.length > 0
+        ? selectedSalesStaffIds.map(id => salesStaff.find(s => s.id === id)?.name || id).join('، ')
         : "جميع موظفي المبيعات";
-      const monthName = selectedMonth ? monthNames[selectedMonth] : "جميع الأشهر";
+      const monthName = selectedMonthIds.length > 0
+        ? selectedMonthIds.sort((a, b) => a - b).map(m => monthNames[m]).join('، ')
+        : "جميع الأشهر";
 
       setPdfProgress(30);
       setPdfStatus('جاري بناء التقرير...');
@@ -222,7 +354,8 @@ export default function StatisticsPage() {
         salesStaffName,
         monthName,
         selectedYear,
-        isSuperAdmin
+        isSuperAdmin,
+        selectedBranchIds
       );
 
       setPdfProgress(50);
@@ -234,7 +367,21 @@ export default function StatisticsPage() {
       setPdfProgress(80);
       setPdfStatus('جاري حفظ الملف...');
 
-      const fileName = `تقرير_الإحصائيات_${selectedYear}${selectedMonth ? '_' + monthNames[selectedMonth] : ''}${selectedBranchId ? '_' + branchName.replace(/\s/g, '_') : ''}.pdf`;
+      let monthPart = "";
+      if (selectedMonthIds.length === 1) {
+        monthPart = `_${monthNames[selectedMonthIds[0]]}`;
+      } else if (selectedMonthIds.length > 1) {
+        monthPart = "_أشهر_متعددة";
+      }
+
+      let branchPart = "";
+      if (selectedBranchIds.length === 1) {
+        branchPart = `_${branches.find(b => b.id === selectedBranchIds[0])?.name || selectedBranchIds[0]}`;
+      } else if (selectedBranchIds.length > 1) {
+        branchPart = "_فروع_متعددة";
+      }
+
+      const fileName = `تقرير_الإحصائيات_${selectedYear}${monthPart}${branchPart}.pdf`.replace(/\s/g, '_');
       pdfDoc.download(fileName);
 
       setPdfProgress(100);
@@ -304,50 +451,38 @@ export default function StatisticsPage() {
         <div className="filters-bar" style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap", justifyContent: "space-between" }}>
           <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
             {userInfo && userInfo.is_super_admin ? (
-              <select
-                value={selectedBranchId || ""}
-                onChange={(e) => {
-                  setSelectedBranchId(e.target.value ? parseInt(e.target.value) : null);
-                  setSelectedSalesStaffId(null); // إعادة تعيين موظف المبيعات عند تغيير الفرع
+              <MultiSelect
+                placeholder="جميع الفروع"
+                options={branches.map(b => ({ label: b.name, value: b.id }))}
+                selectedValues={selectedBranchIds}
+                onChange={(vals) => {
+                  setSelectedBranchIds(vals);
+                  setSelectedSalesStaffIds([]);
                 }}
-                style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "13px" }}
-              >
-                <option value="">جميع الفروع</option>
-                {branches.map(b => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
+              />
             ) : userInfo && userInfo.is_sales_manager ? (
-              <div style={{ padding: "0.5rem", backgroundColor: "#f5f5f5", borderRadius: "6px", fontSize: "13px", fontWeight: 600 }}>
+              <div style={{ padding: "0.5rem", backgroundColor: "#f5f5f5", borderRadius: "6px", fontSize: "13px", fontWeight: 600, fontFamily: "Cairo" }}>
                 {branches.find(b => b.id === userInfo.branch_id)?.name || `فرع ${userInfo.branch_id}`}
               </div>
             ) : null}
 
             {/* 2. موظف مبيعات */}
-            <select
-              value={selectedSalesStaffId || ""}
-              onChange={(e) => setSelectedSalesStaffId(e.target.value ? parseInt(e.target.value) : null)}
-              style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "13px" }}
-            >
-              <option value="">جميع موظفي المبيعات</option>
-              {salesStaff
-                .filter(staff => !selectedBranchId || staff.branch_id === selectedBranchId)
-                .map(staff => (
-                  <option key={staff.id} value={staff.id}>{staff.name}</option>
-                ))}
-            </select>
+            <MultiSelect
+              placeholder="جميع موظفي المبيعات"
+              options={salesStaff
+                .filter(staff => selectedBranchIds.length === 0 || selectedBranchIds.includes(staff.branch_id))
+                .map(staff => ({ label: staff.name, value: staff.id }))}
+              selectedValues={selectedSalesStaffIds}
+              onChange={setSelectedSalesStaffIds}
+            />
 
             {/* 3. شهر */}
-            <select
-              value={selectedMonth || ""}
-              onChange={(e) => setSelectedMonth(e.target.value ? parseInt(e.target.value) : null)}
-              style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "13px" }}
-            >
-              <option value="">جميع الأشهر</option>
-              {Object.entries(monthNames).map(([num, name]) => (
-                <option key={num} value={num}>{name}</option>
-              ))}
-            </select>
+            <MultiSelect
+              placeholder="جميع الأشهر"
+              options={Object.entries(monthNames).map(([num, name]) => ({ label: name, value: parseInt(num) }))}
+              selectedValues={selectedMonthIds}
+              onChange={setSelectedMonthIds}
+            />
 
             {/* 4. سنة */}
             <select
@@ -393,7 +528,7 @@ export default function StatisticsPage() {
             <div className="stat-value">{formatNumber(totalMonthlyContracts, 0)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">إجمالي قيمة العقود</div>
+            <div className="stat-label">إجمالي المبيعات</div>
             <div className="stat-value">{formatNumber(totalContractsValue)}</div>
             <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "0.25rem" }}>درهم</div>
           </div>
@@ -496,7 +631,7 @@ export default function StatisticsPage() {
                       <div style={{ fontWeight: "600" }}>{formatNumber(parseInt(branchStat.total_monthly_contracts) || 0, 0)}</div>
                     </div>
                     <div>
-                      <div style={{ color: "#6B7280", marginBottom: "2px" }}>قيمة العقود</div>
+                      <div style={{ color: "#6B7280", marginBottom: "2px" }}>إجمالي المبيعات</div>
                       <div style={{ fontWeight: "600" }}>{formatNumber(safeParse(branchStat.total_contracts_value))}</div>
                     </div>
                     <div>
@@ -670,7 +805,7 @@ export default function StatisticsPage() {
                       <th style={{ textAlign: "center" }}>الفرع</th>
                       <th style={{ textAlign: "center" }}>إجمالي المبيعات</th>
                       <th style={{ textAlign: "center" }}>عدد العقود</th>
-                      <th style={{ textAlign: "center" }}>قيمة العقود</th>
+                      <th style={{ textAlign: "center" }}>المبالغ المدفوعة</th>
                       <th style={{ textAlign: "center" }}>الصافي</th>
                     </tr>
                   </thead>
@@ -681,7 +816,7 @@ export default function StatisticsPage() {
                         <td style={{ textAlign: "center" }}>{staff.branch_name}</td>
                         <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{formatNumber(parseFloat(staff.total_sales))} درهم</td>
                         <td style={{ textAlign: "center" }}>{formatNumber(staff.contracts_count, 0)}</td>
-                        <td style={{ fontWeight: 600, textAlign: "center" }}>{formatNumber(parseFloat(staff.contracts_value))} درهم</td>
+                        <td style={{ fontWeight: 600, textAlign: "center" }}>{formatNumber(parseFloat(staff.total_paid_amount || 0))} درهم</td>
                         <td style={{ fontWeight: 600, color: "#28A745", textAlign: "center" }}>{formatNumber(parseFloat(staff.total_net_amount || 0))} درهم</td>
                       </tr>
                     ))}
@@ -694,7 +829,7 @@ export default function StatisticsPage() {
                       </td>
                       <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.contracts_count, 0), 0)}</td>
                       <td style={{ textAlign: "center" }}>
-                        {formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.contracts_value), 0))} درهم
+                        {formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_paid_amount || 0), 0))} درهم
                       </td>
                       <td style={{ color: "#28A745", textAlign: "center" }}>
                         {formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_net_amount || 0), 0))} درهم

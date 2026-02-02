@@ -36,6 +36,136 @@ function convertTo12Hour(time24) {
   }
 }
 
+const MultiSelect = ({ options, selectedValues, onChange, placeholder, style }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = React.useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const toggleOption = (val) => {
+    if (selectedValues.includes(val)) {
+      onChange(selectedValues.filter(v => v !== val));
+    } else {
+      onChange([...selectedValues, val]);
+    }
+  };
+
+  const isAllSelected = options.length > 0 && selectedValues.length === options.length;
+
+  const toggleAll = () => {
+    if (isAllSelected) {
+      onChange([]);
+    } else {
+      onChange(options.map(o => o.value));
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="multiselect-container" style={{ position: "relative", ...style }}>
+      <div
+        className="multiselect-header"
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          padding: "0.4rem 0.5rem",
+          borderRadius: "6px",
+          border: "1px solid #dcdcdc",
+          backgroundColor: "white",
+          cursor: "pointer",
+          minWidth: "150px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          fontSize: "13px",
+          height: "36px"
+        }}
+      >
+        <span style={{
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          maxWidth: "140px",
+          fontFamily: "Cairo"
+        }}>
+          {selectedValues.length === 0
+            ? placeholder
+            : selectedValues.length === options.length
+              ? `الكل (${options.length})`
+              : selectedValues.length <= 2
+                ? options.filter(o => selectedValues.includes(o.value)).map(o => o.label).join('، ')
+                : `${selectedValues.length} مختار`}
+        </span>
+        <span style={{ fontSize: "10px", color: "#666" }}>{isOpen ? "▲" : "▼"}</span>
+      </div>
+
+      {isOpen && (
+        <div
+          className="multiselect-dropdown"
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            zIndex: 1000,
+            backgroundColor: "white",
+            border: "1px solid #dcdcdc",
+            borderRadius: "6px",
+            marginTop: "4px",
+            maxHeight: "200px",
+            overflowY: "auto",
+            boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+            padding: "4px 0"
+          }}
+        >
+          <div
+            style={{
+              padding: "0.5rem",
+              borderBottom: "1px solid #eee",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              fontWeight: "bold",
+              fontSize: "12px",
+              fontFamily: "Cairo"
+            }}
+            onClick={toggleAll}
+          >
+            <input type="checkbox" checked={isAllSelected} readOnly style={{ cursor: "pointer" }} />
+            الكل
+          </div>
+          {options.map(opt => (
+            <div
+              key={opt.value}
+              style={{
+                padding: "0.5rem",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                fontSize: "12px",
+                fontFamily: "Cairo",
+                backgroundColor: selectedValues.includes(opt.value) ? "#f0f7ff" : "transparent"
+              }}
+              onClick={() => toggleOption(opt.value)}
+            >
+              <input type="checkbox" checked={selectedValues.includes(opt.value)} readOnly style={{ cursor: "pointer" }} />
+              {opt.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function ReportsPage() {
   const token = localStorage.getItem("token") || "";
   const { success, error: showError, confirm } = useNotification();
@@ -75,11 +205,12 @@ export default function ReportsPage() {
   const [monthSessionsForMerge, setMonthSessionsForMerge] = useState([]); // جلسات الشهر المحدد للدمج
   // Set default to current month and year
   const currentDate = new Date();
-  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear()); // default to current year
-  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1); // default to current month
+  const [selectedYear, setSelectedYear] = useState(null); // default to null to show all
+  const [selectedMonth, setSelectedMonth] = useState(null); // default to null to show all
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [pdfProgress, setPdfProgress] = useState(0);
   const [pdfStatus, setPdfStatus] = useState('');
+  const [selectedTeachersPerMonth, setSelectedTeachersPerMonth] = useState({}); // { [branchMonthKey]: [teacherNames...] }
 
   // Load branches
   useEffect(() => {
@@ -210,14 +341,16 @@ export default function ReportsPage() {
       setTeacherNames(uniqueNames);
 
       // Auto-expand current month
+      // Auto-expand the latest month that has data
       if (sessionsData.length > 0) {
-        const now = new Date();
-        // Since we have multiple branches, we don't know which branch to expand by default
-        // But we can try to expand the first branch's current month if it exists
-        const branchId = sessionsData[0].branch_id;
-        const currentKey = `${branchId}-${now.getFullYear()}-${now.getMonth() + 1}`;
-        console.log("[Reports] Auto-expanding current month:", currentKey);
-        setExpandedMonth(currentKey);
+        const branchGroups = groupSessionsByBranchAndMonth(sessionsData);
+        if (branchGroups.length > 0 && branchGroups[0].months.length > 0) {
+          const firstBranch = branchGroups[0];
+          const latestMonth = firstBranch.months[0];
+          const latestKey = `${firstBranch.branchId}-${latestMonth.year}-${latestMonth.month}`;
+          console.log("[Reports] Auto-expanding latest month:", latestKey);
+          setExpandedMonth(latestKey);
+        }
       }
     } catch (err) {
       console.error("[Reports] Error loading sessions:", err);
@@ -236,9 +369,12 @@ export default function ReportsPage() {
     }
 
     return sessions.filter(session => {
-      const createdDate = new Date(session.created_at);
-      const year = createdDate.getFullYear();
-      const month = createdDate.getMonth() + 1;
+      const dateStr = session.session_date;
+      if (!dateStr) return false;
+
+      const sessionDate = new Date(dateStr);
+      const year = sessionDate.getFullYear();
+      const month = sessionDate.getMonth() + 1;
 
       if (selectedYear && selectedMonth) {
         return year === selectedYear && month === selectedMonth;
@@ -257,9 +393,12 @@ export default function ReportsPage() {
     const monthsSet = new Set();
 
     sessions.forEach(session => {
-      const createdDate = new Date(session.created_at);
-      const year = createdDate.getFullYear();
-      const month = createdDate.getMonth() + 1;
+      const dateStr = session.session_date;
+      if (!dateStr) return;
+
+      const sessionDate = new Date(dateStr);
+      const year = sessionDate.getFullYear();
+      const month = sessionDate.getMonth() + 1;
       yearsSet.add(year);
       monthsSet.add(month);
     });
@@ -287,9 +426,12 @@ export default function ReportsPage() {
         grouped[branchId] = {};
       }
 
-      const createdDate = new Date(session.created_at);
-      const year = createdDate.getFullYear();
-      const month = createdDate.getMonth() + 1;
+      const dateStr = session.session_date;
+      if (!dateStr) return;
+
+      const sessionDate = new Date(dateStr);
+      const year = sessionDate.getFullYear();
+      const month = sessionDate.getMonth() + 1;
       const key = `${year}-${month}`;
 
       if (!grouped[branchId][key]) {
@@ -1545,9 +1687,28 @@ export default function ReportsPage() {
 
                             {/* Sessions Table */}
                             <div>
-                              <h4 style={{ color: "#2B2A2A", marginBottom: "0.75rem", fontSize: "16px", fontWeight: 600 }}>
-                                الجلسات ({group.sessions.length})
-                              </h4>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                                <h4 style={{ color: "#2B2A2A", margin: 0, fontSize: "16px", fontWeight: 600 }}>
+                                  الجلسات ({group.sessions.filter(s => {
+                                    const selected = selectedTeachersPerMonth[branchMonthKey] || [];
+                                    return selected.length === 0 || selected.includes(s.teacher_name);
+                                  }).length})
+                                </h4>
+                                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                                  <span style={{ fontSize: "13px", color: "#6B7280" }}>فلتر المدرسين:</span>
+                                  <MultiSelect
+                                    placeholder="جميع المدرسين"
+                                    options={teacherStats.map(stat => ({ label: stat.teacher_name, value: stat.teacher_name }))}
+                                    selectedValues={selectedTeachersPerMonth[branchMonthKey] || []}
+                                    onChange={(vals) => {
+                                      setSelectedTeachersPerMonth(prev => ({
+                                        ...prev,
+                                        [branchMonthKey]: vals
+                                      }));
+                                    }}
+                                  />
+                                </div>
+                              </div>
                               <div className="table-container" style={{ overflowX: "auto" }}>
                                 <table>
                                   <thead>
@@ -1567,56 +1728,61 @@ export default function ReportsPage() {
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {group.sessions.map((session) => (
-                                      <tr key={session.id}>
-                                        <td style={{ textAlign: "center" }}>{getBranchName(session.branch_id)}</td>
-                                        <td style={{ textAlign: "center" }}>{session.teacher_name}</td>
-                                        <td style={{ textAlign: "center" }}>{session.student_name}</td>
-                                        <td style={{ textAlign: "center" }}>{session.session_date}</td>
-                                        <td style={{ textAlign: "center" }}>{convertTo12Hour(session.start_time)}</td>
-                                        <td style={{ textAlign: "center" }}>{convertTo12Hour(session.end_time)}</td>
-                                        <td style={{ textAlign: "center" }}>{session.duration_hours} - {session.duration_text}</td>
-                                        <td style={{ textAlign: "center", fontWeight: 600, color: "#5A7ACD" }}>{session.contract_number}</td>
-                                        <td data-type="number" style={{ textAlign: "center" }}>{parseFloat(session.hourly_rate || 0).toFixed(2)} درهم</td>
-                                        <td data-type="number" style={{ textAlign: "center", fontWeight: 600, color: "#10B981" }}>
-                                          {parseFloat(session.calculated_amount || 0).toFixed(2)} درهم
-                                        </td>
-                                        <td style={{ textAlign: "center" }}>
-                                          <span className={`status ${session.location === "external" ? "status-pending" : "status-active"}`}>
-                                            {session.location === "external" ? "خارجي" : "داخلي"}
-                                          </span>
-                                        </td>
-                                        <td style={{ textAlign: "center" }}>
-                                          <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
-                                            <button
-                                              className="btn btn-small"
-                                              onClick={() => handleEdit(session)}
-                                              style={{
-                                                padding: "0.25rem 0.5rem",
-                                                backgroundColor: "#FEB05D",
-                                                color: "white",
-                                                border: "none"
-                                              }}
-                                              title="تعديل"
-                                            >
-                                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-                                              </svg>
-                                            </button>
-                                            <button
-                                              className="btn btn-small btn-danger"
-                                              onClick={() => handleDelete(session.id)}
-                                              title="حذف"
-                                            >
-                                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <polyline points="3 6 5 6 21 6"></polyline>
-                                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                              </svg>
-                                            </button>
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    ))}
+                                    {group.sessions
+                                      .filter(session => {
+                                        const selected = selectedTeachersPerMonth[branchMonthKey] || [];
+                                        return selected.length === 0 || selected.includes(session.teacher_name);
+                                      })
+                                      .map((session) => (
+                                        <tr key={session.id}>
+                                          <td style={{ textAlign: "center" }}>{getBranchName(session.branch_id)}</td>
+                                          <td style={{ textAlign: "center" }}>{session.teacher_name}</td>
+                                          <td style={{ textAlign: "center" }}>{session.student_name}</td>
+                                          <td style={{ textAlign: "center" }}>{session.session_date}</td>
+                                          <td style={{ textAlign: "center" }}>{convertTo12Hour(session.start_time)}</td>
+                                          <td style={{ textAlign: "center" }}>{convertTo12Hour(session.end_time)}</td>
+                                          <td style={{ textAlign: "center" }}>{session.duration_hours} - {session.duration_text}</td>
+                                          <td style={{ textAlign: "center", fontWeight: 600, color: "#5A7ACD" }}>{session.contract_number}</td>
+                                          <td data-type="number" style={{ textAlign: "center" }}>{parseFloat(session.hourly_rate || 0).toFixed(2)} درهم</td>
+                                          <td data-type="number" style={{ textAlign: "center", fontWeight: 600, color: "#10B981" }}>
+                                            {parseFloat(session.calculated_amount || 0).toFixed(2)} درهم
+                                          </td>
+                                          <td style={{ textAlign: "center" }}>
+                                            <span className={`status ${session.location === "external" ? "status-pending" : "status-active"}`}>
+                                              {session.location === "external" ? "خارجي" : "داخلي"}
+                                            </span>
+                                          </td>
+                                          <td style={{ textAlign: "center" }}>
+                                            <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
+                                              <button
+                                                className="btn btn-small"
+                                                onClick={() => handleEdit(session)}
+                                                style={{
+                                                  padding: "0.25rem 0.5rem",
+                                                  backgroundColor: "#FEB05D",
+                                                  color: "white",
+                                                  border: "none"
+                                                }}
+                                                title="تعديل"
+                                              >
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                                                </svg>
+                                              </button>
+                                              <button
+                                                className="btn btn-small btn-danger"
+                                                onClick={() => handleDelete(session.id)}
+                                                title="حذف"
+                                              >
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                  <polyline points="3 6 5 6 21 6"></polyline>
+                                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                </svg>
+                                              </button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      ))}
                                   </tbody>
                                 </table>
                               </div>

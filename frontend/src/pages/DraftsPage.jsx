@@ -416,9 +416,12 @@ export default function DraftsPage() {
   const groupDraftsByMonth = (draftsList) => {
     const grouped = {};
     draftsList.forEach(draft => {
-      const created = new Date(draft.created_at);
-      const year = created.getFullYear();
-      const month = created.getMonth() + 1;
+      const dateStr = draft.session_date;
+      if (!dateStr) return;
+
+      const sessionDate = new Date(dateStr);
+      const year = sessionDate.getFullYear();
+      const month = sessionDate.getMonth() + 1;
       const key = `${year}-${month}`;
 
       if (!grouped[key]) {
