@@ -27,7 +27,7 @@ export default function HomePage() {
         {branches.length === 0 ? (
           <div className="panel" style={{ textAlign: "center", padding: "3rem" }}>
             <p style={{ color: "#6B7280", fontSize: "14px" }}>
-              {token ? "لا توجد فروع متاحة حالياً" : "يرجى تسجيل الدخول العرض الفروع"}
+              {token ? "لا توجد فروع متاحة حالياً" : "يرجى تسجيل الدخول لعرض الفروع"}
             </p>
           </div>
         ) : (

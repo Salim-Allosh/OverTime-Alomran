@@ -15,10 +15,22 @@ export default function Layout({ children }) {
     if (token) {
       apiGet("/auth/me", token)
         .then(setUserInfo)
-        .catch(() => {
-          setUserInfo(null);
-          setToken("");
-          localStorage.removeItem("token");
+        .catch((err) => {
+          // Only logout if it's an authentication error (401)
+          if (err.message && err.message.includes("HTTP 401")) {
+            setUserInfo(null);
+            setToken("");
+            localStorage.removeItem("token");
+          } else {
+            // For other errors (500, network), keep the token to allow retry
+            // We might want to set userInfo to null or keep previous state?
+            // If we set null, the header shows login button.
+            // If we keep it, it shows user info.
+            // Best to keep existing userInfo if possible, but here we are fetching it.
+            // If fetch fails, we don't have userInfo.
+            // So set null, but KEEP TOKEN.
+            setUserInfo(null);
+          }
         });
     } else {
       setUserInfo(null);

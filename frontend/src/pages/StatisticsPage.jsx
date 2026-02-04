@@ -270,6 +270,7 @@ export default function StatisticsPage() {
   const totalPaidAmount = statistics.branches_comprehensive?.reduce((sum, b) => sum + safeParse(b.total_paid_amount), 0) || 0;
   const totalRemainingAmount = statistics.branches_comprehensive?.reduce((sum, b) => sum + safeParse(b.total_remaining_amount), 0) || 0;
   const totalNetAmount = statistics.branches_comprehensive?.reduce((sum, b) => sum + safeParse(b.total_net_amount), 0) || 0;
+  const totalOtherCollections = statistics.branches_comprehensive?.reduce((sum, b) => sum + safeParse(b.total_other_collections), 0) || 0;
 
   const formatDateArabic = (dateStr) => {
     if (!dateStr) return "";
@@ -350,6 +351,7 @@ export default function StatisticsPage() {
         totalPaidAmount,
         totalRemainingAmount,
         totalNetAmount,
+        totalOtherCollections,
         branchName,
         salesStaffName,
         monthName,
@@ -548,6 +550,16 @@ export default function StatisticsPage() {
             <div className="stat-label">إجمالي الصافي</div>
             <div className="stat-value" style={{ color: "#5A7ACD" }}>
               {formatNumber(totalNetAmount)}
+            </div>
+            <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "0.25rem" }}>درهم</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+              تحصيلات فترات أخرى
+              <span title="مبالغ تم استلامها هذا الشهر لعقود من فترات سابقة أو لاحقة" style={{ cursor: "help", fontSize: "12px", color: "#6B7280" }}>ⓘ</span>
+            </div>
+            <div className="stat-value" style={{ color: "#10B981" }}>
+              {formatNumber(totalOtherCollections)}
             </div>
             <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "0.25rem" }}>درهم</div>
           </div>

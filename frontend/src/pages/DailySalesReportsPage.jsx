@@ -1890,13 +1890,21 @@ export default function DailySalesReportsPage() {
     }
   };
 
+  // Helper function to get local ISO date (YYYY-MM-DD)
+  const toLocalISOString = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Generate PDF for a specific daily report
   const generateDailyReportPDF = async (dateOverride = null) => {
     try {
       const targetDate = dateOverride ? new Date(dateOverride) : new Date();
-      const todayStr = targetDate.toISOString().split('T')[0];
+      const todayStr = toLocalISOString(targetDate);
       const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
-      const monthStartStr = monthStart.toISOString().split('T')[0];
+      const monthStartStr = toLocalISOString(monthStart);
 
       // 1. Fetch Data
       let reportsUrl = `/daily-sales-reports?date_from=${todayStr}&date_to=${todayStr}`;
@@ -1926,7 +1934,7 @@ export default function DailySalesReportsPage() {
       const todayContracts = contractsArray.filter(contract => {
         const dateToUse = contract.contract_date || contract.created_at;
         if (!dateToUse) return false;
-        const contractDateStr = new Date(dateToUse).toISOString().split('T')[0];
+        const contractDateStr = toLocalISOString(new Date(dateToUse));
         return contractDateStr === todayStr;
       });
 
@@ -1934,7 +1942,7 @@ export default function DailySalesReportsPage() {
       const monthlyContracts = contractsArray.filter(contract => {
         const dateToUse = contract.contract_date || contract.created_at;
         if (!dateToUse) return false;
-        const contractDateStr = new Date(dateToUse).toISOString().split('T')[0];
+        const contractDateStr = toLocalISOString(new Date(dateToUse));
         return contractDateStr >= monthStartStr && contractDateStr <= todayStr;
       });
 
@@ -1965,7 +1973,9 @@ export default function DailySalesReportsPage() {
               branch_leads: 0, online_leads: 0, extra_leads: 0,
               visits_count: 0,
               net_total: 0,
-              paid_total: 0
+              paid_total: 0,
+              other_collections_paid: 0,
+              other_collections_net: 0
             }
           };
         }
@@ -2009,7 +2019,7 @@ export default function DailySalesReportsPage() {
         // A. Sales Stats (Based on contract creation date)
         const dateToUse = contract.contract_date || contract.created_at;
         if (dateToUse) {
-          const contractDateStr = new Date(dateToUse).toISOString().split('T')[0];
+          const contractDateStr = toLocalISOString(new Date(dateToUse));
           // Today's Sales Value
           if (contractDateStr === todayStr) {
             branchObj.contracts.push(contract);
@@ -2018,22 +2028,45 @@ export default function DailySalesReportsPage() {
           }
         }
 
+
         // B. Cashflow Stats (Based on payment creation date)
         if (Array.isArray(contract.payments)) {
           contract.payments.forEach(payment => {
             if (!payment.created_at) return;
-            const paymentDateStr = new Date(payment.created_at).toISOString().split('T')[0];
+            const paymentDateStr = toLocalISOString(new Date(payment.created_at));
 
             // Today's Payments
             if (paymentDateStr === todayStr) {
-              branchObj.financials.paid_total += parseFloat(payment.payment_amount || 0);
-              branchObj.financials.net_total += parseFloat(payment.net_amount || 0);
+              const dateToUse = contract.contract_date || contract.created_at;
+              const contractDateStr = dateToUse ? toLocalISOString(new Date(dateToUse)) : null;
+
+              if (contractDateStr === todayStr) {
+                // Performance Payment (Current Sales)
+                branchObj.financials.paid_total += parseFloat(payment.payment_amount || 0);
+                branchObj.financials.net_total += parseFloat(payment.net_amount || 0);
+              } else {
+                // Other Collection
+                if (!branchObj.financials.other_collections_paid) branchObj.financials.other_collections_paid = 0;
+                if (!branchObj.financials.other_collections_net) branchObj.financials.other_collections_net = 0;
+                branchObj.financials.other_collections_paid += parseFloat(payment.payment_amount || 0);
+                branchObj.financials.other_collections_net += parseFloat(payment.net_amount || 0);
+              }
             }
 
             // Monthly (Cumulative) Payments
             if (paymentDateStr >= monthStartStr && paymentDateStr <= todayStr) {
-              branchObj.cumulative.paid_total += parseFloat(payment.payment_amount || 0);
-              branchObj.cumulative.net_total += parseFloat(payment.net_amount || 0);
+              const dateToUse = contract.contract_date || contract.created_at;
+              const contractDateStr = dateToUse ? toLocalISOString(new Date(dateToUse)) : null;
+
+              if (contractDateStr >= monthStartStr && contractDateStr <= todayStr) {
+                // Performance Payment
+                branchObj.cumulative.paid_total += parseFloat(payment.payment_amount || 0);
+                branchObj.cumulative.net_total += parseFloat(payment.net_amount || 0);
+              } else {
+                // Other Collection
+                branchObj.cumulative.other_collections_paid += parseFloat(payment.payment_amount || 0);
+                branchObj.cumulative.other_collections_net += parseFloat(payment.net_amount || 0);
+              }
             }
           });
         }
@@ -2045,6 +2078,7 @@ export default function DailySalesReportsPage() {
       let grandTotal = {
         visits_count: 0, extra_leads: 0, online_leads: 0, branch_leads: 0,
         net_total: 0, paid_total: 0, remaining_total: 0,
+        other_collections_paid: 0,
         walk_ins: 0, hot_calls: 0, daily_calls: 0,
         total_reports: reportsArray.length,
         total_contracts: todayContracts.length,
@@ -2062,6 +2096,7 @@ export default function DailySalesReportsPage() {
 
         grandTotal.net_total += b.financials.net_total;
         grandTotal.paid_total += b.financials.paid_total;
+        grandTotal.other_collections_paid += (b.financials.other_collections_paid || 0);
         grandTotal.remaining_total += b.financials.remaining_total;
       });
 
@@ -2071,6 +2106,7 @@ export default function DailySalesReportsPage() {
         total_contracts: monthlyContracts.length,
         total_contracts_value: monthlyContracts.reduce((sum, c) => sum + parseFloat(c.total_amount || 0), 0),
         paid_total: sortedBranches.reduce((sum, b) => sum + b.cumulative.paid_total, 0),
+        other_collections_paid: sortedBranches.reduce((sum, b) => sum + b.cumulative.other_collections_paid, 0),
         remaining_total: monthlyContracts.reduce((sum, c) => sum + parseFloat(c.remaining_amount || 0), 0),
         net_total: sortedBranches.reduce((sum, b) => sum + b.cumulative.net_total, 0),
         daily_calls: monthlyReportsArray.reduce((sum, r) => sum + (parseInt(r.daily_calls) || 0), 0),
@@ -2095,7 +2131,10 @@ export default function DailySalesReportsPage() {
       };
       const formatNumber = (num, currency = false) => {
         if (typeof num !== 'number' || isNaN(num)) return num;
-        return num.toLocaleString('en-US') + (currency ? ' درهم' : '');
+        return num.toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        }) + (currency ? ' درهم' : '');
       };
 
       pdfMake.vfs = vfs;
@@ -2168,6 +2207,14 @@ export default function DailySalesReportsPage() {
             {
               width: '*',
               stack: [
+                { text: formatArabicText('تحصيلات أخرى'), style: 'statLabel' },
+                { text: formatArabicText(formatNumber(monthGrandTotal.other_collections_paid || 0, true)), style: 'statValue', color: '#10B981' }
+              ],
+              margin: [2, 0, 2, 5]
+            },
+            {
+              width: '*',
+              stack: [
                 { text: formatArabicText('الزيارات'), style: 'statLabel' },
                 { text: formatNumber(monthGrandTotal.visits_count), style: 'statValue' }
               ],
@@ -2234,6 +2281,14 @@ export default function DailySalesReportsPage() {
               stack: [
                 { text: formatArabicText('صافي المبيعات'), style: 'statLabel' },
                 { text: formatArabicText(formatNumber(grandTotal.net_total, true)), style: 'statValue', color: '#5A7ACD' }
+              ],
+              margin: [2, 0, 2, 5]
+            },
+            {
+              width: '*',
+              stack: [
+                { text: formatArabicText('تحصيلات أخرى'), style: 'statLabel' },
+                { text: formatArabicText(formatNumber(grandTotal.other_collections_paid || 0, true)), style: 'statValue', color: '#10B981' }
               ],
               margin: [2, 0, 2, 5]
             },
