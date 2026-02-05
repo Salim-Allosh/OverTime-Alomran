@@ -1907,9 +1907,10 @@ export default function DailySalesReportsPage() {
       const monthStartStr = toLocalISOString(monthStart);
 
       // 1. Fetch Data
+      // 1. Fetch Data
       let reportsUrl = `/daily-sales-reports?date_from=${todayStr}&date_to=${todayStr}`;
-      // Force all branches for super admin, else respect filter
-      if (selectedBranchId && !userInfo?.is_super_admin) {
+      // Force filter if branch selected (even for super admin)
+      if (selectedBranchId) {
         reportsUrl += `&branch_id=${selectedBranchId}`;
       }
       const todayReports = await apiGet(reportsUrl, token);
@@ -1917,32 +1918,40 @@ export default function DailySalesReportsPage() {
 
       // Fetch Monthly Reports for Cumulative Section (Month-to-Date)
       let monthlyReportsUrl = `/daily-sales-reports?date_from=${monthStartStr}&date_to=${todayStr}`;
-      if (selectedBranchId && !userInfo?.is_super_admin) {
+      if (selectedBranchId) {
         monthlyReportsUrl += `&branch_id=${selectedBranchId}`;
       }
       const monthlyReportsData = await apiGet(monthlyReportsUrl, token);
       const monthlyReportsArray = Array.isArray(monthlyReportsData) ? monthlyReportsData : [];
 
       let contractsUrl = "/contracts";
-      if (selectedContractBranchId && !userInfo?.is_super_admin) {
+      if (selectedContractBranchId) {
         contractsUrl += `?branch_id=${selectedContractBranchId}`;
+      } else if (selectedBranchId) {
+        contractsUrl += `?branch_id=${selectedBranchId}`;
       }
+
       const allContracts = await apiGet(contractsUrl, token);
       const contractsArray = Array.isArray(allContracts) ? allContracts : [];
 
-      // Today's Contracts
+      // Today's Contracts (For Counts/Values - Exclude Technical Types)
       const todayContracts = contractsArray.filter(contract => {
         const dateToUse = contract.contract_date || contract.created_at;
         if (!dateToUse) return false;
         const contractDateStr = toLocalISOString(new Date(dateToUse));
-        return contractDateStr === todayStr;
+
+        // Matches StatisticsController logic: exclude 'payment', 'old_payment', 'cancellation'
+        const isSalesContract = !['old_payment', 'payment', 'cancellation'].includes(contract.contract_type);
+        return isSalesContract && contractDateStr === todayStr;
       });
 
-      // Monthly Contracts (Month-to-Date)
+      // Monthly Contracts (For Counts/Values - Exclude Technical Types)
       const monthlyContracts = contractsArray.filter(contract => {
         const dateToUse = contract.contract_date || contract.created_at;
         if (!dateToUse) return false;
         const contractDateStr = toLocalISOString(new Date(dateToUse));
+
+        const isSalesContract = !['old_payment', 'payment', 'cancellation'].includes(contract.contract_type);
         return contractDateStr >= monthStartStr && contractDateStr <= todayStr;
       });
 
@@ -1984,6 +1993,9 @@ export default function DailySalesReportsPage() {
 
       // Process Reports (Today)
       reportsArray.forEach(report => {
+        // If filtering by branch, skip others (double check)
+        if (selectedBranchId && parseInt(report.branch_id) !== parseInt(selectedBranchId)) return;
+
         const branchName = report.branch ? report.branch.name : getBranchName(report.branch_id);
         const branchObj = getBranchObj(report.branch_id, branchName);
         branchObj.reports.push(report);
@@ -1999,6 +2011,8 @@ export default function DailySalesReportsPage() {
 
       // Process Monthly Reports (Cumulative)
       monthlyReportsArray.forEach(report => {
+        if (selectedBranchId && parseInt(report.branch_id) !== parseInt(selectedBranchId)) return;
+
         const branchName = report.branch ? report.branch.name : getBranchName(report.branch_id);
         const branchObj = getBranchObj(report.branch_id, branchName);
         branchObj.cumulative.daily_calls += parseInt(report.daily_calls) || 0;
@@ -2013,12 +2027,16 @@ export default function DailySalesReportsPage() {
       // Process Contracts and Payments (Today and Cumulative)
       // Logic: Iterate over ALL contracts to find payments in target dates
       contractsArray.forEach(contract => {
+        if (selectedBranchId && parseInt(contract.branch_id) !== parseInt(selectedBranchId)) return;
+
         const branchName = contract.branch ? contract.branch.name : getBranchName(contract.branch_id);
         const branchObj = getBranchObj(contract.branch_id, branchName);
 
-        // A. Sales Stats (Based on contract creation date)
+        // A. Sales Stats (Based on contract creation date) - Exclude Technical Types
+        const isSalesContract = !['old_payment', 'payment', 'cancellation'].includes(contract.contract_type);
         const dateToUse = contract.contract_date || contract.created_at;
-        if (dateToUse) {
+
+        if (dateToUse && isSalesContract) {
           const contractDateStr = toLocalISOString(new Date(dateToUse));
           // Today's Sales Value
           if (contractDateStr === todayStr) {
@@ -2080,11 +2098,12 @@ export default function DailySalesReportsPage() {
         net_total: 0, paid_total: 0, remaining_total: 0,
         other_collections_paid: 0,
         walk_ins: 0, hot_calls: 0, daily_calls: 0,
-        total_reports: reportsArray.length,
-        total_contracts: todayContracts.length,
-        total_contracts_value: todayContracts.reduce((sum, c) => sum + parseFloat(c.total_amount || 0), 0)
+        total_reports: 0,
+        total_contracts: 0,
+        total_contracts_value: 0
       };
 
+      // Recalculate based on filtered branch buckets
       sortedBranches.forEach(b => {
         grandTotal.visits_count += b.stats.visits_count;
         grandTotal.extra_leads += b.stats.extra_leads;
@@ -2098,6 +2117,10 @@ export default function DailySalesReportsPage() {
         grandTotal.paid_total += b.financials.paid_total;
         grandTotal.other_collections_paid += (b.financials.other_collections_paid || 0);
         grandTotal.remaining_total += b.financials.remaining_total;
+
+        grandTotal.total_reports += b.reports.length;
+        grandTotal.total_contracts += b.contracts.length;
+        grandTotal.total_contracts_value += b.financials.total_amount;
       });
 
       // Calculate Month-to-Date Grand Totals for Cumulative Section
@@ -2190,7 +2213,8 @@ export default function DailySalesReportsPage() {
         { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1.5, lineColor: '#5A7ACD' }], alignment: 'center', margin: [0, 0, 0, 15] }
       );
 
-      // --- SECTION 1: CUMULATIVE STATISTICS ---
+
+      // --- SECTION 2: CUMULATIVE STATISTICS ---
       if (userInfo?.is_super_admin || userInfo?.is_sales_manager) {
         docDefinition.content.push({ text: formatArabicText('الإحصائيات التراكمية (هذا الشهر)'), style: 'sectionTitle' });
 
