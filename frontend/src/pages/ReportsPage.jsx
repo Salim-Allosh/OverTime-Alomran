@@ -6,6 +6,7 @@ import jsPDF from "jspdf";
 import pdfMake from "pdfmake-rtl/build/pdfmake";
 import { vfs } from "../fonts/vfs_fonts_custom";
 import { buildComprehensiveMonthlyReportPDF, buildBranchMonthlyReportPDF } from "./ReportsPage_pdfmake";
+import FilterDropdown from "../components/FilterDropdown";
 
 const monthNames = {
   1: "يناير", 2: "فبراير", 3: "مارس", 4: "أبريل",
@@ -36,135 +37,6 @@ function convertTo12Hour(time24) {
   }
 }
 
-const MultiSelect = ({ options, selectedValues, onChange, placeholder, style }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = React.useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const toggleOption = (val) => {
-    if (selectedValues.includes(val)) {
-      onChange(selectedValues.filter(v => v !== val));
-    } else {
-      onChange([...selectedValues, val]);
-    }
-  };
-
-  const isAllSelected = options.length > 0 && selectedValues.length === options.length;
-
-  const toggleAll = () => {
-    if (isAllSelected) {
-      onChange([]);
-    } else {
-      onChange(options.map(o => o.value));
-    }
-  };
-
-  return (
-    <div ref={containerRef} className="multiselect-container" style={{ position: "relative", ...style }}>
-      <div
-        className="multiselect-header"
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          padding: "0.4rem 0.5rem",
-          borderRadius: "6px",
-          border: "1px solid #dcdcdc",
-          backgroundColor: "white",
-          cursor: "pointer",
-          minWidth: "150px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          fontSize: "13px",
-          height: "36px"
-        }}
-      >
-        <span style={{
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          maxWidth: "140px",
-          fontFamily: "Cairo"
-        }}>
-          {selectedValues.length === 0
-            ? placeholder
-            : selectedValues.length === options.length
-              ? `الكل (${options.length})`
-              : selectedValues.length <= 2
-                ? options.filter(o => selectedValues.includes(o.value)).map(o => o.label).join('، ')
-                : `${selectedValues.length} مختار`}
-        </span>
-        <span style={{ fontSize: "10px", color: "#666" }}>{isOpen ? "▲" : "▼"}</span>
-      </div>
-
-      {isOpen && (
-        <div
-          className="multiselect-dropdown"
-          style={{
-            position: "absolute",
-            top: "100%",
-            left: 0,
-            right: 0,
-            zIndex: 1000,
-            backgroundColor: "white",
-            border: "1px solid #dcdcdc",
-            borderRadius: "6px",
-            marginTop: "4px",
-            maxHeight: "200px",
-            overflowY: "auto",
-            boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-            padding: "4px 0"
-          }}
-        >
-          <div
-            style={{
-              padding: "0.5rem",
-              borderBottom: "1px solid #eee",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              fontWeight: "bold",
-              fontSize: "12px",
-              fontFamily: "Cairo"
-            }}
-            onClick={toggleAll}
-          >
-            <input type="checkbox" checked={isAllSelected} readOnly style={{ cursor: "pointer" }} />
-            الكل
-          </div>
-          {options.map(opt => (
-            <div
-              key={opt.value}
-              style={{
-                padding: "0.5rem",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                fontSize: "12px",
-                fontFamily: "Cairo",
-                backgroundColor: selectedValues.includes(opt.value) ? "#f0f7ff" : "transparent"
-              }}
-              onClick={() => toggleOption(opt.value)}
-            >
-              <input type="checkbox" checked={selectedValues.includes(opt.value)} readOnly style={{ cursor: "pointer" }} />
-              {opt.label}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
 
 export default function ReportsPage() {
   const token = localStorage.getItem("token") || "";
@@ -201,16 +73,14 @@ export default function ReportsPage() {
     old_name: "",
     new_name: ""
   });
-  const [selectedBranchId, setSelectedBranchId] = useState(null); // null = all branches
-  const [monthSessionsForMerge, setMonthSessionsForMerge] = useState([]); // جلسات الشهر المحدد للدمج
-  // Set default to current month and year
-  const currentDate = new Date();
-  const [selectedYear, setSelectedYear] = useState(null); // default to null to show all
-  const [selectedMonth, setSelectedMonth] = useState(null); // default to null to show all
+  const [appliedBranchId, setAppliedBranchId] = useState(null);
+  const [appliedYearIds, setAppliedYearIds] = useState([]);
+  const [appliedMonthIds, setAppliedMonthIds] = useState([]);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [pdfProgress, setPdfProgress] = useState(0);
   const [pdfStatus, setPdfStatus] = useState('');
   const [selectedTeachersPerMonth, setSelectedTeachersPerMonth] = useState({}); // { [branchMonthKey]: [teacherNames...] }
+  const [expandedBranchIds, setExpandedBranchIds] = useState([]);
 
   // Load branches
   useEffect(() => {
@@ -238,7 +108,7 @@ export default function ReportsPage() {
         setUserInfo(data);
         // If operation manager, automatically set branch_id filter
         if (data.is_operation_manager && data.branch_id) {
-          setSelectedBranchId(data.branch_id);
+          setAppliedBranchId(data.branch_id);
         }
       } catch (err) {
         console.error("Error loading user info:", err);
@@ -250,8 +120,8 @@ export default function ReportsPage() {
   // Load approved sessions
   useEffect(() => {
     if (!token) return;
-    loadSessions(selectedBranchId);
-  }, [token, selectedBranchId]);
+    loadSessions(appliedBranchId);
+  }, [token, appliedBranchId]);
 
   // Scroll to expanded month when it changes or data updates
   useEffect(() => {
@@ -266,6 +136,13 @@ export default function ReportsPage() {
       }, 200);
     }
   }, [expandedMonth, sessions]);
+
+  // Auto-expand branch when applied from filters
+  useEffect(() => {
+    if (appliedBranchId && !expandedBranchIds.includes(appliedBranchId)) {
+      setExpandedBranchIds(prev => [...prev, appliedBranchId]);
+    }
+  }, [appliedBranchId]);
 
   // Load teacher names from currently displayed sessions only
   const loadTeacherNames = async () => {
@@ -362,13 +239,12 @@ export default function ReportsPage() {
     }
   };
 
-  // Filter sessions by year and month
-  const filterSessionsByYearAndMonth = (sessions) => {
-    if (!selectedYear && !selectedMonth) {
-      return sessions;
+  const filterSessionsByYearAndMonth = (sessionsList) => {
+    if ((!appliedYearIds || appliedYearIds.length === 0) && (!appliedMonthIds || appliedMonthIds.length === 0)) {
+      return sessionsList;
     }
 
-    return sessions.filter(session => {
+    return sessionsList.filter(session => {
       const dateStr = session.session_date;
       if (!dateStr) return false;
 
@@ -376,14 +252,10 @@ export default function ReportsPage() {
       const year = sessionDate.getFullYear();
       const month = sessionDate.getMonth() + 1;
 
-      if (selectedYear && selectedMonth) {
-        return year === selectedYear && month === selectedMonth;
-      } else if (selectedYear) {
-        return year === selectedYear;
-      } else if (selectedMonth) {
-        return month === selectedMonth;
-      }
-      return true;
+      const isYearMatch = !appliedYearIds || appliedYearIds.length === 0 || appliedYearIds.includes(year);
+      const isMonthMatch = !appliedMonthIds || appliedMonthIds.length === 0 || appliedMonthIds.includes(month);
+
+      return isYearMatch && isMonthMatch;
     });
   };
 
@@ -525,6 +397,12 @@ export default function ReportsPage() {
       expensesTotal,
       grandTotal
     };
+  };
+
+  const toggleBranch = (branchId) => {
+    setExpandedBranchIds(prev =>
+      prev.includes(branchId) ? prev.filter(id => id !== branchId) : [...prev, branchId]
+    );
   };
 
   const toggleMonth = (branchId, year, month) => {
@@ -948,11 +826,13 @@ export default function ReportsPage() {
   };
 
   const generateComprehensiveMonthlyReport = async () => {
-    if (!selectedYear || !selectedMonth) {
+    if (selectedYearIds.length === 0 || selectedMonthIds.length === 0) {
       showError("يرجى تحديد السنة والشهر أولاً");
       return;
     }
 
+    const selectedYear = selectedYearIds[0];
+    const selectedMonth = selectedMonthIds[0];
     setIsGeneratingPDF(true);
     setPdfProgress(0);
     setPdfStatus('جاري إعداد التقرير الشامل...');
@@ -1077,7 +957,7 @@ export default function ReportsPage() {
         docDefinition = buildBranchMonthlyReportPDF(
           monthGroup.sessions,
           branchGroup.branchName,
-          selectedYear,
+          selectedYearIds[0],
           selectedMonth,
           monthName,
           monthExpenses,
@@ -1090,7 +970,7 @@ export default function ReportsPage() {
         docDefinition = buildComprehensiveMonthlyReportPDF(
           uniqueMonthSessions,
           branchGroups,
-          selectedYear,
+          selectedYearIds[0],
           selectedMonth,
           monthName,
           monthExpenses,
@@ -1286,46 +1166,31 @@ export default function ReportsPage() {
                 <h3 style={{ margin: 0 }}>الجلسات الموافق عليها ({filteredSessions.length})</h3>
                 <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap", marginRight: "auto" }}>
                   {userInfo && userInfo.is_super_admin && (
-                    <select
-                      value={selectedBranchId || ""}
-                      onChange={(e) => {
-                        const branchId = e.target.value ? parseInt(e.target.value) : null;
-                        setSelectedBranchId(branchId);
+                    <FilterDropdown
+                      placeholder="جميع الفروع"
+                      options={branches.map(b => ({ value: b.id, label: b.name }))}
+                      selectedValues={appliedBranchId ? [appliedBranchId] : []}
+                      isSingle={true}
+                      onChange={(vals) => {
+                        setAppliedBranchId(vals.length > 0 ? vals[0] : null);
                       }}
-                    >
-                      <option value="">جميع الفروع</option>
-                      {branches.map(branch => (
-                        <option key={branch.id} value={branch.id}>{branch.name}</option>
-                      ))}
-                    </select>
+                    />
                   )}
-                  <select
-                    value={selectedMonth || ""}
-                    onChange={(e) => {
-                      const month = e.target.value ? parseInt(e.target.value) : null;
-                      setSelectedMonth(month);
-                    }}
-                    style={{ minWidth: "140px" }}
-                  >
-                    <option value="">جميع الأشهر</option>
-                    {months.map(month => (
-                      <option key={month} value={month}>{monthNames[month]}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={selectedYear || ""}
-                    onChange={(e) => {
-                      const year = e.target.value ? parseInt(e.target.value) : null;
-                      setSelectedYear(year);
-                    }}
-                    style={{ minWidth: "120px" }}
-                  >
-                    <option value="">جميع السنوات</option>
-                    {years.map(year => (
-                      <option key={year} value={year}>{year}</option>
-                    ))}
-                  </select>
-                  {selectedYear && selectedMonth && (
+                  <FilterDropdown
+                    placeholder="جميع الأشهر"
+                    options={months.map(m => ({ value: m, label: monthNames[m] }))}
+                    selectedValues={appliedMonthIds}
+                    isSingle={false}
+                    onChange={setAppliedMonthIds}
+                  />
+                  <FilterDropdown
+                    placeholder="جميع السنوات"
+                    options={years.map(y => ({ value: y, label: y.toString() }))}
+                    selectedValues={appliedYearIds}
+                    isSingle={false}
+                    onChange={setAppliedYearIds}
+                  />
+                  {appliedYearIds.length === 1 && appliedMonthIds.length === 1 && (
                     <button
                       className="btn primary"
                       onClick={generateComprehensiveMonthlyReport}
@@ -1340,13 +1205,13 @@ export default function ReportsPage() {
                       تقرير شامل للشهر
                     </button>
                   )}
-                  {(selectedYear || selectedMonth || selectedBranchId) && (
+                  {(appliedYearIds.length > 0 || appliedMonthIds.length > 0 || appliedBranchId) && (
                     <button
                       className="btn"
                       onClick={() => {
-                        setSelectedYear(null);
-                        setSelectedMonth(null);
-                        setSelectedBranchId(null);
+                        setAppliedYearIds([]);
+                        setAppliedMonthIds([]);
+                        setAppliedBranchId(null);
                       }}
                       style={{ backgroundColor: "#DC2626", color: "white", border: "none" }}
                     >
@@ -1358,16 +1223,38 @@ export default function ReportsPage() {
 
               {filteredBranchGroups.map((branchGroup) => (
                 <div key={branchGroup.branchId} style={{ marginBottom: "2rem" }}>
-                  <h2 style={{
-                    color: "#2B2A2A",
-                    marginBottom: "1rem",
-                    fontSize: "18px",
-                    fontWeight: 600
-                  }}>
-                    {branchGroup.branchName}
-                  </h2>
+                  {/* Branch Header Card */}
+                  <div
+                    className="panel"
+                    onClick={() => toggleBranch(branchGroup.branchId)}
+                    style={{
+                      marginBottom: "1rem",
+                      padding: "1rem",
+                      backgroundColor: "#F9FAFB",
+                      border: "1px solid #E5E7EB",
+                      cursor: "pointer",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      transition: "background-color 0.2s"
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#F3F4F6"}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#F9FAFB"}
+                  >
+                    <h2 style={{
+                      color: "#2B2A2A",
+                      margin: 0,
+                      fontSize: "18px",
+                      fontWeight: 600
+                    }}>
+                      {branchGroup.branchName}
+                    </h2>
+                    <span style={{ fontSize: "14px", color: "#6B7280" }}>
+                      {expandedBranchIds.includes(branchGroup.branchId) ? "▼" : "▶"}
+                    </span>
+                  </div>
 
-                  {branchGroup.months.map((group) => {
+                  {expandedBranchIds.includes(branchGroup.branchId) && branchGroup.months.map((group) => {
                     const branchMonthKey = `${branchGroup.branchId}-${group.year}-${group.month}`;
                     const monthYearKey = `${group.year}-${group.month}`;
                     const isExpanded = expandedMonth === branchMonthKey;
@@ -1696,10 +1583,11 @@ export default function ReportsPage() {
                                 </h4>
                                 <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
                                   <span style={{ fontSize: "13px", color: "#6B7280" }}>فلتر المدرسين:</span>
-                                  <MultiSelect
+                                  <FilterDropdown
                                     placeholder="جميع المدرسين"
                                     options={teacherStats.map(stat => ({ label: stat.teacher_name, value: stat.teacher_name }))}
                                     selectedValues={selectedTeachersPerMonth[branchMonthKey] || []}
+                                    isSingle={false}
                                     onChange={(vals) => {
                                       setSelectedTeachersPerMonth(prev => ({
                                         ...prev,

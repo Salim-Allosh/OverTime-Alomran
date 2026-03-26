@@ -3,6 +3,7 @@ import { apiGet, apiPost, apiDelete, apiPatch } from "../api";
 import { useNotification } from "../contexts/NotificationContext";
 import pdfMake from "pdfmake-rtl/build/pdfmake";
 import { vfs } from "../fonts/vfs_fonts_custom";
+import FilterDropdown from "../components/FilterDropdown";
 
 const monthNames = {
   1: "يناير", 2: "فبراير", 3: "مارس", 4: "أبريل",
@@ -22,11 +23,12 @@ export default function NetProfitPage() {
   const { success, error: showError, confirm } = useNotification();
   const [branches, setBranches] = useState([]);
   const [userInfo, setUserInfo] = useState(null);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [appliedYear, setAppliedYear] = useState(new Date().getFullYear());
   const [monthlyGroups, setMonthlyGroups] = useState([]);
   const [expenseCategories, setExpenseCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [expandedMonths, setExpandedMonths] = useState(new Set());
+  const [expandedExpenseBranches, setExpandedExpenseBranches] = useState(new Set()); // Set of "monthKey-branchId"
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [isEditingExpense, setIsEditingExpense] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState(null);
@@ -54,20 +56,21 @@ export default function NetProfitPage() {
       .catch(console.error);
 
     loadAllMonthsData();
-  }, [token, selectedYear]);
+  }, [token, appliedYear]);
+
 
   const loadAllMonthsData = async () => {
-    if (!selectedYear) return;
+    if (!appliedYear) return;
 
     setLoading(true);
     try {
-      const data = await apiGet(`/net-profit/all-months?year=${selectedYear}`, token);
+      const data = await apiGet(`/net-profit/all-months?year=${appliedYear}`, token);
       setMonthlyGroups(Array.isArray(data) ? data : []);
 
       // Auto-expand current month
       const currentMonth = new Date().getMonth() + 1;
       const currentYear = new Date().getFullYear();
-      if (selectedYear === currentYear) {
+      if (appliedYear === currentYear) {
         const currentKey = `${currentYear}-${currentMonth}`;
         setExpandedMonths(new Set([currentKey]));
       }
@@ -89,6 +92,17 @@ export default function NetProfitPage() {
       newExpanded.add(key);
     }
     setExpandedMonths(newExpanded);
+  };
+
+  const toggleExpenseBranch = (monthKey, branchId) => {
+    const key = `${monthKey}-${branchId}`;
+    const newExpanded = new Set(expandedExpenseBranches);
+    if (newExpanded.has(key)) {
+      newExpanded.delete(key);
+    } else {
+      newExpanded.add(key);
+    }
+    setExpandedExpenseBranches(newExpanded);
   };
 
   const openExpenseModal = (branchData, year, month) => {
@@ -403,13 +417,19 @@ export default function NetProfitPage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
             <h3 style={{ fontSize: "1rem", margin: 0 }}>صافي الأرباح</h3>
             <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                <label style={{ fontSize: "0.85rem", fontWeight: "600" }}>السنة</label>
-                <input
-                  type="number"
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                  style={{ padding: "0.4rem", borderRadius: "6px", border: "1px solid var(--border-color)", fontFamily: "Cairo", fontSize: "0.9rem", width: "120px" }}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span style={{ fontSize: "14px", fontWeight: "600", color: "#4B5563" }}>السنة:</span>
+                <FilterDropdown
+                  placeholder="اختر السنة"
+                  options={Array.from({ length: 5 }, (_, i) => {
+                    const year = new Date().getFullYear() - 2 + i;
+                    return { value: year, label: year.toString() };
+                  })}
+                  selectedValues={[appliedYear]}
+                  isSingle={true}
+                  onChange={(vals) => {
+                    if (vals.length > 0) setAppliedYear(vals[0]);
+                  }}
                 />
               </div>
             </div>
@@ -526,68 +546,96 @@ export default function NetProfitPage() {
                           </div>
 
                           {/* Expenses Details */}
-                          <div>
-                            <h4 style={{ fontSize: "0.9rem", marginBottom: "0.75rem", fontWeight: "600" }}>
-                              تفاصيل المصاريف
-                            </h4>
-                            {branchData.expenses_list && branchData.expenses_list.length > 0 ? (
-                              <div className="table-container">
-                                <table>
-                                  <thead>
-                                    <tr>
-                                      <th style={{ textAlign: "center" }}>السبب</th>
-                                      <th style={{ textAlign: "center" }}>المبلغ</th>
-                                      <th style={{ textAlign: "center" }}>الإجراءات</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {branchData.expenses_list.map((expense) => (
-                                      <tr key={expense.id}>
-                                        <td style={{ textAlign: "center" }}>{expense.title}</td>
-                                        <td data-type="number" style={{ textAlign: "center" }}>{formatNumber(parseFloat(expense.amount || 0))} درهم</td>
-                                        <td style={{ textAlign: "center" }}>
-                                          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
-                                            <button
-                                              onClick={() => openEditExpenseModal(expense, branchData, group.year, group.month)}
-                                              title="تعديل المصروف"
-                                              style={{
-                                                padding: "0.25rem 0.5rem",
-                                                backgroundColor: "#ffc107",
-                                                color: "white",
-                                                border: "none",
-                                                borderRadius: "4px",
-                                                cursor: "pointer",
-                                                fontSize: "0.75rem"
-                                              }}
-                                            >
-                                              تعديل
-                                            </button>
-                                            <button
-                                              onClick={() => handleDeleteExpense(expense.id)}
-                                              title="حذف المصروف"
-                                              style={{
-                                                padding: "0.25rem 0.5rem",
-                                                backgroundColor: "#dc3545",
-                                                color: "white",
-                                                border: "none",
-                                                borderRadius: "4px",
-                                                cursor: "pointer",
-                                                fontSize: "0.75rem"
-                                              }}
-                                            >
-                                              حذف
-                                            </button>
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
+                          <div style={{ marginTop: "1rem" }}>
+                            <div
+                              onClick={() => toggleExpenseBranch(monthKey, branchData.branch_id)}
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                cursor: "pointer",
+                                padding: "0.75rem",
+                                backgroundColor: "#f8f9fa",
+                                borderRadius: "6px",
+                                border: "1px solid #E5E7EB",
+                                marginBottom: expandedExpenseBranches.has(`${monthKey}-${branchData.branch_id}`) ? "0.75rem" : "0"
+                              }}
+                            >
+                              <h4 style={{ fontSize: "0.9rem", margin: 0, fontWeight: "600" }}>
+                                تفاصيل المصاريف
+                              </h4>
+                              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                <span style={{ color: "#6B7280", fontSize: "13px" }}>
+                                  عدد المصاريف: <strong>{branchData.expenses_list ? branchData.expenses_list.length : 0}</strong>
+                                </span>
+                                <span style={{ fontSize: "14px", color: "#6B7280" }}>
+                                  {expandedExpenseBranches.has(`${monthKey}-${branchData.branch_id}`) ? "▼" : "▶"}
+                                </span>
                               </div>
-                            ) : (
-                              <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", padding: "1rem", textAlign: "center", backgroundColor: "#f8f9fa", borderRadius: "6px" }}>
-                                لا توجد مصاريف مسجلة
-                              </p>
+                            </div>
+
+                            {expandedExpenseBranches.has(`${monthKey}-${branchData.branch_id}`) && (
+                              <div style={{ marginTop: "0.75rem" }}>
+                                {branchData.expenses_list && branchData.expenses_list.length > 0 ? (
+                                  <div className="table-container">
+                                    <table>
+                                      <thead>
+                                        <tr>
+                                          <th style={{ textAlign: "center" }}>السبب</th>
+                                          <th style={{ textAlign: "center" }}>المبلغ</th>
+                                          <th style={{ textAlign: "center" }}>الإجراءات</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {branchData.expenses_list.map((expense) => (
+                                          <tr key={expense.id}>
+                                            <td style={{ textAlign: "center" }}>{expense.title}</td>
+                                            <td data-type="number" style={{ textAlign: "center" }}>{formatNumber(parseFloat(expense.amount || 0))} درهم</td>
+                                            <td style={{ textAlign: "center" }}>
+                                              <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
+                                                <button
+                                                  onClick={() => openEditExpenseModal(expense, branchData, group.year, group.month)}
+                                                  title="تعديل المصروف"
+                                                  style={{
+                                                    padding: "0.25rem 0.5rem",
+                                                    backgroundColor: "#ffc107",
+                                                    color: "white",
+                                                    border: "none",
+                                                    borderRadius: "4px",
+                                                    cursor: "pointer",
+                                                    fontSize: "0.75rem"
+                                                  }}
+                                                >
+                                                  تعديل
+                                                </button>
+                                                <button
+                                                  onClick={() => handleDeleteExpense(expense.id)}
+                                                  title="حذف المصروف"
+                                                  style={{
+                                                    padding: "0.25rem 0.5rem",
+                                                    backgroundColor: "#dc3545",
+                                                    color: "white",
+                                                    border: "none",
+                                                    borderRadius: "4px",
+                                                    cursor: "pointer",
+                                                    fontSize: "0.75rem"
+                                                  }}
+                                                >
+                                                  حذف
+                                                </button>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ) : (
+                                  <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", padding: "1rem", textAlign: "center", backgroundColor: "#f8f9fa", borderRadius: "6px" }}>
+                                    لا توجد مصاريف مسجلة
+                                  </p>
+                                )}
+                              </div>
                             )}
                           </div>
                         </div>

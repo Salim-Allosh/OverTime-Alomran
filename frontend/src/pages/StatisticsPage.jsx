@@ -4,6 +4,7 @@ import { useNotification } from "../contexts/NotificationContext";
 import pdfMake from "pdfmake-rtl/build/pdfmake";
 import { vfs } from "../fonts/vfs_fonts_custom";
 import { buildStatisticsPDF } from "./StatisticsPage_pdfmake";
+import FilterDropdown from "../components/FilterDropdown";
 
 const monthNames = {
   1: "يناير", 2: "فبراير", 3: "مارس", 4: "أبريل",
@@ -24,135 +25,6 @@ const formatNumber = (num, decimals = 2) => {
   });
 };
 
-const MultiSelect = ({ options, selectedValues, onChange, placeholder, style }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = React.useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const toggleOption = (val) => {
-    if (selectedValues.includes(val)) {
-      onChange(selectedValues.filter(v => v !== val));
-    } else {
-      onChange([...selectedValues, val]);
-    }
-  };
-
-  const isAllSelected = options.length > 0 && selectedValues.length === options.length;
-
-  const toggleAll = () => {
-    if (isAllSelected) {
-      onChange([]);
-    } else {
-      onChange(options.map(o => o.value));
-    }
-  };
-
-  return (
-    <div ref={containerRef} className="multiselect-container" style={{ position: "relative", ...style }}>
-      <div
-        className="multiselect-header"
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          padding: "0.4rem 0.5rem",
-          borderRadius: "6px",
-          border: "1px solid #dcdcdc",
-          backgroundColor: "white",
-          cursor: "pointer",
-          minWidth: "150px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          fontSize: "13px",
-          height: "36px"
-        }}
-      >
-        <span style={{
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          maxWidth: "140px",
-          fontFamily: "Cairo"
-        }}>
-          {selectedValues.length === 0
-            ? placeholder
-            : selectedValues.length === options.length
-              ? `الكل (${options.length})`
-              : selectedValues.length <= 2
-                ? options.filter(o => selectedValues.includes(o.value)).map(o => o.label).join('، ')
-                : `${selectedValues.length} مختار`}
-        </span>
-        <span style={{ fontSize: "10px", color: "#666" }}>{isOpen ? "▲" : "▼"}</span>
-      </div>
-
-      {isOpen && (
-        <div
-          className="multiselect-dropdown"
-          style={{
-            position: "absolute",
-            top: "100%",
-            left: 0,
-            right: 0,
-            zIndex: 1000,
-            backgroundColor: "white",
-            border: "1px solid #dcdcdc",
-            borderRadius: "6px",
-            marginTop: "4px",
-            maxHeight: "200px",
-            overflowY: "auto",
-            boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-            padding: "4px 0"
-          }}
-        >
-          <div
-            style={{
-              padding: "0.5rem",
-              borderBottom: "1px solid #eee",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              fontWeight: "bold",
-              fontSize: "12px",
-              fontFamily: "Cairo"
-            }}
-            onClick={toggleAll}
-          >
-            <input type="checkbox" checked={isAllSelected} readOnly style={{ cursor: "pointer" }} />
-            الكل
-          </div>
-          {options.map(opt => (
-            <div
-              key={opt.value}
-              style={{
-                padding: "0.5rem",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                fontSize: "12px",
-                fontFamily: "Cairo",
-                backgroundColor: selectedValues.includes(opt.value) ? "#f0f7ff" : "transparent"
-              }}
-              onClick={() => toggleOption(opt.value)}
-            >
-              <input type="checkbox" checked={selectedValues.includes(opt.value)} readOnly style={{ cursor: "pointer" }} />
-              {opt.label}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
 
 export default function StatisticsPage() {
   const token = localStorage.getItem("token") || "";
@@ -160,15 +32,26 @@ export default function StatisticsPage() {
   const [branches, setBranches] = useState([]);
   const [salesStaff, setSalesStaff] = useState([]);
   const [userInfo, setUserInfo] = useState(null);
-  const [selectedBranchIds, setSelectedBranchIds] = useState([]);
-  const [selectedSalesStaffIds, setSelectedSalesStaffIds] = useState([]);
-  const [selectedMonthIds, setSelectedMonthIds] = useState([new Date().getMonth() + 1]);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [appliedBranchIds, setAppliedBranchIds] = useState([]);
+  const [appliedSalesStaffIds, setAppliedSalesStaffIds] = useState([]);
+  const [appliedMonthIds, setAppliedMonthIds] = useState([]);
+  const [appliedYears, setAppliedYears] = useState([new Date().getFullYear()]);
+
   const [statistics, setStatistics] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [pdfProgress, setPdfProgress] = useState(0);
   const [pdfStatus, setPdfStatus] = useState('');
+  const [expandedCards, setExpandedCards] = useState({
+    branchStats: true, // Default to true for better initial view
+    paymentMethods: false,
+    regSources: false,
+    dailyActivity: false,
+    salesStats: false,
+    incompletePayments: false,
+    visits: false,
+    courseReg: false
+  });
 
   useEffect(() => {
     if (!token) return;
@@ -177,7 +60,8 @@ export default function StatisticsPage() {
       .then((userData) => {
         setUserInfo(userData);
         if (userData.is_sales_manager && !userData.is_super_admin && userData.branch_id) {
-          setSelectedBranchIds([userData.branch_id]);
+          setTempBranchIds([userData.branch_id]);
+          setAppliedBranchIds([userData.branch_id]);
         }
       })
       .catch(console.error);
@@ -193,25 +77,33 @@ export default function StatisticsPage() {
 
   useEffect(() => {
     loadStatistics();
-  }, [selectedBranchIds, selectedSalesStaffIds, selectedMonthIds, selectedYear, token]);
+  }, [appliedBranchIds, appliedSalesStaffIds, appliedMonthIds, appliedYears, token]);
+
+
+  const toggleCard = (cardKey) => {
+    setExpandedCards(prev => ({
+      ...prev,
+      [cardKey]: !prev[cardKey]
+    }));
+  };
 
   const loadStatistics = async () => {
     setLoading(true);
     try {
-      let branchIds = selectedBranchIds;
+      let branchIds = appliedBranchIds;
       if (userInfo && userInfo.is_sales_manager && !userInfo.is_super_admin && userInfo.branch_id) {
         branchIds = [userInfo.branch_id];
       }
 
-      let url = `/statistics/comprehensive?year=${selectedYear}`;
+      let url = `/statistics/comprehensive?year=${appliedYears.join(',')}`;
       if (branchIds.length > 0) {
         url += `&branch_id=${branchIds.join(',')}`;
       }
-      if (selectedSalesStaffIds.length > 0) {
-        url += `&sales_staff_id=${selectedSalesStaffIds.join(',')}`;
+      if (appliedSalesStaffIds.length > 0) {
+        url += `&sales_staff_id=${appliedSalesStaffIds.join(',')}`;
       }
-      if (selectedMonthIds.length > 0) {
-        url += `&month=${selectedMonthIds.join(',')}`;
+      if (appliedMonthIds.length > 0) {
+        url += `&month=${appliedMonthIds.join(',')}`;
       }
 
       const data = await apiGet(url, token);
@@ -314,14 +206,14 @@ export default function StatisticsPage() {
       };
 
       // Get filter information for title
-      const branchName = selectedBranchIds.length > 0
-        ? selectedBranchIds.map(id => branches.find(b => b.id === id)?.name || id).join('، ')
+      const branchName = appliedBranchIds.length > 0
+        ? appliedBranchIds.map(id => branches.find(b => b.id === id)?.name || id).join('، ')
         : "جميع الفروع";
-      const salesStaffName = selectedSalesStaffIds.length > 0
-        ? selectedSalesStaffIds.map(id => salesStaff.find(s => s.id === id)?.name || id).join('، ')
+      const salesStaffName = appliedSalesStaffIds.length > 0
+        ? appliedSalesStaffIds.map(id => salesStaff.find(s => s.id === id)?.name || id).join('، ')
         : "جميع موظفي المبيعات";
-      const monthName = selectedMonthIds.length > 0
-        ? selectedMonthIds.sort((a, b) => a - b).map(m => monthNames[m]).join('، ')
+      const monthName = appliedMonthIds.length > 0
+        ? appliedMonthIds.sort((a, b) => a - b).map(m => monthNames[m]).join('، ')
         : "جميع الأشهر";
 
       setPdfProgress(30);
@@ -355,9 +247,9 @@ export default function StatisticsPage() {
         branchName,
         salesStaffName,
         monthName,
-        selectedYear,
+        appliedYears.join(' - '),
         isSuperAdmin,
-        selectedBranchIds
+        appliedBranchIds
       );
 
       setPdfProgress(50);
@@ -370,20 +262,21 @@ export default function StatisticsPage() {
       setPdfStatus('جاري حفظ الملف...');
 
       let monthPart = "";
-      if (selectedMonthIds.length === 1) {
-        monthPart = `_${monthNames[selectedMonthIds[0]]}`;
-      } else if (selectedMonthIds.length > 1) {
+      if (appliedMonthIds.length === 1) {
+        monthPart = `_${monthNames[appliedMonthIds[0]]}`;
+      } else if (appliedMonthIds.length > 1) {
         monthPart = "_أشهر_متعددة";
       }
 
       let branchPart = "";
-      if (selectedBranchIds.length === 1) {
-        branchPart = `_${branches.find(b => b.id === selectedBranchIds[0])?.name || selectedBranchIds[0]}`;
-      } else if (selectedBranchIds.length > 1) {
+      if (appliedBranchIds.length === 1) {
+        branchPart = `_${branches.find(b => b.id === appliedBranchIds[0])?.name || appliedBranchIds[0]}`;
+      } else if (appliedBranchIds.length > 1) {
         branchPart = "_فروع_متعددة";
       }
 
-      const fileName = `تقرير_الإحصائيات_${selectedYear}${monthPart}${branchPart}.pdf`.replace(/\s/g, '_');
+      const yearPart = appliedYears.length > 0 ? appliedYears.join('-') : "جميع_السنوات";
+      const fileName = `تقرير_الإحصائيات_${yearPart}${monthPart}${branchPart}.pdf`.replace(/\s/g, '_');
       pdfDoc.download(fileName);
 
       setPdfProgress(100);
@@ -452,14 +345,15 @@ export default function StatisticsPage() {
       <div className="panel" style={{ marginBottom: "2rem" }}>
         <div className="filters-bar" style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap", justifyContent: "space-between" }}>
           <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+            {/* 1. فرع */}
             {userInfo && userInfo.is_super_admin ? (
-              <MultiSelect
+              <FilterDropdown
                 placeholder="جميع الفروع"
                 options={branches.map(b => ({ label: b.name, value: b.id }))}
-                selectedValues={selectedBranchIds}
+                selectedValues={appliedBranchIds}
                 onChange={(vals) => {
-                  setSelectedBranchIds(vals);
-                  setSelectedSalesStaffIds([]);
+                  setAppliedBranchIds(vals);
+                  setAppliedSalesStaffIds([]); // Reset sales staff when branch changes
                 }}
               />
             ) : userInfo && userInfo.is_sales_manager ? (
@@ -469,33 +363,31 @@ export default function StatisticsPage() {
             ) : null}
 
             {/* 2. موظف مبيعات */}
-            <MultiSelect
+            <FilterDropdown
               placeholder="جميع موظفي المبيعات"
               options={salesStaff
-                .filter(staff => selectedBranchIds.length === 0 || selectedBranchIds.includes(staff.branch_id))
+                .filter(staff => appliedBranchIds.length === 0 || appliedBranchIds.includes(staff.branch_id))
                 .map(staff => ({ label: staff.name, value: staff.id }))}
-              selectedValues={selectedSalesStaffIds}
-              onChange={setSelectedSalesStaffIds}
+              selectedValues={appliedSalesStaffIds}
+              onChange={setAppliedSalesStaffIds}
             />
 
             {/* 3. شهر */}
-            <MultiSelect
+            <FilterDropdown
               placeholder="جميع الأشهر"
               options={Object.entries(monthNames).map(([num, name]) => ({ label: name, value: parseInt(num) }))}
-              selectedValues={selectedMonthIds}
-              onChange={setSelectedMonthIds}
+              selectedValues={appliedMonthIds}
+              onChange={setAppliedMonthIds}
             />
 
             {/* 4. سنة */}
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-              style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #dcdcdc", fontFamily: "Cairo", fontSize: "13px" }}
-            >
-              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
+            <FilterDropdown
+              placeholder="جميع السنوات"
+              options={Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => ({ label: y.toString(), value: y }))}
+              selectedValues={appliedYears}
+              onChange={setAppliedYears}
+              isSingle={false}
+            />
           </div>
 
           <button
@@ -617,56 +509,73 @@ export default function StatisticsPage() {
       {/* 1.5 إحصائيات الفروع التفصيلية (للسوبر أدمن فقط) */}
       {userInfo && userInfo.is_super_admin && statistics.branches_comprehensive && statistics.branches_comprehensive.length > 0 && (
         <div className="panel" style={{ marginBottom: "2rem" }}>
-          <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
+          <h2
+            onClick={() => toggleCard('branchStats')}
+            style={{
+              fontSize: "18px",
+              marginBottom: expandedCards.branchStats ? "1.5rem" : "0",
+              fontWeight: 600,
+              color: "#2B2A2A",
+              borderBottom: expandedCards.branchStats ? "2px solid #E5E7EB" : "none",
+              paddingBottom: "0.75rem",
+              cursor: "pointer",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
+            }}
+          >
             إحصائيات الفروع التفصيلية
+            <span style={{ transform: expandedCards.branchStats ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▼</span>
           </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.5rem" }}>
-            {statistics.branches_comprehensive.map(branchStat => {
-              const branchName = branches.find(b => b.id === branchStat.branch_id)?.name || `فرع ${branchStat.branch_id}`;
-              const netAmount = safeParse(branchStat.total_net_amount);
-              const totalPaid = safeParse(branchStat.total_paid_amount);
-              const feeAmount = totalPaid - netAmount;
+          {expandedCards.branchStats && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.5rem" }}>
+              {statistics.branches_comprehensive.map(branchStat => {
+                const branchName = branches.find(b => b.id === branchStat.branch_id)?.name || `فرع ${branchStat.branch_id}`;
+                const netAmount = safeParse(branchStat.total_net_amount);
+                const totalPaid = safeParse(branchStat.total_paid_amount);
+                const feeAmount = totalPaid - netAmount;
 
-              return (
-                <div key={branchStat.branch_id} style={{
-                  backgroundColor: "#F9FAFB",
-                  borderRadius: "8px",
-                  padding: "1rem",
-                  border: "1px solid #E5E7EB"
-                }}>
-                  <h3 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "1rem", color: "#1F2937", borderBottom: "1px solid #E5E7EB", paddingBottom: "0.5rem" }}>
-                    {branchName}
-                  </h3>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.8rem", fontSize: "13px" }}>
-                    <div>
-                      <div style={{ color: "#6B7280", marginBottom: "2px" }}>العقود الشهرية</div>
-                      <div style={{ fontWeight: "600" }}>{formatNumber(parseInt(branchStat.total_monthly_contracts) || 0, 0)}</div>
-                    </div>
-                    <div>
-                      <div style={{ color: "#6B7280", marginBottom: "2px" }}>إجمالي المبيعات</div>
-                      <div style={{ fontWeight: "600" }}>{formatNumber(safeParse(branchStat.total_contracts_value))}</div>
-                    </div>
-                    <div>
-                      <div style={{ color: "#6B7280", marginBottom: "2px" }}>المدفوع</div>
-                      <div style={{ fontWeight: "600" }}>{formatNumber(totalPaid)}</div>
-                    </div>
-                    <div>
-                      <div style={{ color: "#6B7280", marginBottom: "2px" }}>المتبقي</div>
-                      <div style={{ fontWeight: "600", color: "#DC3545" }}>{formatNumber(safeParse(branchStat.total_remaining_amount))}</div>
-                    </div>
-                    <div>
-                      <div style={{ color: "#6B7280", marginBottom: "2px" }}>الصافي</div>
-                      <div style={{ fontWeight: "600", color: "#5A7ACD" }}>{formatNumber(netAmount)}</div>
-                    </div>
-                    <div>
-                      <div style={{ color: "#6B7280", marginBottom: "2px" }}>النسبة</div>
-                      <div style={{ fontWeight: "600", color: "#DC3545" }}>{formatNumber(feeAmount)}</div>
+                return (
+                  <div key={branchStat.branch_id} style={{
+                    backgroundColor: "#F9FAFB",
+                    borderRadius: "8px",
+                    padding: "1rem",
+                    border: "1px solid #E5E7EB"
+                  }}>
+                    <h3 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "1rem", color: "#1F2937", borderBottom: "1px solid #E5E7EB", paddingBottom: "0.5rem" }}>
+                      {branchName}
+                    </h3>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.8rem", fontSize: "13px" }}>
+                      <div>
+                        <div style={{ color: "#6B7280", marginBottom: "2px" }}>العقود الشهرية</div>
+                        <div style={{ fontWeight: "600" }}>{formatNumber(parseInt(branchStat.total_monthly_contracts) || 0, 0)}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: "#6B7280", marginBottom: "2px" }}>إجمالي المبيعات</div>
+                        <div style={{ fontWeight: "600" }}>{formatNumber(safeParse(branchStat.total_contracts_value))}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: "#6B7280", marginBottom: "2px" }}>المدفوع</div>
+                        <div style={{ fontWeight: "600" }}>{formatNumber(totalPaid)}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: "#6B7280", marginBottom: "2px" }}>المتبقي</div>
+                        <div style={{ fontWeight: "600", color: "#DC3545" }}>{formatNumber(safeParse(branchStat.total_remaining_amount))}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: "#6B7280", marginBottom: "2px" }}>الصافي</div>
+                        <div style={{ fontWeight: "600", color: "#5A7ACD" }}>{formatNumber(netAmount)}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: "#6B7280", marginBottom: "2px" }}>النسبة</div>
+                        <div style={{ fontWeight: "600", color: "#DC3545" }}>{formatNumber(feeAmount)}</div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -674,31 +583,48 @@ export default function StatisticsPage() {
       {
         statistics.payment_methods_details && statistics.payment_methods_details.length > 0 && (
           <div className="panel" style={{ marginBottom: "2rem" }}>
-            <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
+            <h2
+              onClick={() => toggleCard('paymentMethods')}
+              style={{
+                fontSize: "18px",
+                marginBottom: expandedCards.paymentMethods ? "1.5rem" : "0",
+                fontWeight: 600,
+                color: "#2B2A2A",
+                borderBottom: expandedCards.paymentMethods ? "2px solid #E5E7EB" : "none",
+                paddingBottom: "0.75rem",
+                cursor: "pointer",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center"
+              }}
+            >
               إحصائيات حسب طريقة الدفع
+              <span style={{ transform: expandedCards.paymentMethods ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▼</span>
             </h2>
-            <div className="table-container">
-              <table style={{ width: "100%", fontSize: "13px" }}>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: "center" }}>طريقة الدفع</th>
-                    <th style={{ textAlign: "center" }}>المبلغ الإجمالي</th>
-                    <th style={{ textAlign: "center" }}>عدد المعاملات</th>
-                    <th style={{ textAlign: "center" }}>المبلغ الصافي</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {statistics.payment_methods_details.map(method => (
-                    <tr key={method.payment_method_id}>
-                      <td style={{ fontWeight: 600, textAlign: "center" }}>{method.payment_method_name}</td>
-                      <td style={{ textAlign: "center" }}>{formatNumber(parseFloat(method.total_paid))} درهم</td>
-                      <td style={{ textAlign: "center" }}>{formatNumber(method.transactions_count, 0)}</td>
-                      <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{formatNumber(parseFloat(method.total_net))} درهم</td>
+            {expandedCards.paymentMethods && (
+              <div className="table-container">
+                <table style={{ width: "100%", fontSize: "13px" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: "center" }}>طريقة الدفع</th>
+                      <th style={{ textAlign: "center" }}>المبلغ الإجمالي</th>
+                      <th style={{ textAlign: "center" }}>عدد المعاملات</th>
+                      <th style={{ textAlign: "center" }}>المبلغ الصافي</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {statistics.payment_methods_details.map(method => (
+                      <tr key={method.payment_method_id}>
+                        <td style={{ fontWeight: 600, textAlign: "center" }}>{method.payment_method_name}</td>
+                        <td style={{ textAlign: "center" }}>{formatNumber(parseFloat(method.total_paid))} درهم</td>
+                        <td style={{ textAlign: "center" }}>{formatNumber(method.transactions_count, 0)}</td>
+                        <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{formatNumber(parseFloat(method.total_net))} درهم</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )
       }
@@ -707,41 +633,58 @@ export default function StatisticsPage() {
       {
         statistics.registration_sources_details && statistics.registration_sources_details.length > 0 && (
           <div className="panel" style={{ marginBottom: "2rem" }}>
-            <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
+            <h2
+              onClick={() => toggleCard('regSources')}
+              style={{
+                fontSize: "18px",
+                marginBottom: expandedCards.regSources ? "1.5rem" : "0",
+                fontWeight: 600,
+                color: "#2B2A2A",
+                borderBottom: expandedCards.regSources ? "2px solid #E5E7EB" : "none",
+                paddingBottom: "0.75rem",
+                cursor: "pointer",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center"
+              }}
+            >
               إحصائيات حسب مصدر التسجيل
+              <span style={{ transform: expandedCards.regSources ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▼</span>
             </h2>
-            <div className="table-container">
-              <table style={{ width: "100%", fontSize: "13px" }}>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: "center" }}>مصدر التسجيل</th>
-                    <th style={{ textAlign: "center" }}>الفرع</th>
-                    <th style={{ textAlign: "center" }}>عدد العقود</th>
-                    <th style={{ textAlign: "center" }}>المبلغ المدفوع</th>
-                    <th style={{ textAlign: "center" }}>المبلغ الصافي</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {statistics.registration_sources_details.map((source, idx) => (
-                    <tr key={idx}>
-                      <td style={{ fontWeight: 600, textAlign: "center" }}>{source.registration_source}</td>
-                      <td style={{ textAlign: "center" }}>{source.branch_name}</td>
-                      <td style={{ textAlign: "center" }}>{formatNumber(source.total_contracts, 0)}</td>
-                      <td style={{ textAlign: "center" }}>{formatNumber(source.total_paid)} درهم</td>
-                      <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{formatNumber(source.total_net)} درهم</td>
+            {expandedCards.regSources && (
+              <div className="table-container">
+                <table style={{ width: "100%", fontSize: "13px" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: "center" }}>مصدر التسجيل</th>
+                      <th style={{ textAlign: "center" }}>الفرع</th>
+                      <th style={{ textAlign: "center" }}>عدد العقود</th>
+                      <th style={{ textAlign: "center" }}>المبلغ المدفوع</th>
+                      <th style={{ textAlign: "center" }}>المبلغ الصافي</th>
                     </tr>
-                  ))}
-                  {/* صف الإجمالي */}
-                  <tr style={{ backgroundColor: "#F9FAFB", fontWeight: 600 }}>
-                    <td style={{ textAlign: "center" }}>الإجمالي</td>
-                    <td style={{ textAlign: "center" }}>-</td>
-                    <td style={{ textAlign: "center" }}>{formatNumber(statistics.registration_sources_details.reduce((sum, s) => sum + s.total_contracts, 0), 0)}</td>
-                    <td style={{ textAlign: "center" }}>{formatNumber(statistics.registration_sources_details.reduce((sum, s) => sum + s.total_paid, 0))} درهم</td>
-                    <td style={{ color: "#5A7ACD", textAlign: "center" }}>{formatNumber(statistics.registration_sources_details.reduce((sum, s) => sum + s.total_net, 0))} درهم</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {statistics.registration_sources_details.map((source, idx) => (
+                      <tr key={idx}>
+                        <td style={{ fontWeight: 600, textAlign: "center" }}>{source.registration_source}</td>
+                        <td style={{ textAlign: "center" }}>{source.branch_name}</td>
+                        <td style={{ textAlign: "center" }}>{formatNumber(source.total_contracts, 0)}</td>
+                        <td style={{ textAlign: "center" }}>{formatNumber(source.total_paid)} درهم</td>
+                        <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{formatNumber(source.total_net)} درهم</td>
+                      </tr>
+                    ))}
+                    {/* صف الإجمالي */}
+                    <tr style={{ backgroundColor: "#F9FAFB", fontWeight: 600 }}>
+                      <td style={{ textAlign: "center" }}>الإجمالي</td>
+                      <td style={{ textAlign: "center" }}>-</td>
+                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.registration_sources_details.reduce((sum, s) => sum + s.total_contracts, 0), 0)}</td>
+                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.registration_sources_details.reduce((sum, s) => sum + s.total_paid, 0))} درهم</td>
+                      <td style={{ color: "#5A7ACD", textAlign: "center" }}>{formatNumber(statistics.registration_sources_details.reduce((sum, s) => sum + s.total_net, 0))} درهم</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )
       }
@@ -750,119 +693,188 @@ export default function StatisticsPage() {
       {
         statistics.sales_staff_details && statistics.sales_staff_details.length > 0 && (
           <div className="panel" style={{ marginBottom: "2rem" }}>
-            <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
+            <h2
+              onClick={() => toggleCard('salesStaff')}
+              style={{
+                fontSize: "18px",
+                marginBottom: expandedCards.salesStaff ? "1.5rem" : "0",
+                fontWeight: 600,
+                color: "#2B2A2A",
+                borderBottom: expandedCards.salesStaff ? "2px solid #E5E7EB" : "none",
+                paddingBottom: "0.75rem",
+                cursor: "pointer",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center"
+              }}
+            >
               إحصائيات الموظف
+              <span style={{ transform: expandedCards.salesStaff ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▼</span>
             </h2>
+            {expandedCards.salesStaff && (
+              <>
+                {/* إحصائيات النشاط اليومي */}
+                <div style={{ marginBottom: "2rem" }}>
+                  <h3
+                    onClick={() => toggleCard('dailyActivity')}
+                    style={{
+                      fontSize: "16px",
+                      marginBottom: expandedCards.dailyActivity ? "1rem" : "0",
+                      fontWeight: 600,
+                      color: "#6B7280",
+                      cursor: "pointer",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center"
+                    }}
+                  >
+                    إحصائيات النشاط اليومي
+                    <span style={{ fontSize: "12px", transform: expandedCards.dailyActivity ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▼</span>
+                  </h3>
+                  {expandedCards.dailyActivity && (
+                    <div className="table-container">
+                      <table style={{ width: "100%", fontSize: "13px" }}>
+                        <thead>
+                          <tr>
+                            <th style={{ textAlign: "center" }}>اسم الموظف</th>
+                            <th style={{ textAlign: "center" }}>الفرع</th>
+                            <th style={{ textAlign: "center" }}>الاتصالات اليومية</th>
+                            <th style={{ textAlign: "center" }}>الهوت كول</th>
+                            <th style={{ textAlign: "center" }}>الووك ان</th>
+                            <th style={{ textAlign: "center" }}>ليدز الفرع</th>
+                            <th style={{ textAlign: "center" }}>ليدز الاونلاين</th>
+                            <th style={{ textAlign: "center" }}>الليدز الاضافي</th>
+                            <th style={{ textAlign: "center" }}>عدد الزيارات</th>
+                            <th style={{ textAlign: "center" }}>عدد التقارير</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {statistics.sales_staff_details.map(staff => (
+                            <tr key={staff.staff_id}>
+                              <td style={{ fontWeight: 600, textAlign: "center" }}>{staff.staff_name}</td>
+                              <td style={{ textAlign: "center" }}>{staff.branch_name}</td>
+                              <td style={{ textAlign: "center" }}>{formatNumber(staff.total_calls, 0)}</td>
+                              <td style={{ textAlign: "center" }}>{formatNumber(staff.total_hot_calls, 0)}</td>
+                              <td style={{ textAlign: "center" }}>{formatNumber(staff.total_walk_ins, 0)}</td>
+                              <td style={{ textAlign: "center" }}>{formatNumber(staff.total_branch_leads, 0)}</td>
+                              <td style={{ textAlign: "center" }}>{formatNumber(staff.total_online_leads, 0)}</td>
+                              <td style={{ textAlign: "center" }}>{formatNumber(staff.total_extra_leads, 0)}</td>
+                              <td style={{ textAlign: "center" }}>{formatNumber(staff.total_visits, 0)}</td>
+                              <td style={{ textAlign: "center" }}>{formatNumber(staff.reports_count || 0, 0)}</td>
+                            </tr>
+                          ))}
+                          {/* صف الإجمالي */}
+                          <tr style={{ backgroundColor: "#F9FAFB", fontWeight: 600 }}>
+                            <td style={{ textAlign: "center" }}>الإجمالي</td>
+                            <td style={{ textAlign: "center" }}>-</td>
+                            <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_calls, 0), 0)}</td>
+                            <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_hot_calls, 0), 0)}</td>
+                            <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_walk_ins, 0), 0)}</td>
+                            <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_branch_leads, 0), 0)}</td>
+                            <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_online_leads, 0), 0)}</td>
+                            <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_extra_leads, 0), 0)}</td>
+                            <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_visits, 0), 0)}</td>
+                            <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + (s.reports_count || 0), 0), 0)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
 
-            {/* إحصائيات النشاط اليومي */}
-            <div style={{ marginBottom: "2rem" }}>
-              <h3 style={{ fontSize: "16px", marginBottom: "1rem", fontWeight: 600, color: "#6B7280" }}>إحصائيات النشاط اليومي</h3>
-              <div className="table-container">
-                <table style={{ width: "100%", fontSize: "13px" }}>
-                  <thead>
-                    <tr>
-                      <th style={{ textAlign: "center" }}>اسم الموظف</th>
-                      <th style={{ textAlign: "center" }}>الفرع</th>
-                      <th style={{ textAlign: "center" }}>الاتصالات اليومية</th>
-                      <th style={{ textAlign: "center" }}>الهوت كول</th>
-                      <th style={{ textAlign: "center" }}>الووك ان</th>
-                      <th style={{ textAlign: "center" }}>ليدز الفرع</th>
-                      <th style={{ textAlign: "center" }}>ليدز الاونلاين</th>
-                      <th style={{ textAlign: "center" }}>الليدز الاضافي</th>
-                      <th style={{ textAlign: "center" }}>عدد الزيارات</th>
-                      <th style={{ textAlign: "center" }}>عدد التقارير</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {statistics.sales_staff_details.map(staff => (
-                      <tr key={staff.staff_id}>
-                        <td style={{ fontWeight: 600, textAlign: "center" }}>{staff.staff_name}</td>
-                        <td style={{ textAlign: "center" }}>{staff.branch_name}</td>
-                        <td style={{ textAlign: "center" }}>{formatNumber(staff.total_calls, 0)}</td>
-                        <td style={{ textAlign: "center" }}>{formatNumber(staff.total_hot_calls, 0)}</td>
-                        <td style={{ textAlign: "center" }}>{formatNumber(staff.total_walk_ins, 0)}</td>
-                        <td style={{ textAlign: "center" }}>{formatNumber(staff.total_branch_leads, 0)}</td>
-                        <td style={{ textAlign: "center" }}>{formatNumber(staff.total_online_leads, 0)}</td>
-                        <td style={{ textAlign: "center" }}>{formatNumber(staff.total_extra_leads, 0)}</td>
-                        <td style={{ textAlign: "center" }}>{formatNumber(staff.total_visits, 0)}</td>
-                        <td style={{ textAlign: "center" }}>{formatNumber(staff.reports_count || 0, 0)}</td>
-                      </tr>
-                    ))}
-                    {/* صف الإجمالي */}
-                    <tr style={{ backgroundColor: "#F9FAFB", fontWeight: 600 }}>
-                      <td style={{ textAlign: "center" }}>الإجمالي</td>
-                      <td style={{ textAlign: "center" }}>-</td>
-                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_calls, 0), 0)}</td>
-                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_hot_calls, 0), 0)}</td>
-                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_walk_ins, 0), 0)}</td>
-                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_branch_leads, 0), 0)}</td>
-                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_online_leads, 0), 0)}</td>
-                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_extra_leads, 0), 0)}</td>
-                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.total_visits, 0), 0)}</td>
-                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + (s.reports_count || 0), 0), 0)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* إحصائيات المبيعات */}
-            <div>
-              <h3 style={{ fontSize: "16px", marginBottom: "1rem", fontWeight: 600, color: "#6B7280" }}>إحصائيات المبيعات</h3>
-              <div className="table-container">
-                <table style={{ width: "100%", fontSize: "13px" }}>
-                  <thead>
-                    <tr>
-                      <th style={{ textAlign: "center" }}>اسم الموظف</th>
-                      <th style={{ textAlign: "center" }}>الفرع</th>
-                      <th style={{ textAlign: "center" }}>إجمالي المبيعات</th>
-                      <th style={{ textAlign: "center" }}>عدد العقود</th>
-                      <th style={{ textAlign: "center" }}>المبالغ المدفوعة</th>
-                      <th style={{ textAlign: "center" }}>الصافي</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {statistics.sales_staff_details.map(staff => (
-                      <tr key={staff.staff_id}>
-                        <td style={{ fontWeight: 600, textAlign: "center" }}>{staff.staff_name}</td>
-                        <td style={{ textAlign: "center" }}>{staff.branch_name}</td>
-                        <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{formatNumber(parseFloat(staff.total_sales))} درهم</td>
-                        <td style={{ textAlign: "center" }}>{formatNumber(staff.contracts_count, 0)}</td>
-                        <td style={{ fontWeight: 600, textAlign: "center" }}>{formatNumber(parseFloat(staff.total_paid_amount || 0))} درهم</td>
-                        <td style={{ fontWeight: 600, color: "#28A745", textAlign: "center" }}>{formatNumber(parseFloat(staff.total_net_amount || 0))} درهم</td>
-                      </tr>
-                    ))}
-                    {/* صف الإجمالي */}
-                    <tr style={{ backgroundColor: "#F9FAFB", fontWeight: 600 }}>
-                      <td style={{ textAlign: "center" }}>الإجمالي</td>
-                      <td style={{ textAlign: "center" }}>-</td>
-                      <td style={{ color: "#5A7ACD", textAlign: "center" }}>
-                        {formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_sales), 0))} درهم
-                      </td>
-                      <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.contracts_count, 0), 0)}</td>
-                      <td style={{ textAlign: "center" }}>
-                        {formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_paid_amount || 0), 0))} درهم
-                      </td>
-                      <td style={{ color: "#28A745", textAlign: "center" }}>
-                        {formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_net_amount || 0), 0))} درهم
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                {/* إحصائيات المبيعات */}
+                <div>
+                  <h3
+                    onClick={() => toggleCard('salesStats')}
+                    style={{
+                      fontSize: "16px",
+                      marginBottom: expandedCards.salesStats ? "1rem" : "0",
+                      fontWeight: 600,
+                      color: "#6B7280",
+                      cursor: "pointer",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center"
+                    }}
+                  >
+                    إحصائيات المبيعات
+                    <span style={{ fontSize: "12px", transform: expandedCards.salesStats ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▼</span>
+                  </h3>
+                  {expandedCards.salesStats && (
+                    <div className="table-container">
+                      <table style={{ width: "100%", fontSize: "13px" }}>
+                        <thead>
+                          <tr>
+                            <th style={{ textAlign: "center" }}>اسم الموظف</th>
+                            <th style={{ textAlign: "center" }}>الفرع</th>
+                            <th style={{ textAlign: "center" }}>إجمالي المبيعات</th>
+                            <th style={{ textAlign: "center" }}>عدد العقود</th>
+                            <th style={{ textAlign: "center" }}>المبالغ المدفوعة</th>
+                            <th style={{ textAlign: "center" }}>الصافي</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {statistics.sales_staff_details.map(staff => (
+                            <tr key={staff.staff_id}>
+                              <td style={{ fontWeight: 600, textAlign: "center" }}>{staff.staff_name}</td>
+                              <td style={{ textAlign: "center" }}>{staff.branch_name}</td>
+                              <td style={{ fontWeight: 600, color: "#5A7ACD", textAlign: "center" }}>{formatNumber(parseFloat(staff.total_sales))} درهم</td>
+                              <td style={{ textAlign: "center" }}>{formatNumber(staff.contracts_count, 0)}</td>
+                              <td style={{ fontWeight: 600, textAlign: "center" }}>{formatNumber(parseFloat(staff.total_paid_amount || 0))} درهم</td>
+                              <td style={{ fontWeight: 600, color: "#28A745", textAlign: "center" }}>{formatNumber(parseFloat(staff.total_net_amount || 0))} درهم</td>
+                            </tr>
+                          ))}
+                          {/* صف الإجمالي */}
+                          <tr style={{ backgroundColor: "#F9FAFB", fontWeight: 600 }}>
+                            <td style={{ textAlign: "center" }}>الإجمالي</td>
+                            <td style={{ textAlign: "center" }}>-</td>
+                            <td style={{ color: "#5A7ACD", textAlign: "center" }}>
+                              {formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_sales), 0))} درهم
+                            </td>
+                            <td style={{ textAlign: "center" }}>{formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + s.contracts_count, 0), 0)}</td>
+                            <td style={{ textAlign: "center" }}>
+                              {formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_paid_amount || 0), 0))} درهم
+                            </td>
+                            <td style={{ color: "#28A745", textAlign: "center" }}>
+                              {formatNumber(statistics.sales_staff_details.reduce((sum, s) => sum + parseFloat(s.total_net_amount || 0), 0))} درهم
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )
       }
 
       {/* العقود التي مازالت تملك دفعة غير مكتملة */}
-      {
-        statistics.incomplete_payment_contracts && statistics.incomplete_payment_contracts.length > 0 && (
-          <div className="panel" style={{ marginBottom: "2rem" }}>
-            <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
-              العقود التي مازالت تملك دفعة غير مكتملة
-            </h2>
-            <div className="table-container">
+      <div className="panel" style={{ marginBottom: "2rem" }}>
+        <h2
+          onClick={() => toggleCard('incompletePayments')}
+          style={{
+            fontSize: "18px",
+            marginBottom: expandedCards.incompletePayments ? "1.5rem" : "0",
+            fontWeight: 600,
+            color: "#2B2A2A",
+            borderBottom: expandedCards.incompletePayments ? "2px solid #E5E7EB" : "none",
+            paddingBottom: "0.75rem",
+            cursor: "pointer",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center"
+          }}
+        >
+          العقود التي مازالت تملك دفعة غير مكتملة
+          <span style={{ transform: expandedCards.incompletePayments ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▼</span>
+        </h2>
+        {expandedCards.incompletePayments && (
+          <div className="table-container">
+            {(!statistics.incomplete_payment_contracts || statistics.incomplete_payment_contracts.length === 0) ? (
+              <p style={{ textAlign: "center", padding: "1rem", color: "#666" }}>لا توجد عقود بدفعات غير مكتملة</p>
+            ) : (
               <table style={{ width: "100%", fontSize: "13px" }}>
                 <thead>
                   <tr>
@@ -895,19 +907,36 @@ export default function StatisticsPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            )}
           </div>
-        )
-      }
+        )}
+      </div>
 
       {/* تفاصيل الزيارات */}
-      {
-        statistics.visits_details && statistics.visits_details.length > 0 && (
-          <div className="panel" style={{ marginBottom: "2rem" }}>
-            <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
-              تفاصيل الزيارات
-            </h2>
-            <div className="table-container">
+      <div className="panel" style={{ marginBottom: "2rem" }}>
+        <h2
+          onClick={() => toggleCard('visits')}
+          style={{
+            fontSize: "18px",
+            marginBottom: expandedCards.visits ? "1.5rem" : "0",
+            fontWeight: 600,
+            color: "#2B2A2A",
+            borderBottom: expandedCards.visits ? "2px solid #E5E7EB" : "none",
+            paddingBottom: "0.75rem",
+            cursor: "pointer",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center"
+          }}
+        >
+          تفاصيل الزيارات
+          <span style={{ transform: expandedCards.visits ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▼</span>
+        </h2>
+        {expandedCards.visits && (
+          <div className="table-container">
+            {(!statistics.visits_details || statistics.visits_details.length === 0) ? (
+              <p style={{ textAlign: "center", padding: "1rem", color: "#666" }}>لا توجد زيارات مسجلة</p>
+            ) : (
               <table style={{ width: "100%", fontSize: "13px" }}>
                 <thead>
                   <tr>
@@ -928,19 +957,36 @@ export default function StatisticsPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            )}
           </div>
-        )
-      }
+        )}
+      </div>
 
       {/* تفاصيل التسجيل في كل نوع كورس */}
-      {
-        statistics.course_registration_details && statistics.course_registration_details.length > 0 && (
-          <div className="panel" style={{ marginBottom: "2rem" }}>
-            <h2 style={{ fontSize: "18px", marginBottom: "1.5rem", fontWeight: 600, color: "#2B2A2A", borderBottom: "2px solid #E5E7EB", paddingBottom: "0.75rem" }}>
-              تفاصيل التسجيل في كل نوع كورس
-            </h2>
-            <div className="table-container">
+      <div className="panel" style={{ marginBottom: "2rem" }}>
+        <h2
+          onClick={() => toggleCard('courseReg')}
+          style={{
+            fontSize: "18px",
+            marginBottom: expandedCards.courseReg ? "1.5rem" : "0",
+            fontWeight: 600,
+            color: "#2B2A2A",
+            borderBottom: expandedCards.courseReg ? "2px solid #E5E7EB" : "none",
+            paddingBottom: "0.75rem",
+            cursor: "pointer",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center"
+          }}
+        >
+          تفاصيل التسجيل في كل نوع كورس
+          <span style={{ transform: expandedCards.courseReg ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▼</span>
+        </h2>
+        {expandedCards.courseReg && (
+          <div className="table-container">
+            {(!statistics.course_registration_details || statistics.course_registration_details.length === 0) ? (
+              <p style={{ textAlign: "center", padding: "1rem", color: "#666" }}>لا توجد تسجيلات كورسات مسجلة</p>
+            ) : (
               <table style={{ width: "100%", fontSize: "13px" }}>
                 <thead>
                   <tr>
@@ -985,10 +1031,10 @@ export default function StatisticsPage() {
                   </tr>
                 </tbody>
               </table>
-            </div>
+            )}
           </div>
-        )
-      }
+        )}
+      </div>
     </div >
   );
 }

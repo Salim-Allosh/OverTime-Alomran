@@ -3,6 +3,7 @@ import { apiGet, apiPost, apiPatch, apiDelete } from "../api";
 import { useNotification } from "../contexts/NotificationContext";
 import pdfMake from "pdfmake-rtl/build/pdfmake";
 import { vfs } from "../fonts/vfs_fonts_custom";
+import FilterDropdown from "../components/FilterDropdown";
 
 const monthNames = {
   1: "يناير", 2: "فبراير", 3: "مارس", 4: "أبريل",
@@ -11,6 +12,7 @@ const monthNames = {
 };
 
 export default function DailySalesReportsPage() {
+  const currentDate = new Date();
   const token = localStorage.getItem("token") || "";
   const { success, error: showError, confirm } = useNotification();
   const [reports, setReports] = useState([]);
@@ -70,16 +72,20 @@ export default function DailySalesReportsPage() {
   });
   const [courses, setCourses] = useState([]);
   const [paymentMethods, setPaymentMethods] = useState([]);
-  const [selectedBranchId, setSelectedBranchId] = useState(null);
-  const [selectedSalesStaffId, setSelectedSalesStaffId] = useState(null);
-  const currentDate = new Date();
-  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
+  const [appliedBranchId, setAppliedBranchId] = useState(null);
+  const [appliedSalesStaffId, setAppliedSalesStaffId] = useState(null);
+  const [appliedYear, setAppliedYear] = useState(currentDate.getFullYear());
+  const [appliedMonthIds, setAppliedMonthIds] = useState([]);
+
+  const [appliedContractBranchId, setAppliedContractBranchId] = useState(null);
+  const [appliedContractYear, setAppliedContractYear] = useState(currentDate.getFullYear());
+  const [appliedContractMonthIds, setAppliedContractMonthIds] = useState([]);
+  const [appliedContractSalesStaffId, setAppliedContractSalesStaffId] = useState(null);
+
   const [expandedMonth, setExpandedMonth] = useState(null);
   const [expandedContractMonth, setExpandedContractMonth] = useState(null);
-  const [selectedContractYear, setSelectedContractYear] = useState(null);
-  const [selectedContractMonth, setSelectedContractMonth] = useState(null);
-  const [selectedContractSalesStaffId, setSelectedContractSalesStaffId] = useState(null);
+  const [expandedBranchIds, setExpandedBranchIds] = useState([]);
+  const [expandedContractBranchIds, setExpandedContractBranchIds] = useState([]);
   const [contractSearchQuery, setContractSearchQuery] = useState("");
   const [showHistoricalDateModal, setShowHistoricalDateModal] = useState(false);
   const [selectedHistoricalDate, setSelectedHistoricalDate] = useState(new Date().toISOString().split('T')[0]);
@@ -92,8 +98,8 @@ export default function DailySalesReportsPage() {
         setUserInfo(userData);
         // تعيين فرع مدير المبيعات تلقائياً
         if (userData && userData.is_sales_manager && !userData.is_super_admin && !userData.is_backdoor && userData.branch_id) {
-          setSelectedBranchId(userData.branch_id);
-          setSelectedContractBranchId(userData.branch_id);
+          setAppliedBranchId(userData.branch_id);
+          setAppliedContractBranchId(userData.branch_id);
           // تحميل موظفي المبيعات لفرع مدير المبيعات
           loadSalesStaff(userData.branch_id);
         } else {
@@ -123,15 +129,15 @@ export default function DailySalesReportsPage() {
     loadReports();
     // تحميل العقود دائماً لعرضها في البطاقة اليومية
     loadContracts();
-  }, [token, selectedYear, selectedMonth, activeTab]);
+  }, [token]);
 
-  // تحميل التقارير عند تغيير selectedBranchId
+  // تحميل التقارير عند تغيير appliedBranchId
   useEffect(() => {
     if (!token) return;
     if (activeTab === "reports") {
       loadReports();
     }
-  }, [selectedBranchId, selectedYear, selectedMonth, selectedSalesStaffId]);
+  }, [appliedBranchId, appliedYear, appliedMonthIds, appliedSalesStaffId]);
 
   // Scroll to expanded month when it changes or data updates
   useEffect(() => {
@@ -146,6 +152,19 @@ export default function DailySalesReportsPage() {
       }, 200);
     }
   }, [expandedMonth, reports, activeTab]);
+
+  // Auto-expand branch when applied from filters
+  useEffect(() => {
+    if (appliedBranchId && !expandedBranchIds.includes(appliedBranchId)) {
+      setExpandedBranchIds(prev => [...prev, appliedBranchId]);
+    }
+  }, [appliedBranchId]);
+
+  useEffect(() => {
+    if (appliedContractBranchId && !expandedContractBranchIds.includes(appliedContractBranchId)) {
+      setExpandedContractBranchIds(prev => [...prev, appliedContractBranchId]);
+    }
+  }, [appliedContractBranchId]);
 
   useEffect(() => {
     if (expandedContractMonth && activeTab === "contracts") {
@@ -165,7 +184,7 @@ export default function DailySalesReportsPage() {
     if (activeTab === "contracts") {
       loadContracts();
     }
-  }, [selectedContractBranchId, selectedContractYear, selectedContractMonth, selectedContractSalesStaffId]);
+  }, [appliedContractBranchId, appliedContractYear, appliedContractMonthIds, appliedContractSalesStaffId]);
 
   // Debounced search for old contracts
   useEffect(() => {
@@ -221,7 +240,7 @@ export default function DailySalesReportsPage() {
     try {
       let url = "/daily-sales-reports";
       const params = [];
-      if (selectedBranchId) params.push(`branch_id=${selectedBranchId}`);
+      if (appliedBranchId) params.push(`branch_id=${appliedBranchId}`);
       if (params.length > 0) url += "?" + params.join("&");
 
       const data = await apiGet(url, token);
@@ -238,12 +257,12 @@ export default function DailySalesReportsPage() {
     let filtered = reportsList;
 
     // Filter by sales staff
-    if (selectedSalesStaffId) {
-      filtered = filtered.filter(report => report.sales_staff_id === selectedSalesStaffId);
+    if (appliedSalesStaffId) {
+      filtered = filtered.filter(report => report.sales_staff_id === appliedSalesStaffId);
     }
 
     // Filter by year and month
-    if (!selectedYear && !selectedMonth) {
+    if (!appliedYear && (!appliedMonthIds || appliedMonthIds.length === 0)) {
       return filtered;
     }
 
@@ -255,22 +274,18 @@ export default function DailySalesReportsPage() {
       const year = reportDate.getFullYear();
       const month = reportDate.getMonth() + 1;
 
-      if (selectedYear && selectedMonth) {
-        return year === selectedYear && month === selectedMonth;
-      } else if (selectedYear) {
-        return year === selectedYear;
-      } else if (selectedMonth) {
-        return month === selectedMonth;
-      }
-      return true;
+      const isYearMatch = !appliedYear || year === appliedYear;
+      const isMonthMatch = !appliedMonthIds || appliedMonthIds.length === 0 || appliedMonthIds.includes(month);
+
+      return isYearMatch && isMonthMatch;
     });
 
     console.log("[DailySalesReports] Filtering reports:", {
       total: reportsList.length,
       filtered: filtered.length,
-      selectedYear,
-      selectedMonth,
-      selectedSalesStaffId
+      appliedYear,
+      appliedMonthIds,
+      appliedSalesStaffId
     });
 
     return filtered;
@@ -338,6 +353,18 @@ export default function DailySalesReportsPage() {
     }).sort((a, b) => a.branchId - b.branchId);
   };
 
+  const toggleBranch = (branchId) => {
+    setExpandedBranchIds(prev =>
+      prev.includes(branchId) ? prev.filter(id => id !== branchId) : [...prev, branchId]
+    );
+  };
+
+  const toggleContractBranch = (branchId) => {
+    setExpandedContractBranchIds(prev =>
+      prev.includes(branchId) ? prev.filter(id => id !== branchId) : [...prev, branchId]
+    );
+  };
+
   const toggleMonth = (branchId, year, month) => {
     const key = `${branchId}-${year}-${month}`;
     console.log("[Accordion] Toggling Month:", key, "Current expandedMonth:", expandedMonth);
@@ -355,17 +382,17 @@ export default function DailySalesReportsPage() {
     let filtered = contractsList;
 
     // Filter by branch
-    if (selectedContractBranchId) {
-      filtered = filtered.filter(contract => contract.branch_id === selectedContractBranchId);
+    if (appliedContractBranchId) {
+      filtered = filtered.filter(contract => contract.branch_id === appliedContractBranchId);
     }
 
     // Filter by sales staff
-    if (selectedContractSalesStaffId) {
-      filtered = filtered.filter(contract => contract.sales_staff_id === selectedContractSalesStaffId);
+    if (appliedContractSalesStaffId) {
+      filtered = filtered.filter(contract => contract.sales_staff_id === appliedContractSalesStaffId);
     }
 
     // Filter by year and month (use contract_date if available, otherwise created_at)
-    if (selectedContractYear || selectedContractMonth) {
+    if (appliedContractYear || (appliedContractMonthIds && appliedContractMonthIds.length > 0)) {
       filtered = filtered.filter(contract => {
         // استخدام contract_date إذا كان موجوداً، وإلا استخدام created_at
         const dateToUse = contract.contract_date || contract.created_at;
@@ -376,14 +403,10 @@ export default function DailySalesReportsPage() {
         const year = contractDate.getFullYear();
         const month = contractDate.getMonth() + 1;
 
-        if (selectedContractYear && selectedContractMonth) {
-          return year === selectedContractYear && month === selectedContractMonth;
-        } else if (selectedContractYear) {
-          return year === selectedContractYear;
-        } else if (selectedContractMonth) {
-          return month === selectedContractMonth;
-        }
-        return true;
+        const isYearMatch = !appliedContractYear || year === appliedContractYear;
+        const isMonthMatch = !appliedContractMonthIds || appliedContractMonthIds.length === 0 || appliedContractMonthIds.includes(month);
+
+        return isYearMatch && isMonthMatch;
       });
     }
 
@@ -868,8 +891,8 @@ export default function DailySalesReportsPage() {
       // إضافة branch_id لتقييد البحث بفرع الموظف/الفرع المحدد فقط
       if (contractForm.branch_id) {
         params.append("branch_id", contractForm.branch_id);
-      } else if (selectedBranchId) {
-        params.append("branch_id", selectedBranchId);
+      } else if (appliedBranchId) {
+        params.append("branch_id", appliedBranchId);
       }
 
       const data = await apiGet(`/contracts/search?${params.toString()}`, token);
@@ -1910,25 +1933,25 @@ export default function DailySalesReportsPage() {
       // 1. Fetch Data
       let reportsUrl = `/daily-sales-reports?date_from=${todayStr}&date_to=${todayStr}`;
       // Force filter if branch selected (even for super admin)
-      if (selectedBranchId) {
-        reportsUrl += `&branch_id=${selectedBranchId}`;
+      if (appliedBranchId) {
+        reportsUrl += `&branch_id=${appliedBranchId}`;
       }
       const todayReports = await apiGet(reportsUrl, token);
       const reportsArray = Array.isArray(todayReports) ? todayReports : [];
 
       // Fetch Monthly Reports for Cumulative Section (Month-to-Date)
       let monthlyReportsUrl = `/daily-sales-reports?date_from=${monthStartStr}&date_to=${todayStr}`;
-      if (selectedBranchId) {
-        monthlyReportsUrl += `&branch_id=${selectedBranchId}`;
+      if (appliedBranchId) {
+        monthlyReportsUrl += `&branch_id=${appliedBranchId}`;
       }
       const monthlyReportsData = await apiGet(monthlyReportsUrl, token);
       const monthlyReportsArray = Array.isArray(monthlyReportsData) ? monthlyReportsData : [];
 
       let contractsUrl = "/contracts";
-      if (selectedContractBranchId) {
-        contractsUrl += `?branch_id=${selectedContractBranchId}`;
-      } else if (selectedBranchId) {
-        contractsUrl += `?branch_id=${selectedBranchId}`;
+      if (appliedContractBranchId) {
+        contractsUrl += `?branch_id=${appliedContractBranchId}`;
+      } else if (appliedBranchId) {
+        contractsUrl += `?branch_id=${appliedBranchId}`;
       }
 
       const allContracts = await apiGet(contractsUrl, token);
@@ -1994,7 +2017,7 @@ export default function DailySalesReportsPage() {
       // Process Reports (Today)
       reportsArray.forEach(report => {
         // If filtering by branch, skip others (double check)
-        if (selectedBranchId && parseInt(report.branch_id) !== parseInt(selectedBranchId)) return;
+        if (appliedBranchId && parseInt(report.branch_id) !== parseInt(appliedBranchId)) return;
 
         const branchName = report.branch ? report.branch.name : getBranchName(report.branch_id);
         const branchObj = getBranchObj(report.branch_id, branchName);
@@ -2011,7 +2034,7 @@ export default function DailySalesReportsPage() {
 
       // Process Monthly Reports (Cumulative)
       monthlyReportsArray.forEach(report => {
-        if (selectedBranchId && parseInt(report.branch_id) !== parseInt(selectedBranchId)) return;
+        if (appliedBranchId && parseInt(report.branch_id) !== parseInt(appliedBranchId)) return;
 
         const branchName = report.branch ? report.branch.name : getBranchName(report.branch_id);
         const branchObj = getBranchObj(report.branch_id, branchName);
@@ -2027,7 +2050,7 @@ export default function DailySalesReportsPage() {
       // Process Contracts and Payments (Today and Cumulative)
       // Logic: Iterate over ALL contracts to find payments in target dates
       contractsArray.forEach(contract => {
-        if (selectedBranchId && parseInt(contract.branch_id) !== parseInt(selectedBranchId)) return;
+        if (appliedBranchId && parseInt(contract.branch_id) !== parseInt(appliedBranchId)) return;
 
         const branchName = contract.branch ? contract.branch.name : getBranchName(contract.branch_id);
         const branchObj = getBranchObj(contract.branch_id, branchName);
@@ -2056,7 +2079,7 @@ export default function DailySalesReportsPage() {
             // Today's Payments
             if (paymentDateStr === todayStr) {
               const dateToUse = contract.contract_date || contract.created_at;
-              const contractDateStr = dateToUse ? toLocalISOString(new Date(dateToUse)) : null;
+              const contractDateStr = dateToLocalISOString(new Date(dateToUse));
 
               if (contractDateStr === todayStr) {
                 // Performance Payment (Current Sales)
@@ -2202,8 +2225,8 @@ export default function DailySalesReportsPage() {
       };
 
       // Header
-      const branchNameLabel = selectedBranchId ? getBranchName(selectedBranchId) : (userInfo?.is_sales_manager ? getBranchName(userBranchId) : '');
-      const reportTitleBase = userInfo?.is_super_admin && !selectedBranchId ? 'التقرير اليومي الشامل' : 'التقرير اليومي';
+      const branchNameLabel = appliedBranchId ? getBranchName(appliedBranchId) : (userInfo?.is_sales_manager ? getBranchName(userBranchId) : '');
+      const reportTitleBase = userInfo?.is_super_admin && !appliedBranchId ? 'التقرير اليومي الشامل' : 'التقرير اليومي';
       const reportTitle = branchNameLabel ? `${reportTitleBase} لفرع ${branchNameLabel}` : reportTitleBase;
 
       docDefinition.content.push(
@@ -2450,7 +2473,7 @@ export default function DailySalesReportsPage() {
         if (branch.reports.length === 0 && branch.contracts.length === 0) return;
 
         // Force a page break before any branch details in a comprehensive report (Super Admin)
-        if (userInfo?.is_super_admin && !selectedBranchId) {
+        if (userInfo?.is_super_admin && !appliedBranchId) {
           docDefinition.content.push({ text: '', pageBreak: 'before' });
         }
 
@@ -2728,7 +2751,7 @@ export default function DailySalesReportsPage() {
         }
       );
 
-      const branchNameSuffix = selectedBranchId ? `_فرع_${getBranchName(selectedBranchId)}` : (userInfo?.is_sales_manager ? `_فرع_${getBranchName(userBranchId)}` : '');
+      const branchNameSuffix = appliedBranchId ? `_فرع_${getBranchName(appliedBranchId)}` : (userInfo?.is_sales_manager ? `_فرع_${getBranchName(userBranchId)}` : '');
       pdfMake.createPdf(docDefinition).download(`تقرير_يومي_شامل${branchNameSuffix}_${todayStr}.pdf`);
       success(`تم تحميل التقرير اليومي الشامل`);
 
@@ -2847,78 +2870,64 @@ export default function DailySalesReportsPage() {
               (() => {
                 const filteredReports = filterReportsByYearAndMonth(reports);
                 const { years, months } = getAvailableYearsAndMonths(reports);
-                // Get available sales staff based on selected branch
-                const availableSalesStaff = selectedBranchId
-                  ? salesStaff.filter(s => s.branch_id === selectedBranchId)
+                // Get available sales staff based on applied branch
+                const availableSalesStaff = appliedBranchId
+                  ? salesStaff.filter(s => s.branch_id === appliedBranchId)
                   : salesStaff;
                 return (
                   <>
                     <h3 style={{ margin: 0 }}>التقارير اليومية ({filteredReports.length})</h3>
                     <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap", marginRight: "auto" }}>
                       {(!userInfo?.is_sales_manager || userInfo?.is_super_admin || userInfo?.is_backdoor) && (
-                        <select
-                          value={selectedBranchId || ""}
-                          onChange={(e) => {
-                            const branchId = e.target.value ? parseInt(e.target.value) : null;
-                            setSelectedBranchId(branchId);
-                            // Reset sales staff when branch changes
-                            setSelectedSalesStaffId(null);
+                        <FilterDropdown
+                          placeholder="جميع الفروع"
+                          options={branches.map(b => ({ value: b.id, label: b.name }))}
+                          selectedValues={appliedBranchId ? [appliedBranchId] : []}
+                          isSingle={true}
+                          onChange={(vals) => {
+                            const branchId = vals.length > 0 ? vals[0] : null;
+                            setAppliedBranchId(branchId);
+                            setAppliedSalesStaffId(null);
                           }}
-                          style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
-                        >
-                          <option value="">جميع الفروع</option>
-                          {branches.map(branch => (
-                            <option key={branch.id} value={branch.id}>{branch.name}</option>
-                          ))}
-                        </select>
+                        />
                       )}
-                      <select
-                        value={selectedSalesStaffId || ""}
-                        onChange={(e) => {
-                          const staffId = e.target.value ? parseInt(e.target.value) : null;
-                          setSelectedSalesStaffId(staffId);
+                      <FilterDropdown
+                        placeholder="جميع موظفي المبيعات"
+                        options={availableSalesStaff.map(s => ({ value: s.id, label: s.name }))}
+                        selectedValues={appliedSalesStaffId ? [appliedSalesStaffId] : []}
+                        isSingle={true}
+                        onChange={(vals) => {
+                          const staffId = vals.length > 0 ? vals[0] : null;
+                          setAppliedSalesStaffId(staffId);
                         }}
-                        style={{ minWidth: "160px", padding: "0.5rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
-                      >
-                        <option value="">جميع موظفي المبيعات</option>
-                        {availableSalesStaff.map(staff => (
-                          <option key={staff.id} value={staff.id}>{staff.name}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={selectedMonth || ""}
-                        onChange={(e) => {
-                          const month = e.target.value ? parseInt(e.target.value) : null;
-                          setSelectedMonth(month);
+                      />
+                      <FilterDropdown
+                        placeholder="جميع الأشهر"
+                        options={Object.entries(monthNames).map(([id, name]) => ({ value: parseInt(id), label: name }))}
+                        selectedValues={appliedMonthIds}
+                        isSingle={false}
+                        onChange={(vals) => {
+                          setAppliedMonthIds(vals);
                         }}
-                        style={{ minWidth: "140px", padding: "0.5rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
-                      >
-                        <option value="">جميع الأشهر</option>
-                        {months.map(month => (
-                          <option key={month} value={month}>{monthNames[month]}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={selectedYear || ""}
-                        onChange={(e) => {
-                          const year = e.target.value ? parseInt(e.target.value) : null;
-                          setSelectedYear(year);
+                      />
+                      <FilterDropdown
+                        placeholder="جميع السنوات"
+                        options={years.map(y => ({ value: y, label: y.toString() }))}
+                        selectedValues={appliedYear ? [appliedYear] : []}
+                        isSingle={true}
+                        onChange={(vals) => {
+                          const year = vals.length > 0 ? vals[0] : null;
+                          setAppliedYear(year);
                         }}
-                        style={{ minWidth: "120px", padding: "0.5rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
-                      >
-                        <option value="">جميع السنوات</option>
-                        {years.map(year => (
-                          <option key={year} value={year}>{year}</option>
-                        ))}
-                      </select>
-                      {(selectedYear || selectedMonth || selectedBranchId || selectedSalesStaffId) && (
+                      />
+                      {(appliedYear || (appliedMonthIds && appliedMonthIds.length > 0) || appliedBranchId || appliedSalesStaffId) && (
                         <button
                           className="btn"
                           onClick={() => {
-                            setSelectedYear(null);
-                            setSelectedMonth(null);
-                            setSelectedBranchId(null);
-                            setSelectedSalesStaffId(null);
+                            setAppliedYear(new Date().getFullYear());
+                            setAppliedMonthIds([]);
+                            setAppliedBranchId(userInfo?.is_sales_manager && !userInfo?.is_super_admin ? userInfo.branch_id : null);
+                            setAppliedSalesStaffId(null);
                           }}
                           style={{ backgroundColor: "#DC2626", color: "white", border: "none" }}
                         >
@@ -2945,69 +2954,55 @@ export default function DailySalesReportsPage() {
               (() => {
                 const filteredContracts = filterContractsByYearAndMonth(contracts);
                 const { years, months } = getAvailableContractYearsAndMonths(contracts);
-                // Get available sales staff based on selected branch
-                const availableContractSalesStaff = selectedContractBranchId
-                  ? salesStaff.filter(s => s.branch_id === selectedContractBranchId)
+                // Get available sales staff based on applied branch
+                const availableContractSalesStaff = appliedContractBranchId
+                  ? salesStaff.filter(s => s.branch_id === appliedContractBranchId)
                   : salesStaff;
                 return (
                   <>
                     <h3 style={{ margin: 0 }}>العقود ({filteredContracts.length})</h3>
                     <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap", marginRight: "auto" }}>
                       {(!userInfo?.is_sales_manager || userInfo?.is_super_admin || userInfo?.is_backdoor) && (
-                        <select
-                          value={selectedContractBranchId || ""}
-                          onChange={(e) => {
-                            setSelectedContractBranchId(e.target.value ? parseInt(e.target.value) : null);
-                            // Reset sales staff when branch changes
-                            setSelectedContractSalesStaffId(null);
+                        <FilterDropdown
+                          placeholder="جميع الفروع"
+                          options={branches.map(b => ({ value: b.id, label: b.name }))}
+                          selectedValues={appliedContractBranchId ? [appliedContractBranchId] : []}
+                          isSingle={true}
+                          onChange={(vals) => {
+                            setAppliedContractBranchId(vals.length > 0 ? vals[0] : null);
+                            setAppliedContractSalesStaffId(null);
                           }}
-                          style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
-                        >
-                          <option value="">جميع الفروع</option>
-                          {branches.map(b => (
-                            <option key={b.id} value={b.id}>{b.name}</option>
-                          ))}
-                        </select>
+                        />
                       )}
-                      <select
-                        value={selectedContractSalesStaffId || ""}
-                        onChange={(e) => {
-                          const staffId = e.target.value ? parseInt(e.target.value) : null;
-                          setSelectedContractSalesStaffId(staffId);
+                      <FilterDropdown
+                        placeholder="جميع موظفي المبيعات"
+                        options={availableContractSalesStaff.map(s => ({ value: s.id, label: s.name }))}
+                        selectedValues={appliedContractSalesStaffId ? [appliedContractSalesStaffId] : []}
+                        isSingle={true}
+                        onChange={(vals) => {
+                          const staffId = vals.length > 0 ? vals[0] : null;
+                          setAppliedContractSalesStaffId(staffId);
                         }}
-                        style={{ minWidth: "160px", padding: "0.5rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
-                      >
-                        <option value="">جميع موظفي المبيعات</option>
-                        {availableContractSalesStaff.map(staff => (
-                          <option key={staff.id} value={staff.id}>{staff.name}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={selectedContractMonth || ""}
-                        onChange={(e) => {
-                          const month = e.target.value ? parseInt(e.target.value) : null;
-                          setSelectedContractMonth(month);
+                      />
+                      <FilterDropdown
+                        placeholder="جميع الأشهر"
+                        options={Object.entries(monthNames).map(([id, name]) => ({ value: parseInt(id), label: name }))}
+                        selectedValues={appliedContractMonthIds}
+                        isSingle={false}
+                        onChange={(vals) => {
+                          setAppliedContractMonthIds(vals);
                         }}
-                        style={{ minWidth: "140px", padding: "0.5rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
-                      >
-                        <option value="">جميع الأشهر</option>
-                        {months.map(month => (
-                          <option key={month} value={month}>{monthNames[month]}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={selectedContractYear || ""}
-                        onChange={(e) => {
-                          const year = e.target.value ? parseInt(e.target.value) : null;
-                          setSelectedContractYear(year);
+                      />
+                      <FilterDropdown
+                        placeholder="جميع السنوات"
+                        options={years.map(y => ({ value: y, label: y.toString() }))}
+                        selectedValues={appliedContractYear ? [appliedContractYear] : []}
+                        isSingle={true}
+                        onChange={(vals) => {
+                          const year = vals.length > 0 ? vals[0] : null;
+                          setAppliedContractYear(year);
                         }}
-                        style={{ minWidth: "120px", padding: "0.5rem", borderRadius: "6px", border: "1px solid #E5E7EB", fontFamily: "Cairo", fontSize: "13px" }}
-                      >
-                        <option value="">جميع السنوات</option>
-                        {years.map(year => (
-                          <option key={year} value={year}>{year}</option>
-                        ))}
-                      </select>
+                      />
                       <input
                         type="text"
                         placeholder="بحث: اسم العميل، رقم العقد، رقم الهاتف، موظف المبيعات"
@@ -3023,14 +3018,14 @@ export default function DailySalesReportsPage() {
                           direction: "rtl"
                         }}
                       />
-                      {(selectedContractYear || selectedContractMonth || selectedContractBranchId || selectedContractSalesStaffId || contractSearchQuery) && (
+                      {(appliedContractYear || (appliedContractMonthIds && appliedContractMonthIds.length > 0) || appliedContractBranchId || appliedContractSalesStaffId || contractSearchQuery) && (
                         <button
                           className="btn"
                           onClick={() => {
-                            setSelectedContractYear(null);
-                            setSelectedContractMonth(null);
-                            setSelectedContractBranchId(null);
-                            setSelectedContractSalesStaffId(null);
+                            setAppliedContractYear(new Date().getFullYear());
+                            setAppliedContractMonthIds([]);
+                            setAppliedContractBranchId(userInfo?.is_sales_manager && !userInfo?.is_super_admin ? userInfo.branch_id : null);
+                            setAppliedContractSalesStaffId(null);
                             setContractSearchQuery("");
                           }}
                           style={{ backgroundColor: "#DC2626", color: "white", border: "none" }}
@@ -3806,8 +3801,8 @@ export default function DailySalesReportsPage() {
                 totalReports: reports.length,
                 filteredReports: filteredReports.length,
                 branchGroups: branchGroups.length,
-                selectedYear,
-                selectedMonth
+                appliedYear,
+                appliedMonthIds
               });
 
               if (filteredReports.length === 0) {
@@ -3835,12 +3830,23 @@ export default function DailySalesReportsPage() {
                   {branchGroups.map((branchGroup) => (
                     <div key={branchGroup.branchId} style={{ marginBottom: "2rem" }}>
                       {/* Branch Header Card */}
-                      <div className="panel" style={{
-                        marginBottom: "1rem",
-                        padding: "1rem",
-                        backgroundColor: "#F9FAFB",
-                        border: "1px solid #E5E7EB"
-                      }}>
+                      <div
+                        className="panel"
+                        onClick={() => toggleBranch(branchGroup.branchId)}
+                        style={{
+                          marginBottom: "1rem",
+                          padding: "1rem",
+                          backgroundColor: "#F9FAFB",
+                          border: "1px solid #E5E7EB",
+                          cursor: "pointer",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          transition: "background-color 0.2s"
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#F3F4F6"}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#F9FAFB"}
+                      >
                         <h2 style={{
                           color: "#2B2A2A",
                           margin: 0,
@@ -3849,9 +3855,12 @@ export default function DailySalesReportsPage() {
                         }}>
                           {branchGroup.branchName}
                         </h2>
+                        <span style={{ fontSize: "14px", color: "#6B7280" }}>
+                          {expandedBranchIds.includes(branchGroup.branchId) ? "▼" : "▶"}
+                        </span>
                       </div>
 
-                      {branchGroup.months.map((group) => {
+                      {expandedBranchIds.includes(branchGroup.branchId) && branchGroup.months.map((group) => {
                         const monthKey = `${branchGroup.branchId}-${group.year}-${group.month}`;
                         const isExpanded = expandedMonth === monthKey;
                         // Diagnostic log for render
@@ -4045,12 +4054,23 @@ export default function DailySalesReportsPage() {
                     branchGroups.map((branchGroup) => (
                       <div key={branchGroup.branchId} style={{ marginBottom: "2rem" }}>
                         {/* Branch Header Card */}
-                        <div className="panel" style={{
-                          marginBottom: "1rem",
-                          padding: "1rem",
-                          backgroundColor: "#F9FAFB",
-                          border: "1px solid #E5E7EB"
-                        }}>
+                        <div
+                          className="panel"
+                          onClick={() => toggleContractBranch(branchGroup.branchId)}
+                          style={{
+                            marginBottom: "1rem",
+                            padding: "1rem",
+                            backgroundColor: "#F9FAFB",
+                            border: "1px solid #E5E7EB",
+                            cursor: "pointer",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            transition: "background-color 0.2s"
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#F3F4F6"}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#F9FAFB"}
+                        >
                           <h2 style={{
                             color: "#2B2A2A",
                             margin: 0,
@@ -4059,9 +4079,12 @@ export default function DailySalesReportsPage() {
                           }}>
                             {branchGroup.branchName}
                           </h2>
+                          <span style={{ fontSize: "14px", color: "#6B7280" }}>
+                            {expandedContractBranchIds.includes(branchGroup.branchId) ? "▼" : "▶"}
+                          </span>
                         </div>
 
-                        {branchGroup.months.map((group) => {
+                        {expandedContractBranchIds.includes(branchGroup.branchId) && branchGroup.months.map((group) => {
                           const monthKey = `${branchGroup.branchId}-${group.year}-${group.month}`;
                           const isExpanded = expandedContractMonth === monthKey;
 
