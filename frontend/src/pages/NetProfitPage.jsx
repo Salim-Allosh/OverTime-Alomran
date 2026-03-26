@@ -19,11 +19,12 @@ const formatNumber = (num, decimals = 2) => {
 
 export default function NetProfitPage() {
   const token = localStorage.getItem("token") || "";
-  const { success, error: showError } = useNotification();
+  const { success, error: showError, confirm } = useNotification();
   const [branches, setBranches] = useState([]);
   const [userInfo, setUserInfo] = useState(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [monthlyGroups, setMonthlyGroups] = useState([]);
+  const [expenseCategories, setExpenseCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [expandedMonths, setExpandedMonths] = useState(new Set());
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -46,6 +47,10 @@ export default function NetProfitPage() {
 
     apiGet("/branches", token)
       .then(setBranches)
+      .catch(console.error);
+
+    apiGet("/expense-categories", token)
+      .then(data => setExpenseCategories(Array.isArray(data) ? data.filter(c => c.is_active) : []))
       .catch(console.error);
 
     loadAllMonthsData();
@@ -162,17 +167,15 @@ export default function NetProfitPage() {
   };
 
   const handleDeleteExpense = async (expenseId) => {
-    if (!window.confirm("هل أنت متأكد من حذف هذا المصروف؟")) {
-      return;
-    }
-
-    try {
-      await apiDelete(`/net-profit-expenses/${expenseId}`, token);
-      success("تم حذف المصروف بنجاح!");
-      loadAllMonthsData();
-    } catch (err) {
-      showError("حدث خطأ أثناء حذف المصروف");
-    }
+    confirm("هل أنت متأكد من حذف هذا المصروف؟", async () => {
+      try {
+        await apiDelete(`/net-profit-expenses/${expenseId}`, token);
+        success("تم حذف المصروف بنجاح!");
+        loadAllMonthsData();
+      } catch (err) {
+        showError("حدث خطأ أثناء حذف المصروف");
+      }
+    });
   };
 
   const generateMonthlyPDF = (group) => {
@@ -611,9 +614,7 @@ export default function NetProfitPage() {
             <div className="modal-body" style={{ padding: "1rem" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <input
-                    type="text"
-                    placeholder="عنوان المصروف"
+                  <select
                     value={expenseForm.title}
                     onChange={(e) => setExpenseForm({ ...expenseForm, title: e.target.value })}
                     required
@@ -625,7 +626,16 @@ export default function NetProfitPage() {
                       fontFamily: "Cairo",
                       fontSize: "0.85rem"
                     }}
-                  />
+                  >
+                    <option value="">اختر نوع المصروف</option>
+                    {expenseCategories.map(cat => (
+                      <option key={cat.id} value={cat.name}>{cat.name}</option>
+                    ))}
+                    {/* Fallback if no categories or editing an old manual one */}
+                    {expenseForm.title && !expenseCategories.find(c => c.name === expenseForm.title) && (
+                      <option value={expenseForm.title}>{expenseForm.title}</option>
+                    )}
+                  </select>
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <input

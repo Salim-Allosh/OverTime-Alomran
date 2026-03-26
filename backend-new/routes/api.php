@@ -101,6 +101,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/net-profit-expenses', [App\Http\Controllers\LookupController::class, 'createNetProfitExpense']);
     Route::patch('/net-profit-expenses/{net_profit_expense}', [App\Http\Controllers\LookupController::class, 'updateNetProfitExpense']);
     Route::delete('/net-profit-expenses/{net_profit_expense}', [App\Http\Controllers\LookupController::class, 'deleteNetProfitExpense']);
+
+    Route::get('/expense-categories', [App\Http\Controllers\LookupController::class, 'expenseCategories']);
+    Route::post('/expense-categories', [App\Http\Controllers\LookupController::class, 'createExpenseCategory']);
+    Route::patch('/expense-categories/{id}', [App\Http\Controllers\LookupController::class, 'updateExpenseCategory']);
+    Route::delete('/expense-categories/{id}', [App\Http\Controllers\LookupController::class, 'deleteExpenseCategory']);
     
     // Sessions
     Route::get('/sessions/all', [App\Http\Controllers\SessionController::class, 'index']);

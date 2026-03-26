@@ -6,6 +6,7 @@ import AccountModal from "../components/AccountModal";
 import CourseModal from "../components/CourseModal";
 import PaymentMethodModal from "../components/PaymentMethodModal";
 import SalesStaffModal from "../components/SalesStaffModal";
+import ExpenseCategoryModal from "../components/ExpenseCategoryModal";
 
 export default function AdminPage() {
   const token = localStorage.getItem("token") || "";
@@ -15,6 +16,7 @@ export default function AdminPage() {
   const [salesStaff, setSalesStaff] = useState([]);
   const [courses, setCourses] = useState([]);
   const [paymentMethods, setPaymentMethods] = useState([]);
+  const [expenseCategories, setExpenseCategories] = useState([]);
   const [userInfo, setUserInfo] = useState(null);
 
   // Modal state
@@ -23,6 +25,7 @@ export default function AdminPage() {
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
   const [showSalesStaffModal, setShowSalesStaffModal] = useState(false);
+  const [showExpenseCategoryModal, setShowExpenseCategoryModal] = useState(false);
 
   // Editing state
   const [editingBranch, setEditingBranch] = useState(null);
@@ -30,6 +33,7 @@ export default function AdminPage() {
   const [editingCourse, setEditingCourse] = useState(null);
   const [editingPaymentMethod, setEditingPaymentMethod] = useState(null);
   const [editingSalesStaff, setEditingSalesStaff] = useState(null);
+  const [editingExpenseCategory, setEditingExpenseCategory] = useState(null);
 
   // Collapsible sections state
   const [expandedSections, setExpandedSections] = useState({
@@ -37,7 +41,8 @@ export default function AdminPage() {
     accounts: false,
     salesStaff: false,
     courses: false,
-    paymentMethods: false
+    paymentMethods: false,
+    expenseCategories: false
   });
 
   const toggleSection = (section) => {
@@ -122,6 +127,16 @@ export default function AdminPage() {
     }
   };
 
+  const loadExpenseCategories = async () => {
+    try {
+      const data = await apiGet("/expense-categories", token);
+      setExpenseCategories(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Error loading expense categories:", err);
+      setExpenseCategories([]);
+    }
+  };
+
   useEffect(() => {
     if (!token) return;
 
@@ -149,6 +164,7 @@ export default function AdminPage() {
       console.log("[AdminPage] Loading courses and payment methods...");
       loadCourses();
       loadPaymentMethods();
+      loadExpenseCategories();
     } else {
       console.log("[AdminPage] User is not super admin, skipping courses and payment methods");
     }
@@ -380,6 +396,38 @@ export default function AdminPage() {
   const getBranchName = (branchId) => {
     const branch = branches.find(b => b.id === branchId);
     return branch ? branch.name : `فرع ${branchId}`;
+  };
+
+  const handleExpenseCategorySubmit = async (formData) => {
+    try {
+      if (editingExpenseCategory) {
+        await apiPatch(`/expense-categories/${editingExpenseCategory.id}`, formData, token);
+        success("تم تحديث المصروف بنجاح!");
+      } else {
+        await apiPost("/expense-categories", formData, token);
+        success("تم إضافة المصروف بنجاح!");
+      }
+      setEditingExpenseCategory(null);
+      setShowExpenseCategoryModal(false);
+      loadExpenseCategories();
+    } catch (err) {
+      error("حدث خطأ أثناء " + (editingExpenseCategory ? "تحديث" : "إضافة") + " المصروف: " + (err.message || ""));
+    }
+  };
+
+  const handleDeleteExpenseCategory = async (categoryId) => {
+    confirm(
+      "هل أنت متأكد من حذف هذا المصروف؟",
+      async () => {
+        try {
+          await apiDelete(`/expense-categories/${categoryId}`, token);
+          success("تم حذف المصروف بنجاح!");
+          loadExpenseCategories();
+        } catch (err) {
+          error("حدث خطأ أثناء حذف المصروف");
+        }
+      }
+    );
   };
 
 
@@ -918,6 +966,101 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* Expense Categories Section - للسوبر أدمن فقط */}
+      {isSuperAdmin && (
+        <div className="panel panel-collapsible" style={{ marginBottom: "2rem" }}>
+          <div
+            className="panel-header-clickable"
+            onClick={() => toggleSection('expenseCategories')}
+          >
+            <h2 style={{ margin: 0, color: "#2B2A2A", fontSize: "18px", fontWeight: 600 }}>إدارة المصاريف</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+              <button
+                className="btn primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingExpenseCategory(null);
+                  setShowExpenseCategoryModal(true);
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: "0.5rem" }}>
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                إضافة مصروف جديد
+              </button>
+              <svg
+                className={`chevron-icon ${expandedSections.expenseCategories ? 'expanded' : ''}`}
+                width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </div>
+          </div>
+
+          {expandedSections.expenseCategories && (
+            <div className="panel-content">
+              <div className="table-container" style={{ width: "100%", overflowX: "auto" }}>
+                {expenseCategories.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "2rem", color: "#6B7280" }}>
+                    <p style={{ margin: 0, fontSize: "14px" }}>لا توجد فئات مصاريف حالياً</p>
+                  </div>
+                ) : (
+                  <table style={{ width: "100%", minWidth: "600px" }}>
+                    <thead>
+                      <tr>
+                        <th>اسم المصروف</th>
+                        <th>الحالة</th>
+                        <th>الإجراءات</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {expenseCategories.map(category => (
+                        <tr key={category.id}>
+                          <td style={{ fontWeight: 600, color: "#2B2A2A" }}>{category.name}</td>
+                          <td>
+                            <span className={`status ${category.is_active ? "status-active" : "status-rejected"}`}>
+                              {category.is_active ? "نشط" : "معطل"}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
+                              <button
+                                className="btn btn-small"
+                                style={{ backgroundColor: "#FEB05D", color: "white", border: "none" }}
+                                onClick={() => {
+                                  setEditingExpenseCategory(category);
+                                  setShowExpenseCategoryModal(true);
+                                }}
+                                title="تعديل"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                                </svg>
+                              </button>
+                              <button
+                                className="btn btn-small btn-danger"
+                                onClick={() => handleDeleteExpenseCategory(category.id)}
+                                title="حذف"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="3 6 5 6 21 6"></polyline>
+                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Modals */}
       <BranchModal
         isOpen={showBranchModal}
@@ -973,6 +1116,16 @@ export default function AdminPage() {
         branches={branches}
         isSuperAdmin={isSuperAdmin}
         userBranchId={userInfo?.branch_id}
+      />
+
+      <ExpenseCategoryModal
+        isOpen={showExpenseCategoryModal}
+        onClose={() => {
+          setShowExpenseCategoryModal(false);
+          setEditingExpenseCategory(null);
+        }}
+        onSubmit={handleExpenseCategorySubmit}
+        category={editingExpenseCategory}
       />
     </div>
   );

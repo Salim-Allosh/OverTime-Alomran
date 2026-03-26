@@ -111,4 +111,27 @@ php artisan migrate --path=database/migrations/2026_01_24_190000_add_month_year_
 
 ---
 
+## [2026-03-26] Add Expense Categories
+
+### Description
+Created `expense_categories` table to store predefined expense types for the Net Profit page.
+
+### SQL Migration
+```sql
+CREATE TABLE `expense_categories` (
+    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `name` VARCHAR(255) NOT NULL UNIQUE,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `created_at` TIMESTAMP NULL,
+    `updated_at` TIMESTAMP NULL
+);
+```
+
+### Laravel Migration
+```bash
+php artisan migrate --path=database/migrations/2026_03_26_000000_create_expense_categories_table.php
+```
+
+---
+
 *Keep this file updated for any future schema changes.*

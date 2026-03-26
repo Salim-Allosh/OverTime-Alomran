@@ -8,6 +8,7 @@ use App\Models\PaymentMethod;
 use App\Models\Expense;
 use App\Models\OperationAccount;
 use App\Models\NetProfitExpense;
+use App\Models\ExpenseCategory;
 use Illuminate\Support\Facades\Hash;
 
 class LookupController extends Controller
@@ -233,6 +234,41 @@ class LookupController extends Controller
     public function deleteNetProfitExpense(NetProfitExpense $netProfitExpense)
     {
         $netProfitExpense->delete();
+        return response()->noContent();
+    }
+
+    // Expense Categories
+    public function expenseCategories()
+    {
+        return ExpenseCategory::all();
+    }
+
+    public function createExpenseCategory(Request $request) 
+    {
+        $validated = $request->validate([
+            'name' => 'required|unique:expense_categories,name',
+            'is_active' => 'boolean'
+        ]);
+        
+        return ExpenseCategory::create($validated);
+    }
+    
+    public function updateExpenseCategory(Request $request, $id)
+    {
+        $category = ExpenseCategory::findOrFail($id);
+        
+        $validated = $request->validate([
+            'name' => 'required|unique:expense_categories,name,' . $id,
+            'is_active' => 'boolean'
+        ]);
+        
+        $category->update($validated);
+        return $category;
+    }
+    
+    public function deleteExpenseCategory($id)
+    {
+        ExpenseCategory::destroy($id);
         return response()->noContent();
     }
 }
