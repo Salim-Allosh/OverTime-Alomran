@@ -144,11 +144,11 @@ class ReportService
     {
         if (!$year) return [];
 
-        // Use ContractPayment ledger for accurate monthly revenue based on cashflow
+        // Use contract_date for accurate reporting period alignment with Sales Statistics
         $payments = \App\Models\ContractPayment::query()
             ->join('contracts', 'contract_payments.contract_id', '=', 'contracts.id')
-            ->whereYear('contract_payments.created_at', $year)
-            ->select('contract_payments.*', 'contracts.branch_id')
+            ->whereYear('contracts.contract_date', $year)
+            ->select('contract_payments.*', 'contracts.branch_id', 'contracts.contract_date')
             ->get();
             
         $branches = Branch::all(); 
@@ -172,6 +172,7 @@ class ReportService
                         'branch_id' => $branch->id,
                         'branch_name' => $branch->name,
                         'revenue' => 0,
+                        'gross_revenue' => 0,
                         'expenses' => 0,
                         'net_profit' => 0,
                         'expenses_list' => []
@@ -182,7 +183,7 @@ class ReportService
         };
 
         foreach ($payments as $payment) {
-            $date = $payment->created_at;
+            $date = Carbon::parse($payment->contract_date);
             if (!$date) continue;
 
             $month = $date->month;
@@ -191,6 +192,7 @@ class ReportService
             
             if (isset($data[$key]['branches'][$bId])) {
                 $data[$key]['branches'][$bId]['revenue'] += (float)$payment->net_amount;
+                $data[$key]['branches'][$bId]['gross_revenue'] += (float)$payment->payment_amount;
             }
         }
 

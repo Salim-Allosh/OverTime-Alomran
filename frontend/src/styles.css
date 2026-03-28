@@ -64,6 +64,17 @@ body,
   line-height: 1.6;
 }
 
+/* Hide Number Input Spinners */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
 .app {
   min-height: 100vh;
   display: flex;

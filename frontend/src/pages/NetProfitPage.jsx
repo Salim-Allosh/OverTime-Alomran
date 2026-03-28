@@ -192,200 +192,357 @@ export default function NetProfitPage() {
     });
   };
 
+
+
+  const getBranchKPIs = () => [];
+
+
   const generateMonthlyPDF = (group) => {
     try {
-      // Set up pdfMake fonts
       pdfMake.vfs = vfs;
       pdfMake.fonts = {
-        Cairo: {
-          normal: 'Cairo-Regular.ttf',
-          bold: 'Cairo-Bold.ttf',
-          italics: 'Cairo-Regular.ttf',
-          bolditalics: 'Cairo-Bold.ttf'
-        },
-        Nillima: {
-          normal: 'Cairo-Regular.ttf',
-          bold: 'Cairo-Bold.ttf',
-          italics: 'Cairo-Regular.ttf',
-          bolditalics: 'Cairo-Bold.ttf'
-        },
-        Roboto: {
-          normal: 'Cairo-Regular.ttf',
-          bold: 'Cairo-Bold.ttf',
-          italics: 'Cairo-Regular.ttf',
-          bolditalics: 'Cairo-Bold.ttf'
-        }
+        Cairo: { normal: 'Cairo-Regular.ttf', bold: 'Cairo-Bold.ttf', italics: 'Cairo-Regular.ttf', bolditalics: 'Cairo-Bold.ttf' },
+        Nillima: { normal: 'Cairo-Regular.ttf', bold: 'Cairo-Bold.ttf', italics: 'Cairo-Regular.ttf', bolditalics: 'Cairo-Bold.ttf' },
+        Roboto: { normal: 'Cairo-Regular.ttf', bold: 'Cairo-Bold.ttf', italics: 'Cairo-Regular.ttf', bolditalics: 'Cairo-Bold.ttf' }
       };
 
-      // Calculate totals
-      const totalRevenue = group.branches.reduce((sum, b) => sum + parseFloat(b.revenue || 0), 0);
-      const totalExpenses = group.branches.reduce((sum, b) => sum + parseFloat(b.expenses || 0), 0);
+      const { year, month, month_name, branches } = group;
+      const totalRevenue = branches.reduce((sum, b) => sum + parseFloat(b.revenue || 0), 0);
+      const totalExpenses = branches.reduce((sum, b) => sum + parseFloat(b.expenses || 0), 0);
       const totalNetProfit = totalRevenue - totalExpenses;
 
-      // Build PDF content
-      const content = [];
+      const formatArabicText = (text) => (text || '').toString().trim().replace(/\s+/g, ' ').replace(/[()]/g, '');
 
-      // Title
-      content.push({
-        text: `تقرير صافي الأرباح - ${group.month_name} ${group.year}`,
-        style: 'header',
-        alignment: 'center',
-        margin: [0, 0, 0, 20]
-      });
-
-      // Summary section
-      content.push({
-        text: 'الإحصائيات الإجمالية',
-        style: 'subheader',
-        margin: [0, 0, 0, 10]
-      });
-
-      content.push({
-        table: {
-          widths: ['*', '*', '*'],
-          body: [
-            [
-              { text: 'صافي المبلغ من العقود', style: 'tableHeader', alignment: 'center' },
-              { text: 'إجمالي المصاريف', style: 'tableHeader', alignment: 'center' },
-              { text: 'صافي الربح النهائي', style: 'tableHeader', alignment: 'center' }
-            ],
-            [
-              { text: formatNumber(totalRevenue) + ' درهم', alignment: 'center' },
-              { text: formatNumber(totalExpenses) + ' درهم', alignment: 'center' },
-              {
-                text: formatNumber(totalNetProfit) + ' درهم',
-                alignment: 'center',
-                bold: true
-              }
-            ]
-          ]
-        },
-        margin: [0, 0, 0, 20]
-      });
-
-      // Branches details
-      group.branches.forEach((branchData, index) => {
-        if (index > 0) {
-          content.push({ text: '', pageBreak: 'before' });
-        }
-
-        content.push({
-          text: branchData.branch_name,
-          style: 'subheader',
-          margin: [0, 0, 0, 10]
-        });
-
-        // Branch summary
-        content.push({
-          table: {
-            widths: ['*', '*', '*'],
-            body: [
-              [
-                { text: 'صافي المبلغ من العقود', style: 'tableHeader', alignment: 'center' },
-                { text: 'إجمالي المصاريف', style: 'tableHeader', alignment: 'center' },
-                { text: 'صافي الربح النهائي', style: 'tableHeader', alignment: 'center' }
-              ],
-              [
-                { text: formatNumber(parseFloat(branchData.revenue || 0)) + ' درهم', alignment: 'center' },
-                { text: formatNumber(parseFloat(branchData.expenses || 0)) + ' درهم', alignment: 'center' },
-                {
-                  text: formatNumber(parseFloat(branchData.net_profit || 0)) + ' درهم',
-                  alignment: 'center',
-                  bold: true
-                }
-              ]
-            ]
-          },
-          margin: [0, 0, 0, 10]
-        });
-
-        // Expenses table
-        if (branchData.expenses_list && branchData.expenses_list.length > 0) {
-          content.push({
-            text: 'تفاصيل المصاريف',
-            style: 'sectionTitle',
-            margin: [0, 10, 0, 5]
-          });
-
-          const expensesTableBody = [
-            [
-              { text: 'السبب', style: 'tableHeader', alignment: 'center' },
-              { text: 'المبلغ', style: 'tableHeader', alignment: 'center' }
-            ]
-          ];
-
-          branchData.expenses_list.forEach(expense => {
-            expensesTableBody.push([
-              { text: expense.title || '-', alignment: 'center' },
-              { text: formatNumber(parseFloat(expense.amount || 0)) + ' درهم', alignment: 'center' }
-            ]);
-          });
-
-          content.push({
-            table: {
-              widths: ['*', '*'],
-              body: expensesTableBody
-            },
-            margin: [0, 0, 0, 20]
-          });
-        } else {
-          content.push({
-            text: 'لا توجد مصاريف مسجلة',
-            style: 'note',
-            margin: [0, 0, 0, 20],
-            italics: true
-          });
-        }
-      });
-
-      // Document definition
-      const docDefinition = {
-        defaultStyle: {
-          font: 'Cairo',
-          fontSize: 10,
-          alignment: 'right'
-        },
-        pageSize: 'A4',
-        pageMargins: [40, 60, 40, 60],
-        content: content,
-        styles: {
-          header: {
-            fontSize: 18,
-            bold: true,
-            color: '#007bff',
-            margin: [0, 0, 0, 10]
-          },
-          subheader: {
-            fontSize: 14,
-            bold: true,
-            color: '#333'
-          },
-          sectionTitle: {
-            fontSize: 12,
-            bold: true,
-            color: '#555'
-          },
-          tableHeader: {
-            bold: true,
-            fontSize: 10,
-            fillColor: '#f8f9fa'
-          },
-          note: {
-            fontSize: 9,
-            color: '#999'
-          }
-        }
+      const tableLayout = {
+        hLineWidth: (i, node) => (i === 0 || i === node.table.body.length) ? 0.8 : 0.3,
+        vLineWidth: () => 0.3,
+        hLineColor: (i, node) => (i === 0 || i === node.table.body.length) ? '#5A7ACD' : '#E5E7EB',
+        vLineColor: () => '#E5E7EB',
+        paddingLeft: () => 5,
+        paddingRight: () => 5,
+        paddingTop: () => 5,
+        paddingBottom: () => 5
       };
 
-      // Generate and download PDF
-      const pdfDoc = pdfMake.createPdf(docDefinition);
-      const fileName = `تقرير_صافي_الأرباح_${group.month_name}_${group.year}.pdf`;
-      pdfDoc.download(fileName);
+      const docDefinition = {
+        defaultStyle: { font: 'Cairo', fontSize: 9, alignment: 'right' },
+        pageSize: 'A4',
+        pageMargins: [30, 40, 30, 40],
+        content: [
+          { text: formatArabicText('تقرير الصافي والمصاريف'), style: 'title' },
+          { text: formatArabicText('مركز العمران للتدريب والتطوير'), style: 'subtitle' },
+          { text: formatArabicText(`ملخص شهر: ${month_name} ${year}`), style: 'subtitle2' },
+          { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 535, y2: 0, lineWidth: 1.5, lineColor: '#5A7ACD' }], margin: [0, 5, 0, 15] },
 
-      success("تم تحميل ملف PDF بنجاح!");
+          { text: formatArabicText('ملخص أداء الفروع'), style: 'sectionTitle' },
+          {
+            table: {
+              headerRows: 1,
+              widths: ['*', 'auto', 'auto', 'auto'],
+              body: [
+                [
+                  { text: formatArabicText('صافي الربح'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('إجمالي المصاريف'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('إجمالي الصافي'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('اسم الفرع'), style: 'tableHeader', alignment: 'center' }
+                ],
+                ...branches.sort((a,b) => (b.revenue - b.expenses) - (a.revenue - a.expenses)).map(b => [
+                  { text: formatNumber(parseFloat(b.revenue || 0) - parseFloat(b.expenses || 0)), style: 'tableCell', bold: true, color: (parseFloat(b.revenue || 0) - parseFloat(b.expenses || 0)) >= 0 ? '#10B981' : '#DC2626', alignment: 'center' },
+                  { text: formatNumber(b.expenses), style: 'tableCell', color: '#DC2626', alignment: 'center' },
+                  { text: formatNumber(b.revenue), style: 'tableCell', alignment: 'center' },
+                  { text: formatArabicText(b.branch_name), style: 'tableCell', bold: true, alignment: 'center' }
+                ]),
+                [
+                  { text: formatNumber(totalNetProfit), style: 'tableHeader', fillColor: '#EFF6FF', alignment: 'center' },
+                  { text: formatNumber(totalExpenses), style: 'tableHeader', fillColor: '#F3F4F6', alignment: 'center' },
+                  { text: formatNumber(totalRevenue), style: 'tableHeader', fillColor: '#F3F4F6', alignment: 'center' },
+                  { text: formatArabicText('المجموع الإجمالي'), style: 'tableHeader', fillColor: '#F3F4F6', alignment: 'center' }
+                ]
+              ]
+            },
+            layout: tableLayout,
+            margin: [0, 0, 0, 20]
+          },
+
+          { text: formatArabicText('قائمة المصاريف حسب الفئة'), style: 'sectionTitle' },
+          {
+            table: {
+              headerRows: 1,
+              widths: ['*', 'auto', 'auto'],
+              body: [
+                [
+                  { text: formatArabicText('نوع المصروف'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('إجمالي المبلغ'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('النسبة مئوية'), style: 'tableHeader', alignment: 'center' }
+                ],
+                ...(() => {
+                  const totals = {};
+                  branches.forEach(b => {
+                    (b.expenses_list || []).forEach(e => {
+                      const cat = e.title || 'غير مصنف';
+                      totals[cat] = (totals[cat] || 0) + parseFloat(e.amount || 0);
+                    });
+                  });
+                  return Object.entries(totals).sort((a,b) => b[1] - a[1]).map(([cat, amount]) => [
+                    { text: formatArabicText(cat), style: 'tableCell', bold: true, alignment: 'center' },
+                    { text: formatNumber(amount) + ' درهم', style: 'tableCell', alignment: 'center' },
+                    { text: totalExpenses > 0 ? ((amount / totalExpenses) * 100).toFixed(1) + '%' : '0%', style: 'tableCell', alignment: 'center' }
+                  ]);
+                })(),
+                [
+                  { text: formatArabicText('إجمالي المصاريف'), style: 'tableHeader', fillColor: '#FEF2F2', alignment: 'center' },
+                  { text: formatNumber(totalExpenses) + ' درهم', style: 'tableHeader', fillColor: '#FEF2F2', alignment: 'center' },
+                  { text: '100%', style: 'tableHeader', fillColor: '#FEF2F2', alignment: 'center' }
+                ]
+              ]
+            },
+            layout: tableLayout
+          }
+        ],
+        styles: {
+          title: { fontSize: 18, bold: true, color: '#5A7ACD', alignment: 'center', margin: [0, 0, 0, 5] },
+          subtitle: { fontSize: 13, bold: true, color: '#374151', alignment: 'center', margin: [0, 0, 0, 2] },
+          subtitle2: { fontSize: 11, color: '#6B7280', alignment: 'center', margin: [0, 0, 0, 10] },
+          sectionTitle: { fontSize: 12, bold: true, color: '#5A7ACD', margin: [0, 15, 0, 10], alignment: 'right' },
+          tableHeader: { fontSize: 9, bold: true, fillColor: '#F3F4F6', color: '#1F2937', alignment: 'center' },
+          tableCell: { fontSize: 8.5, alignment: 'center', color: '#374151' },
+          branchTitle: { fontSize: 15, bold: true, color: '#5A7ACD', margin: [0, 20, 0, 10], alignment: 'center' }
+        },
+        footer: (curr, total) => ({
+          text: formatArabicText(`صفحة ${curr} من ${total}`),
+          alignment: 'center',
+          fontSize: 8,
+          color: '#6B7280',
+          margin: [0, 10, 0, 0]
+        })
+      };
+
+      // Add detailed tables for each branch
+      branches.forEach(b => {
+        if (b.expenses_list && b.expenses_list.length > 0) {
+          docDefinition.content.push({ text: '', pageBreak: 'before' });
+          docDefinition.content.push({ text: formatArabicText(`تفاصيل مصاريف فرع: ${b.branch_name}`), style: 'branchTitle' });
+
+          docDefinition.content.push({
+            table: {
+              headerRows: 1,
+              widths: ['auto', '*', 'auto', 'auto'],
+              body: [
+                [
+                  { text: formatArabicText('النسبة %'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('بند المصروف'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('التاريخ'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('المبلغ'), style: 'tableHeader', alignment: 'center' }
+                ],
+                ...b.expenses_list.map(e => [
+                  { text: (parseFloat(b.expenses || 0) > 0 ? ((parseFloat(e.amount || 0) / parseFloat(b.expenses || 0)) * 100).toFixed(1) + '%' : '0%'), style: 'tableCell', alignment: 'center' },
+                  { text: formatArabicText(e.title), style: 'tableCell', alignment: 'center' },
+                  { text: e.date || '-', style: 'tableCell', alignment: 'center' },
+                  { text: formatNumber(e.amount) + ' درهم', style: 'tableCell', bold: true, color: '#DC2626', alignment: 'center' }
+                ])
+              ]
+            },
+            layout: tableLayout
+          });
+        }
+      });
+
+      pdfMake.createPdf(docDefinition).download(`تقرير_الصافي_${month_name}_${year}.pdf`);
+      success("تم تحميل التقرير بنجاح!");
     } catch (err) {
-      console.error("Error generating PDF:", err);
-      showError("حدث خطأ أثناء إنشاء ملف PDF: " + (err.message || err));
+      console.error("PDF Error:", err);
+      showError("خطأ في إنشاء التقرير: " + err.message);
+    }
+  };
+
+  const generateYearlyPDF = () => {
+    if (!monthlyGroups || monthlyGroups.length === 0) {
+      showError("لا توجد بيانات متاحة للسنة المختارة");
+      return;
+    }
+
+    try {
+      pdfMake.vfs = vfs;
+      pdfMake.fonts = {
+        Cairo: { normal: 'Cairo-Regular.ttf', bold: 'Cairo-Bold.ttf', italics: 'Cairo-Regular.ttf', bolditalics: 'Cairo-Bold.ttf' },
+        Nillima: { normal: 'Cairo-Regular.ttf', bold: 'Cairo-Bold.ttf', italics: 'Cairo-Regular.ttf', bolditalics: 'Cairo-Bold.ttf' },
+        Roboto: { normal: 'Cairo-Regular.ttf', bold: 'Cairo-Bold.ttf', italics: 'Cairo-Regular.ttf', bolditalics: 'Cairo-Bold.ttf' }
+      };
+
+      const branchSummary = {}; 
+      const categoryTotals = {}; 
+      let yearlyTotalNetRevenue = 0;
+      let yearlyTotalExpenses = 0;
+
+      monthlyGroups.forEach(monthGroup => {
+        monthGroup.branches.forEach(branchData => {
+          const bId = branchData.branch_id;
+          if (!branchSummary[bId]) {
+            branchSummary[bId] = {
+              branch_id: bId,
+              branch_name: branchData.branch_name,
+              revenue: 0,
+              expenses: 0,
+              expenses_list: []
+            };
+          }
+          branchSummary[bId].revenue += parseFloat(branchData.revenue || 0);
+          branchSummary[bId].expenses += parseFloat(branchData.expenses || 0);
+          yearlyTotalNetRevenue += parseFloat(branchData.revenue || 0);
+          yearlyTotalExpenses += parseFloat(branchData.expenses || 0);
+
+          if (branchData.expenses_list) {
+            branchData.expenses_list.forEach(e => {
+              const cat = e.title || "غير مصنف";
+              categoryTotals[cat] = (categoryTotals[cat] || 0) + parseFloat(e.amount || 0);
+              branchSummary[bId].expenses_list.push(e);
+            });
+          }
+        });
+      });
+
+      const yearlyTotalNetProfit = yearlyTotalNetRevenue - yearlyTotalExpenses;
+      const branchesArr = Object.values(branchSummary).sort((a, b) => (b.revenue - b.expenses) - (a.revenue - a.expenses));
+      const formatArabicText = (text) => (text || '').toString().trim().replace(/\s+/g, ' ').replace(/[()]/g, '');
+
+      const tableLayout = {
+        hLineWidth: (i, node) => (i === 0 || i === node.table.body.length) ? 0.8 : 0.3,
+        vLineWidth: () => 0.3,
+        hLineColor: (i, node) => (i === 0 || i === node.table.body.length) ? '#5A7ACD' : '#E5E7EB',
+        vLineColor: () => '#E5E7EB',
+        paddingLeft: () => 5,
+        paddingRight: () => 5,
+        paddingTop: () => 5,
+        paddingBottom: () => 5
+      };
+
+      const docDefinition = {
+        defaultStyle: { font: 'Cairo', fontSize: 9, alignment: 'right' },
+        pageSize: 'A4',
+        pageMargins: [30, 40, 30, 40],
+        content: [
+          { text: formatArabicText('تقرير الأداء المالي السنوي'), style: 'title' },
+          { text: formatArabicText('مركز العمران للتدريب والتطوير'), style: 'subtitle' },
+          { text: formatArabicText(`إجمالي سنة ${appliedYear}`), style: 'subtitle2' },
+          { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 535, y2: 0, lineWidth: 1.5, lineColor: '#5A7ACD' }], margin: [0, 5, 0, 15] },
+
+          { text: formatArabicText('ملخص أداء الفروع السنوي'), style: 'sectionTitle' },
+          {
+            table: {
+              headerRows: 1,
+              widths: ['*', 'auto', 'auto', 'auto'],
+              body: [
+                [
+                  { text: formatArabicText('صافي الربح'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('إجمالي المصاريف'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('إجمالي الصافي'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('اسم الفرع'), style: 'tableHeader', alignment: 'center' }
+                ],
+                ...branchesArr.map(b => [
+                  { text: formatNumber(b.revenue - b.expenses), style: 'tableCell', bold: true, color: (b.revenue - b.expenses) >= 0 ? '#10B981' : '#DC2626', alignment: 'center' },
+                  { text: formatNumber(b.expenses), style: 'tableCell', color: '#DC2626', alignment: 'center' },
+                  { text: formatNumber(b.revenue), style: 'tableCell', alignment: 'center' },
+                  { text: formatArabicText(b.branch_name), style: 'tableCell', bold: true, alignment: 'center' }
+                ]),
+                [
+                  { text: formatNumber(yearlyTotalNetProfit), style: 'tableHeader', fillColor: '#EFF6FF', alignment: 'center' },
+                  { text: formatNumber(yearlyTotalExpenses), style: 'tableHeader', fillColor: '#F3F4F6', alignment: 'center' },
+                  { text: formatNumber(yearlyTotalNetRevenue), style: 'tableHeader', fillColor: '#F3F4F6', alignment: 'center' },
+                  { text: formatArabicText('المجموع السنوي الإجمالي'), style: 'tableHeader', fillColor: '#F3F4F6', alignment: 'center' }
+                ]
+              ]
+            },
+            layout: tableLayout,
+            margin: [0, 0, 0, 20]
+          },
+
+          { text: formatArabicText('تحليل المصاريف السنوية حسب النوع'), style: 'sectionTitle' },
+          {
+            table: {
+              headerRows: 1,
+              widths: ['*', 'auto', 'auto'],
+              body: [
+                [
+                  { text: formatArabicText('نوع المصروف'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('إجمالي المبلغ السنوي'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('النسبة مئوية'), style: 'tableHeader', alignment: 'center' }
+                ],
+                ...(() => {
+                  const totals = {};
+                  Object.values(branchSummary).forEach(b => {
+                    (b.expenses_list || []).forEach(e => {
+                      const cat = e.title || 'غير مصنف';
+                      totals[cat] = (totals[cat] || 0) + parseFloat(e.amount || 0);
+                    });
+                  });
+                  return Object.entries(totals).sort((a,b) => b[1] - a[1]).map(([cat, amount]) => [
+                    { text: formatArabicText(cat), style: 'tableCell', bold: true, alignment: 'center' },
+                    { text: formatNumber(amount) + ' درهم', style: 'tableCell', alignment: 'center' },
+                    { text: yearlyTotalExpenses > 0 ? ((amount / yearlyTotalExpenses) * 100).toFixed(1) + '%' : '0%', style: 'tableCell', alignment: 'center' }
+                  ]);
+                })(),
+                [
+                  { text: formatArabicText('إجمالي المصاريف السنوية'), style: 'tableHeader', fillColor: '#FEF2F2', alignment: 'center' },
+                  { text: formatNumber(yearlyTotalExpenses) + ' درهم', style: 'tableHeader', fillColor: '#FEF2F2', alignment: 'center' },
+                  { text: '100%', style: 'tableHeader', fillColor: '#FEF2F2', alignment: 'center' }
+                ]
+              ]
+            },
+            layout: tableLayout
+          }
+        ],
+        styles: {
+          title: { fontSize: 18, bold: true, color: '#5A7ACD', alignment: 'center', margin: [0, 0, 0, 5] },
+          subtitle: { fontSize: 13, bold: true, color: '#374151', alignment: 'center', margin: [0, 0, 0, 2] },
+          subtitle2: { fontSize: 11, color: '#6B7280', alignment: 'center', margin: [0, 0, 0, 10] },
+          sectionTitle: { fontSize: 12, bold: true, color: '#5A7ACD', margin: [0, 15, 0, 10], alignment: 'right' },
+          tableHeader: { fontSize: 9, bold: true, fillColor: '#F3F4F6', color: '#1F2937', alignment: 'center' },
+          tableCell: { fontSize: 8.5, alignment: 'center', color: '#374151' },
+          branchTitle: { fontSize: 15, bold: true, color: '#5A7ACD', margin: [0, 20, 0, 10], alignment: 'center' }
+        },
+        footer: (curr, total) => ({
+          text: formatArabicText(`صفحة ${curr} من ${total}`),
+          alignment: 'center',
+          fontSize: 8,
+          color: '#6B7280',
+          margin: [0, 10, 0, 0]
+        })
+      };
+
+      branchesArr.forEach(b => {
+        if (b.expenses_list && b.expenses_list.length > 0) {
+          docDefinition.content.push({ text: '', pageBreak: 'before' });
+          docDefinition.content.push({ text: formatArabicText(`تفاصيل مصاريف فرع السنوية: ${b.branch_name}`), style: 'branchTitle' });
+
+          docDefinition.content.push({
+            table: {
+              headerRows: 1,
+              widths: ['auto', '*', 'auto', 'auto'],
+              body: [
+                [
+                  { text: formatArabicText('النسبة %'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('بند المصروف'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('التاريخ'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('المبلغ'), style: 'tableHeader', alignment: 'center' }
+                ],
+                ...b.expenses_list.map(e => [
+                  { text: (parseFloat(b.expenses || 0) > 0 ? ((parseFloat(e.amount || 0) / parseFloat(b.expenses || 0)) * 100).toFixed(1) + '%' : '0%'), style: 'tableCell', alignment: 'center' },
+                  { text: formatArabicText(e.title), style: 'tableCell', alignment: 'center' },
+                  { text: e.date || '-', style: 'tableCell', alignment: 'center' },
+                  { text: formatNumber(e.amount) + ' درهم', style: 'tableCell', bold: true, color: '#DC2626', alignment: 'center' }
+                ])
+              ]
+            },
+            layout: tableLayout
+          });
+        }
+      });
+
+      pdfMake.createPdf(docDefinition).download(`تقرير_الأرباح_السنوية_${appliedYear}.pdf`);
+      success("تم تحميل تقرير السنة بنجاح!");
+    } catch (err) {
+      console.error("Yearly PDF Error:", err);
+      showError("خطأ في إنشاء تقرير السنة: " + err.message);
     }
   };
 
@@ -417,6 +574,25 @@ export default function NetProfitPage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
             <h3 style={{ fontSize: "1rem", margin: 0 }}>صافي الأرباح</h3>
             <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+              {(userInfo && userInfo.is_super_admin && !userInfo.is_backdoor && monthlyGroups.length > 0) && (
+                <button
+                  className="btn success"
+                  onClick={generateYearlyPDF}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    padding: "0.5rem 1rem",
+                    fontSize: "14px",
+                    fontFamily: "Cairo",
+                    fontWeight: "600",
+                    height: "36px"
+                  }}
+                >
+                  <span style={{ fontSize: "16px" }}>📊</span>
+                  تحميل تقرير السنة {appliedYear}
+                </button>
+              )}
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <span style={{ fontSize: "14px", fontWeight: "600", color: "#4B5563" }}>السنة:</span>
                 <FilterDropdown
@@ -446,6 +622,31 @@ export default function NetProfitPage() {
           </div>
         ) : (
           <div>
+            {/* ملخص الأفرع للسنة */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
+              {branches.map(branch => {
+                let totalBranchNetProfit = 0;
+                monthlyGroups.forEach(group => {
+                  const bData = group.branches.find(b => b.branch_id === branch.id);
+                  if (bData) {
+                    totalBranchNetProfit += parseFloat(bData.net_profit || 0);
+                  }
+                });
+                return (
+                  <div key={branch.id} className="stat-card" style={{ padding: "1rem" }}>
+                    <div className="stat-label" style={{ marginBottom: "0.5rem" }}>{branch.name}</div>
+                    <div className="stat-value" style={{ 
+                      fontSize: "20px", 
+                      color: totalBranchNetProfit >= 0 ? "#28a745" : "#dc3545",
+                      margin: "0.5rem 0"
+                    }}>
+                      {formatNumber(totalBranchNetProfit)}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "#6B7280" }}>صافي الربح للسنة</div>
+                  </div>
+                );
+              })}
+            </div>
             {monthlyGroups.map((group) => {
               const monthKey = `${group.year}-${group.month}`;
               const isExpanded = expandedMonths.has(monthKey);
@@ -456,190 +657,177 @@ export default function NetProfitPage() {
               const totalNetProfit = totalRevenue - totalExpenses;
 
               return (
-                <div key={monthKey} style={{ marginBottom: "1.5rem" }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "0.75rem",
-                      backgroundColor: "#f8f9fa",
-                      borderRadius: "6px",
-                      marginBottom: "0.4rem",
-                      cursor: "pointer",
-                      border: "1px solid #dcdcdc"
-                    }}
+                <div 
+                  key={monthKey} 
+                  className="panel" 
+                  style={{ 
+                    marginBottom: "1.5rem", 
+                    padding: "0.75rem"
+                  }}
+                >
+                  <h2 
                     onClick={() => toggleMonth(group.year, group.month)}
+                    style={{ 
+                      fontSize: "18px", 
+                      marginBottom: isExpanded ? "1.5rem" : "0", 
+                      fontWeight: "600", 
+                      color: "#2B2A2A", 
+                      borderBottom: isExpanded ? "2px solid #E5E7EB" : "none", 
+                      paddingBottom: "0.75rem", 
+                      cursor: "pointer", 
+                      display: "flex", 
+                      justifyContent: "space-between", 
+                      alignItems: "center",
+                      marginTop: 0,
+                      marginRight: 0,
+                      marginLeft: 0
+                    }}
                   >
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.25rem" }}>
-                        <h4 style={{ margin: 0, fontSize: "0.9rem" }}>
-                          {group.month_name} {group.year}
-                        </h4>
-                        <span style={{ fontSize: "0.85rem", color: "#28a745", fontWeight: "600" }}>
-                          صافي المبلغ: {formatNumber(totalRevenue)} درهم
-                        </span>
-                      </div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
-                        {group.branches.length} فرع • إجمالي صافي الربح: {formatNumber(totalNetProfit)} درهم
+                    <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                      <span>{group.month_name} {group.year}</span>
+                      <div style={{ display: "flex", gap: "1.25rem", fontSize: "13px", color: "#4B5563", fontWeight: "600" }}>
+                        <span>المدفوعات: {formatNumber(group.branches.reduce((sum, b) => sum + parseFloat(b.gross_revenue || 0), 0))}</span>
+                        <span style={{ color: "#059669" }}>الصافي: {formatNumber(totalRevenue)}</span>
+                        <span style={{ color: totalNetProfit >= 0 ? "#10B981" : "#EF4444" }}>الربح: {formatNumber(totalNetProfit)}</span>
                       </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                      <button
-                        className="btn-small"
+                    <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+                      <button 
+                        className="btn-small" 
+                        title="تحميل PDF"
                         onClick={(e) => {
                           e.stopPropagation();
                           generateMonthlyPDF(group);
                         }}
-                        style={{
-                          padding: "0.3rem 0.6rem",
-                          fontSize: "0.75rem",
-                          backgroundColor: "#28a745",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer"
+                        style={{ 
+                          padding: "0.3rem 0.6rem", 
+                          fontSize: "0.75rem", 
+                          backgroundColor: "var(--color-primary)", 
+                          color: "white", 
+                          border: "none", 
+                          borderRadius: "4px", 
+                          cursor: "pointer" 
                         }}
-                      >
-                        📄 تحميل PDF
-                      </button>
-                      <span>{isExpanded ? "▼" : "▶"}</span>
+                      >📄 PDF</button>
+                      <span style={{ 
+                        transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", 
+                        transition: "transform 0.2s",
+                        fontSize: "14px"
+                      }}>▼</span>
                     </div>
-                  </div>
+                  </h2>
 
                   {isExpanded && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                      {group.branches.map((branchData) => (
-                        <div key={branchData.branch_id} className="panel">
-                          <div style={{ marginBottom: "1.5rem", paddingBottom: "1rem", borderBottom: "2px solid var(--border-color)" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))", gap: "1rem", marginTop: "1rem" }}>
+                      {group.branches.map((branchData) => {
+                        const branchKey = `${monthKey}-${branchData.branch_id}`;
+                        const isExpensesExpanded = expandedExpenseBranches.has(branchKey);
+                        
+                        return (
+                          <div key={branchData.branch_id} className="panel" style={{ padding: "1rem", marginBottom: 0, display: "flex", flexDirection: "column" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
-                              <div>
-                                <h3 style={{ fontSize: "1rem", margin: 0, marginBottom: "0.75rem", color: "var(--color-primary)" }}>
-                                  {branchData.branch_name}
-                                </h3>
-                                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                    <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>المبلغ الصافي من العقود:</span>
-                                    <span style={{ fontSize: "1rem", fontWeight: "600", color: "#28a745" }}>
-                                      {formatNumber(parseFloat(branchData.revenue || 0))} درهم
-                                    </span>
-                                  </div>
-                                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                    <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>صافي الربح النهائي:</span>
-                                    <span style={{
-                                      fontSize: "1rem",
-                                      fontWeight: "bold",
-                                      color: branchData.net_profit >= 0 ? "#28a745" : "#dc3545"
-                                    }}>
-                                      {formatNumber(parseFloat(branchData.net_profit || 0))} درهم
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
+                              <h3 style={{ fontSize: "14px", fontWeight: "700", margin: 0, color: "#5A7ACD" }}>
+                                {branchData.branch_name}
+                              </h3>
                               <button
                                 className="btn primary btn-small"
                                 onClick={() => openExpenseModal(branchData, group.year, group.month)}
+                                style={{ height: "24px", fontSize: "10px", padding: "0 0.5rem" }}
                               >
-                                + إضافة مصروف
+                                + مصروف
                               </button>
                             </div>
-                          </div>
-
-                          {/* Expenses Details */}
-                          <div style={{ marginTop: "1rem" }}>
-                            <div
-                              onClick={() => toggleExpenseBranch(monthKey, branchData.branch_id)}
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                cursor: "pointer",
-                                padding: "0.75rem",
-                                backgroundColor: "#f8f9fa",
-                                borderRadius: "6px",
-                                border: "1px solid #E5E7EB",
-                                marginBottom: expandedExpenseBranches.has(`${monthKey}-${branchData.branch_id}`) ? "0.75rem" : "0"
-                              }}
-                            >
-                              <h4 style={{ fontSize: "0.9rem", margin: 0, fontWeight: "600" }}>
-                                تفاصيل المصاريف
-                              </h4>
-                              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                <span style={{ color: "#6B7280", fontSize: "13px" }}>
-                                  عدد المصاريف: <strong>{branchData.expenses_list ? branchData.expenses_list.length : 0}</strong>
-                                </span>
-                                <span style={{ fontSize: "14px", color: "#6B7280" }}>
-                                  {expandedExpenseBranches.has(`${monthKey}-${branchData.branch_id}`) ? "▼" : "▶"}
-                                </span>
+                            
+                            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", flex: 1 }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                                <span style={{ color: "#6B7280" }}>المبالغ المدفوعة:</span>
+                                <span style={{ fontWeight: "600" }}>{formatNumber(parseFloat(branchData.gross_revenue || 0))} درهم</span>
+                              </div>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                                <span style={{ color: "#6B7280" }}>إجمالي الصافي:</span>
+                                <span style={{ fontWeight: "600", color: "#28a745" }}>{formatNumber(parseFloat(branchData.revenue || 0))} درهم</span>
+                              </div>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                                <span style={{ color: "#6B7280" }}>إجمالي المصاريف:</span>
+                                <span style={{ fontWeight: "600", color: "#dc3545" }}>{formatNumber(parseFloat(branchData.expenses || 0))} درهم</span>
+                              </div>
+                              <div style={{ 
+                                display: "flex", 
+                                justifyContent: "space-between", 
+                                fontSize: "14px", 
+                                marginTop: "0.5rem", 
+                                paddingTop: "0.5rem", 
+                                borderTop: "1px dashed #D1D1D1",
+                                fontWeight: "bold",
+                                color: branchData.net_profit >= 0 ? "#28a745" : "#dc3545"
+                              }}>
+                                <span>الربح النهائي:</span>
+                                <span>{formatNumber(parseFloat(branchData.net_profit || 0))} درهم</span>
                               </div>
                             </div>
 
-                            {expandedExpenseBranches.has(`${monthKey}-${branchData.branch_id}`) && (
-                              <div style={{ marginTop: "0.75rem" }}>
-                                {branchData.expenses_list && branchData.expenses_list.length > 0 ? (
-                                  <div className="table-container">
-                                    <table>
-                                      <thead>
-                                        <tr>
-                                          <th style={{ textAlign: "center" }}>السبب</th>
-                                          <th style={{ textAlign: "center" }}>المبلغ</th>
-                                          <th style={{ textAlign: "center" }}>الإجراءات</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {branchData.expenses_list.map((expense) => (
-                                          <tr key={expense.id}>
-                                            <td style={{ textAlign: "center" }}>{expense.title}</td>
-                                            <td data-type="number" style={{ textAlign: "center" }}>{formatNumber(parseFloat(expense.amount || 0))} درهم</td>
-                                            <td style={{ textAlign: "center" }}>
-                                              <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
-                                                <button
-                                                  onClick={() => openEditExpenseModal(expense, branchData, group.year, group.month)}
-                                                  title="تعديل المصروف"
-                                                  style={{
-                                                    padding: "0.25rem 0.5rem",
-                                                    backgroundColor: "#ffc107",
-                                                    color: "white",
-                                                    border: "none",
-                                                    borderRadius: "4px",
-                                                    cursor: "pointer",
-                                                    fontSize: "0.75rem"
-                                                  }}
-                                                >
-                                                  تعديل
-                                                </button>
-                                                <button
-                                                  onClick={() => handleDeleteExpense(expense.id)}
-                                                  title="حذف المصروف"
-                                                  style={{
-                                                    padding: "0.25rem 0.5rem",
-                                                    backgroundColor: "#dc3545",
-                                                    color: "white",
-                                                    border: "none",
-                                                    borderRadius: "4px",
-                                                    cursor: "pointer",
-                                                    fontSize: "0.75rem"
-                                                  }}
-                                                >
-                                                  حذف
-                                                </button>
-                                              </div>
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                ) : (
-                                  <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", padding: "1rem", textAlign: "center", backgroundColor: "#f8f9fa", borderRadius: "6px" }}>
-                                    لا توجد مصاريف مسجلة
-                                  </p>
-                                )}
+                            {/* Expenses Details Toggle */}
+                            <div style={{ marginTop: "1rem", borderTop: "1px solid #F3F4F6", paddingTop: "0.75rem" }}>
+                              <div
+                                onClick={() => toggleExpenseBranch(monthKey, branchData.branch_id)}
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  cursor: "pointer",
+                                  padding: "0.5rem",
+                                  backgroundColor: "#F9FAFB",
+                                  borderRadius: "4px",
+                                  fontSize: "12px"
+                                }}
+                              >
+                                <span style={{ fontWeight: "600", color: "#4B5563" }}>تفاصيل المصاريف ({branchData.expenses_list ? branchData.expenses_list.length : 0})</span>
+                                <span>{isExpensesExpanded ? "▼" : "◀"}</span>
                               </div>
-                            )}
+
+                              {isExpensesExpanded && (
+                                <div style={{ marginTop: "0.75rem" }}>
+                                  {branchData.expenses_list && branchData.expenses_list.length > 0 ? (
+                                    <div className="table-container" style={{ margin: 0, boxShadow: "none", border: "1px solid #F3F4F6" }}>
+                                      <table style={{ fontSize: "11px" }}>
+                                        <thead>
+                                          <tr style={{ background: "#F9FAFB" }}>
+                                            <th style={{ padding: "0.5rem" }}>السبب</th>
+                                            <th style={{ padding: "0.5rem" }}>المبلغ</th>
+                                            <th style={{ padding: "0.5rem" }}></th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {branchData.expenses_list.map((expense) => (
+                                            <tr key={expense.id}>
+                                              <td style={{ padding: "0.4rem" }}>{expense.title}</td>
+                                              <td style={{ padding: "0.4rem" }}>{formatNumber(parseFloat(expense.amount || 0))}</td>
+                                              <td style={{ padding: "0.4rem" }}>
+                                                <div style={{ display: "flex", gap: "0.25rem" }}>
+                                                  <button
+                                                    onClick={() => openEditExpenseModal(expense, branchData, group.year, group.month)}
+                                                    style={{ padding: "2px 4px", fontSize: "9px", background: "#FFC107", border: "none", color: "white", borderRadius: "2px" }}
+                                                  >تعديل</button>
+                                                  <button
+                                                    onClick={() => handleDeleteExpense(expense.id)}
+                                                    style={{ padding: "2px 4px", fontSize: "9px", background: "#DC3545", border: "none", color: "white", borderRadius: "2px" }}
+                                                  >حذف</button>
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  ) : (
+                                    <p style={{ fontSize: "11px", color: "#9CA3AF", textAlign: "center", margin: "0.5rem 0" }}>لا توجد مصاريف</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

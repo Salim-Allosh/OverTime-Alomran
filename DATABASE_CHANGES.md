@@ -134,4 +134,137 @@ php artisan migrate --path=database/migrations/2026_03_26_000000_create_expense_
 
 ---
 
+## [2026-03-28] Add Employee Management System
+
+### Description
+Created `employees` table to store employee names, employment numbers, and salary information with branch assignment.
+
+### SQL Migration
+**Copy and paste this into your SQL console:**
+```sql
+DROP TABLE IF EXISTS `employees`;
+
+CREATE TABLE `employees` (
+    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `employment_number` VARCHAR(255) NOT NULL UNIQUE,
+    `name` VARCHAR(255) NOT NULL,
+    `branch_id` INT(11) NOT NULL, -- EXACT MATCH with branches.id on server
+    `salary` DECIMAL(10, 2) NOT NULL,
+    `notes` TEXT NULL,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `created_at` TIMESTAMP NULL,
+    `updated_at` TIMESTAMP NULL,
+    INDEX `employees_branch_id_index` (`branch_id`),
+    CONSTRAINT `employees_branch_id_foreign` 
+        FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### Laravel Migration
+```bash
+php artisan migrate --path=database/migrations/2026_03_28_200000_create_employees_table.php
+```
+
+---
+
+## [2026-03-28] Add Salaries Management System
+
+### Description
+Implemented a comprehensive salary management system including tracking of base salary, working days, entitled salary, additions, and deductions.
+
+### SQL Migration
+**Copy and paste this into your SQL console:**
+```sql
+CREATE TABLE `salaries` (
+    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `employee_id` BIGINT UNSIGNED NOT NULL,
+    `branch_id` INT(11) NOT NULL,
+    `month` INT NOT NULL,
+    `year` INT NOT NULL,
+    `base_salary` DECIMAL(12, 2) NOT NULL,
+    `working_days` INT NOT NULL,
+    `entitled_salary` DECIMAL(12, 2) NOT NULL,
+    `net_salary` DECIMAL(12, 2) NOT NULL,
+    `notes` TEXT NULL,
+    `is_processed` TINYINT(1) NOT NULL DEFAULT 0,
+    `created_at` TIMESTAMP NULL,
+    `updated_at` TIMESTAMP NULL,
+    FOREIGN KEY (`employee_id`) REFERENCES `employees`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`branch_id`) REFERENCES `branches`(`id`) ON DELETE CASCADE,
+    UNIQUE KEY `employee_month_year_unique` (`employee_id`, `month`, `year`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `salary_items` (
+    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `salary_id` BIGINT UNSIGNED NOT NULL,
+    `type` ENUM('addition', 'deduction') NOT NULL,
+    `amount` DECIMAL(12, 2) NOT NULL,
+    `reason` VARCHAR(255) NOT NULL,
+    `is_automatic` TINYINT(1) NOT NULL DEFAULT 0,
+    `created_at` TIMESTAMP NULL,
+    `updated_at` TIMESTAMP NULL,
+    FOREIGN KEY (`salary_id`) REFERENCES `salaries`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### Laravel Migration
+```bash
+php artisan migrate --path=database/migrations/2026_03_28_300000_create_salaries_tables.php
+```
+
+---
+
+## [2026-03-29] Add Days Metadata to Salary Items
+
+### Description
+Added a `days` column to the `salary_items` table to support persistent storage and retrieval of specific day-counts for automatic additions.
+
+### SQL Migration
+```sql
+ALTER TABLE `salary_items` ADD `days` VARCHAR(255) NULL AFTER `reason`;
+```
+
+### Laravel Migration
+```bash
+php artisan migrate --path=database/migrations/2026_03_29_005600_add_days_to_salary_items_table.php
+```
+
+---
+
+## [2026-03-29] Enhanced Payroll Data Persistence
+
+### Description
+Introduced historical metadata snapshot columns (`employee_name`, `employment_number`) to the `salaries` table and ensured `SoftDeletes` support for the `employees` table. Also modified the foreign key constraint to prevent cascading deletion of financial records.
+
+> [!NOTE]
+> The `deleted_at` column for `employees` may already exist in some environments. If so, skip the first SQL step below.
+
+### SQL Migration
+```sql
+-- 1. Add SoftDeletes to Employees (SKIP if already exists: #1060 Duplicate column)
+-- ALTER TABLE `employees` ADD `deleted_at` TIMESTAMP NULL AFTER `is_active`;
+
+-- 2. Add Persistence Snapshots to Salaries
+ALTER TABLE `salaries` ADD `employee_name` VARCHAR(255) NULL AFTER `employee_id`;
+ALTER TABLE `salaries` ADD `employment_number` VARCHAR(255) NULL AFTER `employee_name`;
+
+-- 3. Modify Foreign Key (Remove Cascade)
+-- IMPORTANT: If `salaries_employee_id_foreign` was not found, MariaDB likely named it `salaries_ibfk_1`.
+-- You can find the exact name by running: SHOW CREATE TABLE `salaries`;
+
+-- Try dropping the most likely engine-generated name:
+ALTER TABLE `salaries` DROP FOREIGN KEY `salaries_ibfk_1`; 
+
+-- Then add the new constraint with a permanent, searchable name:
+ALTER TABLE `salaries` ADD CONSTRAINT `salaries_employee_id_foreign` 
+    FOREIGN KEY (`employee_id`) REFERENCES `employees`(`id`);
+```
+
+### Laravel Migration
+```bash
+php artisan migrate --path=database/migrations/2026_03_29_014000_add_soft_deletes_and_metadata_to_salaries_and_employees_tables.php
+```
+
+---
+
 *Keep this file updated for any future schema changes.*

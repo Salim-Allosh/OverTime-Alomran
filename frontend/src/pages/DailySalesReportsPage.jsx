@@ -2079,7 +2079,7 @@ export default function DailySalesReportsPage() {
             // Today's Payments
             if (paymentDateStr === todayStr) {
               const dateToUse = contract.contract_date || contract.created_at;
-              const contractDateStr = dateToLocalISOString(new Date(dateToUse));
+              const contractDateStr = toLocalISOString(new Date(dateToUse));
 
               if (contractDateStr === todayStr) {
                 // Performance Payment (Current Sales)

@@ -7,6 +7,7 @@ import CourseModal from "../components/CourseModal";
 import PaymentMethodModal from "../components/PaymentMethodModal";
 import SalesStaffModal from "../components/SalesStaffModal";
 import ExpenseCategoryModal from "../components/ExpenseCategoryModal";
+import EmployeeModal from "../components/EmployeeModal";
 
 export default function AdminPage() {
   const token = localStorage.getItem("token") || "";
@@ -17,6 +18,7 @@ export default function AdminPage() {
   const [courses, setCourses] = useState([]);
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [expenseCategories, setExpenseCategories] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [userInfo, setUserInfo] = useState(null);
 
   // Modal state
@@ -26,6 +28,7 @@ export default function AdminPage() {
   const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
   const [showSalesStaffModal, setShowSalesStaffModal] = useState(false);
   const [showExpenseCategoryModal, setShowExpenseCategoryModal] = useState(false);
+  const [showEmployeeModal, setShowEmployeeModal] = useState(false);
 
   // Editing state
   const [editingBranch, setEditingBranch] = useState(null);
@@ -34,6 +37,7 @@ export default function AdminPage() {
   const [editingPaymentMethod, setEditingPaymentMethod] = useState(null);
   const [editingSalesStaff, setEditingSalesStaff] = useState(null);
   const [editingExpenseCategory, setEditingExpenseCategory] = useState(null);
+  const [editingEmployee, setEditingEmployee] = useState(null);
 
   // Collapsible sections state
   const [expandedSections, setExpandedSections] = useState({
@@ -42,7 +46,8 @@ export default function AdminPage() {
     salesStaff: false,
     courses: false,
     paymentMethods: false,
-    expenseCategories: false
+    expenseCategories: false,
+    employees: false
   });
 
   const toggleSection = (section) => {
@@ -137,6 +142,16 @@ export default function AdminPage() {
     }
   };
 
+  const loadEmployees = async () => {
+    try {
+      const data = await apiGet("/employees", token);
+      setEmployees(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Error loading employees:", err);
+      setEmployees([]);
+    }
+  };
+
   useEffect(() => {
     if (!token) return;
 
@@ -165,6 +180,7 @@ export default function AdminPage() {
       loadCourses();
       loadPaymentMethods();
       loadExpenseCategories();
+      loadEmployees();
     } else {
       console.log("[AdminPage] User is not super admin, skipping courses and payment methods");
     }
@@ -425,6 +441,38 @@ export default function AdminPage() {
           loadExpenseCategories();
         } catch (err) {
           error("حدث خطأ أثناء حذف المصروف");
+        }
+      }
+    );
+  };
+
+  const handleEmployeeSubmit = async (formData) => {
+    try {
+      if (editingEmployee) {
+        await apiPatch(`/employees/${editingEmployee.id}`, formData, token);
+        success("تم تحديث بيانات الموظف بنجاح!");
+      } else {
+        await apiPost("/employees", formData, token);
+        success("تم إضافة الموظف بنجاح!");
+      }
+      setEditingEmployee(null);
+      setShowEmployeeModal(false);
+      loadEmployees();
+    } catch (err) {
+      error("حدث خطأ أثناء " + (editingEmployee ? "تحديث" : "إضافة") + " الموظف: " + (err.message || ""));
+    }
+  };
+
+  const handleDeleteEmployee = async (employeeId) => {
+    confirm(
+      "هل أنت متأكد من حذف هذا الموظف؟",
+      async () => {
+        try {
+          await apiDelete(`/employees/${employeeId}`, token);
+          success("تم حذف الموظف بنجاح!");
+          loadEmployees();
+        } catch (err) {
+          error("حدث خطأ أثناء حذف الموظف");
         }
       }
     );
@@ -1061,6 +1109,107 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* Employees Section - للسوبر أدمن فقط */}
+      {isSuperAdmin && (
+        <div className="panel panel-collapsible" style={{ marginBottom: "2rem" }}>
+          <div
+            className="panel-header-clickable"
+            onClick={() => toggleSection('employees')}
+          >
+            <h2 style={{ margin: 0, color: "#2B2A2A", fontSize: "18px", fontWeight: 600 }}>إدارة أسماء الموظفين</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+              <button
+                className="btn primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingEmployee(null);
+                  setShowEmployeeModal(true);
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: "0.5rem" }}>
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                إضافة موظف جديد
+              </button>
+              <svg
+                className={`chevron-icon ${expandedSections.employees ? 'expanded' : ''}`}
+                width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </div>
+          </div>
+
+          {expandedSections.employees && (
+            <div className="panel-content">
+              <div className="table-container" style={{ width: "100%", overflowX: "auto" }}>
+                {employees.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "2rem", color: "#6B7280" }}>
+                    <p style={{ margin: 0, fontSize: "14px" }}>لا يوجد موظفون حالياً</p>
+                  </div>
+                ) : (
+                  <table style={{ width: "100%", minWidth: "700px" }}>
+                    <thead>
+                      <tr>
+                        <th>رقم التوظيف</th>
+                        <th>اسم الموظف</th>
+                        <th>الفرع</th>
+                        <th>الراتب</th>
+                        <th>الحالة</th>
+                        <th>الإجراءات</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {employees.map(emp => (
+                        <tr key={emp.id}>
+                          <td style={{ fontWeight: 600, color: "#2B2A2A" }}>{emp.employment_number}</td>
+                          <td>{emp.name}</td>
+                          <td>{emp.branch?.name || "-"}</td>
+                          <td>{parseFloat(emp.salary || 0).toLocaleString()} درهم</td>
+                          <td>
+                            <span className={`status ${emp.is_active ? "status-active" : "status-rejected"}`}>
+                              {emp.is_active ? "نشط" : "معطل"}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
+                              <button
+                                className="btn btn-small"
+                                style={{ backgroundColor: "#FEB05D", color: "white", border: "none" }}
+                                onClick={() => {
+                                  setEditingEmployee(emp);
+                                  setShowEmployeeModal(true);
+                                }}
+                                title="تعديل"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                                </svg>
+                              </button>
+                              <button
+                                className="btn btn-small btn-danger"
+                                onClick={() => handleDeleteEmployee(emp.id)}
+                                title="حذف"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="3 6 5 6 21 6"></polyline>
+                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Modals */}
       <BranchModal
         isOpen={showBranchModal}
@@ -1126,6 +1275,17 @@ export default function AdminPage() {
         }}
         onSubmit={handleExpenseCategorySubmit}
         category={editingExpenseCategory}
+      />
+
+      <EmployeeModal
+        show={showEmployeeModal}
+        onClose={() => {
+          setShowEmployeeModal(false);
+          setEditingEmployee(null);
+        }}
+        onSubmit={handleEmployeeSubmit}
+        editingEmployee={editingEmployee}
+        branches={branches}
       />
     </div>
   );

@@ -9,6 +9,7 @@ use App\Models\Expense;
 use App\Models\OperationAccount;
 use App\Models\NetProfitExpense;
 use App\Models\ExpenseCategory;
+use App\Models\Employee;
 use Illuminate\Support\Facades\Hash;
 
 class LookupController extends Controller
@@ -269,6 +270,49 @@ class LookupController extends Controller
     public function deleteExpenseCategory($id)
     {
         ExpenseCategory::destroy($id);
+        return response()->noContent();
+    }
+
+    // Employee Management
+    public function employees()
+    {
+        return Employee::with('branch')->get();
+    }
+
+    public function createEmployee(Request $request)
+    {
+        $validated = $request->validate([
+            'employment_number' => 'required|unique:employees,employment_number',
+            'name' => 'required|string',
+            'branch_id' => 'required|exists:branches,id',
+            'salary' => 'required|numeric',
+            'notes' => 'nullable|string',
+            'is_active' => 'boolean'
+        ]);
+
+        return Employee::create($validated);
+    }
+
+    public function updateEmployee(Request $request, $id)
+    {
+        $employee = Employee::findOrFail($id);
+        
+        $validated = $request->validate([
+            'employment_number' => 'required|unique:employees,employment_number,' . $id,
+            'name' => 'required|string',
+            'branch_id' => 'required|exists:branches,id',
+            'salary' => 'required|numeric',
+            'notes' => 'nullable|string',
+            'is_active' => 'boolean'
+        ]);
+
+        $employee->update($validated);
+        return $employee;
+    }
+
+    public function deleteEmployee($id)
+    {
+        Employee::destroy($id);
         return response()->noContent();
     }
 }

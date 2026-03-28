@@ -69,11 +69,12 @@ export default function ReportsPage() {
   const [expenseEditForm, setExpenseEditForm] = useState({ title: "", amount: "", teacher_name: "" });
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [teacherNames, setTeacherNames] = useState([]);
+  const [monthSessionsForMerge, setMonthSessionsForMerge] = useState([]);
   const [mergeForm, setMergeForm] = useState({
     old_name: "",
     new_name: ""
   });
-  const [appliedBranchId, setAppliedBranchId] = useState(null);
+  const [appliedBranchIds, setAppliedBranchIds] = useState([]);
   const [appliedYearIds, setAppliedYearIds] = useState([]);
   const [appliedMonthIds, setAppliedMonthIds] = useState([]);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -86,7 +87,7 @@ export default function ReportsPage() {
   useEffect(() => {
     const loadBranches = async () => {
       try {
-        const data = await apiGet("/branches", "");
+        const data = await apiGet("/branches", token);
         setBranches(Array.isArray(data) ? data : []);
         if (data.length > 0 && !expenseForm.branch_id) {
           setExpenseForm(prev => ({ ...prev, branch_id: data[0].id }));
@@ -108,7 +109,7 @@ export default function ReportsPage() {
         setUserInfo(data);
         // If operation manager, automatically set branch_id filter
         if (data.is_operation_manager && data.branch_id) {
-          setAppliedBranchId(data.branch_id);
+          setAppliedBranchIds([data.branch_id]);
         }
       } catch (err) {
         console.error("Error loading user info:", err);
@@ -120,8 +121,8 @@ export default function ReportsPage() {
   // Load approved sessions
   useEffect(() => {
     if (!token) return;
-    loadSessions(appliedBranchId);
-  }, [token, appliedBranchId]);
+    loadSessions(); // Load all allowed sessions once
+  }, [token]);
 
   // Scroll to expanded month when it changes or data updates
   useEffect(() => {
@@ -139,10 +140,10 @@ export default function ReportsPage() {
 
   // Auto-expand branch when applied from filters
   useEffect(() => {
-    if (appliedBranchId && !expandedBranchIds.includes(appliedBranchId)) {
-      setExpandedBranchIds(prev => [...prev, appliedBranchId]);
+    if (appliedBranchIds.length > 0) {
+      setExpandedBranchIds(prev => [...new Set([...prev, ...appliedBranchIds])]);
     }
-  }, [appliedBranchId]);
+  }, [appliedBranchIds]);
 
   // Load teacher names from currently displayed sessions only
   const loadTeacherNames = async () => {
@@ -203,11 +204,11 @@ export default function ReportsPage() {
     loadExpenses();
   }, [sessions, token]);
 
-  const loadSessions = async (branchId = null) => {
+  const loadSessions = async () => {
     setLoading(true);
     setError(null);
     try {
-      const url = branchId ? `/sessions/all?branch_id=${branchId}` : "/sessions/all";
+      const url = "/sessions/all";
       const data = await apiGet(url, token);
       console.log("[Reports] Loaded sessions:", data);
       const sessionsData = Array.isArray(data) ? data : [];
@@ -239,11 +240,7 @@ export default function ReportsPage() {
     }
   };
 
-  const filterSessionsByYearAndMonth = (sessionsList) => {
-    if ((!appliedYearIds || appliedYearIds.length === 0) && (!appliedMonthIds || appliedMonthIds.length === 0)) {
-      return sessionsList;
-    }
-
+  const filterSessions = (sessionsList) => {
     return sessionsList.filter(session => {
       const dateStr = session.session_date;
       if (!dateStr) return false;
@@ -251,11 +248,13 @@ export default function ReportsPage() {
       const sessionDate = new Date(dateStr);
       const year = sessionDate.getFullYear();
       const month = sessionDate.getMonth() + 1;
+      const branchId = session.branch_id;
 
       const isYearMatch = !appliedYearIds || appliedYearIds.length === 0 || appliedYearIds.includes(year);
       const isMonthMatch = !appliedMonthIds || appliedMonthIds.length === 0 || appliedMonthIds.includes(month);
+      const isBranchMatch = !appliedBranchIds || appliedBranchIds.length === 0 || appliedBranchIds.includes(branchId);
 
-      return isYearMatch && isMonthMatch;
+      return isYearMatch && isMonthMatch && isBranchMatch;
     });
   };
 
@@ -528,7 +527,7 @@ export default function ReportsPage() {
       success("تم تحديث الجلسة بنجاح!");
       setShowEditModal(false);
       setEditingSession(null);
-      loadSessions(selectedBranchId);
+      loadSessions();
     } catch (err) {
       showError("حدث خطأ أثناء تحديث الجلسة: " + err.message);
     }
@@ -583,7 +582,7 @@ export default function ReportsPage() {
           setShowMergeModal(false);
           setMergeForm({ old_name: "", new_name: "" });
           setMonthSessionsForMerge([]);
-          loadSessions(selectedBranchId); // Reload sessions to reflect the changes
+          loadSessions(); // Reload sessions to reflect the changes
         } catch (err) {
           showError("حدث خطأ أثناء دمج الأسماء: " + err.message);
         }
@@ -826,13 +825,13 @@ export default function ReportsPage() {
   };
 
   const generateComprehensiveMonthlyReport = async () => {
-    if (selectedYearIds.length === 0 || selectedMonthIds.length === 0) {
+    if (appliedYearIds.length === 0 || appliedMonthIds.length === 0) {
       showError("يرجى تحديد السنة والشهر أولاً");
       return;
     }
 
-    const selectedYear = selectedYearIds[0];
-    const selectedMonth = selectedMonthIds[0];
+    const selectedYear = appliedYearIds[0];
+    const selectedMonth = appliedMonthIds[0];
     setIsGeneratingPDF(true);
     setPdfProgress(0);
     setPdfStatus('جاري إعداد التقرير الشامل...');
@@ -865,7 +864,7 @@ export default function ReportsPage() {
       // pdfmake-rtl has built-in RTL support, no need for additional setup
 
       // Get all sessions for the selected month and year
-      const filteredSessions = filterSessionsByYearAndMonth(sessions);
+      const filteredSessions = filterSessions(sessions);
 
       // Remove duplicates from sessions before processing
       const uniqueMonthSessions = [];
@@ -957,7 +956,7 @@ export default function ReportsPage() {
         docDefinition = buildBranchMonthlyReportPDF(
           monthGroup.sessions,
           branchGroup.branchName,
-          selectedYearIds[0],
+          appliedYearIds[0],
           selectedMonth,
           monthName,
           monthExpenses,
@@ -970,7 +969,7 @@ export default function ReportsPage() {
         docDefinition = buildComprehensiveMonthlyReportPDF(
           uniqueMonthSessions,
           branchGroups,
-          selectedYearIds[0],
+          appliedYearIds[0],
           selectedMonth,
           monthName,
           monthExpenses,
@@ -1145,7 +1144,7 @@ export default function ReportsPage() {
         )}
 
         {!loading && !error && (() => {
-          const filteredSessions = filterSessionsByYearAndMonth(sessions);
+          const filteredSessions = filterSessions(sessions);
           const { years, months } = getAvailableYearsAndMonths(sessions);
           const filteredBranchGroups = groupSessionsByBranchAndMonth(filteredSessions);
 
@@ -1165,17 +1164,13 @@ export default function ReportsPage() {
               <div className="filters-bar">
                 <h3 style={{ margin: 0 }}>الجلسات الموافق عليها ({filteredSessions.length})</h3>
                 <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap", marginRight: "auto" }}>
-                  {userInfo && userInfo.is_super_admin && (
-                    <FilterDropdown
-                      placeholder="جميع الفروع"
-                      options={branches.map(b => ({ value: b.id, label: b.name }))}
-                      selectedValues={appliedBranchId ? [appliedBranchId] : []}
-                      isSingle={true}
-                      onChange={(vals) => {
-                        setAppliedBranchId(vals.length > 0 ? vals[0] : null);
-                      }}
-                    />
-                  )}
+                  <FilterDropdown
+                    placeholder="جميع الفروع"
+                    options={branches.map(b => ({ value: b.id, label: b.name }))}
+                    selectedValues={appliedBranchIds}
+                    isSingle={false}
+                    onChange={setAppliedBranchIds}
+                  />
                   <FilterDropdown
                     placeholder="جميع الأشهر"
                     options={months.map(m => ({ value: m, label: monthNames[m] }))}
@@ -1205,13 +1200,13 @@ export default function ReportsPage() {
                       تقرير شامل للشهر
                     </button>
                   )}
-                  {(appliedYearIds.length > 0 || appliedMonthIds.length > 0 || appliedBranchId) && (
+                  {(appliedYearIds.length > 0 || appliedMonthIds.length > 0 || appliedBranchIds.length > 0) && (
                     <button
                       className="btn"
                       onClick={() => {
                         setAppliedYearIds([]);
                         setAppliedMonthIds([]);
-                        setAppliedBranchId(null);
+                        setAppliedBranchIds([]);
                       }}
                       style={{ backgroundColor: "#DC2626", color: "white", border: "none" }}
                     >

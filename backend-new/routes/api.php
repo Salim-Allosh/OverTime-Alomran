@@ -107,6 +107,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/expense-categories/{id}', [App\Http\Controllers\LookupController::class, 'updateExpenseCategory']);
     Route::delete('/expense-categories/{id}', [App\Http\Controllers\LookupController::class, 'deleteExpenseCategory']);
     
+    Route::get('/employees', [App\Http\Controllers\LookupController::class, 'employees']);
+    Route::post('/employees', [App\Http\Controllers\LookupController::class, 'createEmployee']);
+    Route::patch('/employees/{id}', [App\Http\Controllers\LookupController::class, 'updateEmployee']);
+    Route::delete('/employees/{id}', [App\Http\Controllers\LookupController::class, 'deleteEmployee']);
+
+    // Salaries Management
+    Route::get('/salaries/all-months', [App\Http\Controllers\SalaryController::class, 'allMonthsData']);
+    Route::get('/salaries/branch-data', [App\Http\Controllers\SalaryController::class, 'getBranchSalaries']);
+    Route::get('/salaries/monthly-report', [App\Http\Controllers\SalaryController::class, 'getMonthlyReportData']);
+    Route::post('/salaries', [App\Http\Controllers\SalaryController::class, 'store']);
+    
     // Sessions
     Route::get('/sessions/all', [App\Http\Controllers\SessionController::class, 'index']);
     Route::patch('/sessions/{id}', [App\Http\Controllers\SessionController::class, 'update']);

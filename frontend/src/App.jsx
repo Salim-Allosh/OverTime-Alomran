@@ -15,6 +15,7 @@ import MonthlyContractReportsPage from "./pages/MonthlyContractReportsPage";
 import NetProfitPage from "./pages/NetProfitPage";
 import BudgetPage from "./pages/BudgetPage";
 import StatisticsPage from "./pages/StatisticsPage";
+import SalariesPage from "./pages/SalariesPage";
 import { apiGet } from "./api";
 
 export default function App() {
@@ -35,6 +36,7 @@ export default function App() {
             <Route path="/net-profit" element={<NetProfitPage />} />
             <Route path="/budget" element={<BudgetPage />} />
             <Route path="/sales-staff" element={<SalesStaffPage />} />
+            <Route path="/salaries" element={<SalariesPage />} />
             <Route path="/admin" element={<AdminPage />} />
           </Routes>
         </Layout>
