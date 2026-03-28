@@ -49,11 +49,19 @@ export default function AdminPage() {
     expenseCategories: false,
     employees: false
   });
+  const [expandedBranches, setExpandedBranches] = useState({});
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
       ...prev,
       [section]: !prev[section]
+    }));
+  };
+
+  const toggleBranch = (branchId) => {
+    setExpandedBranches(prev => ({
+      ...prev,
+      [branchId]: !prev[branchId]
     }));
   };
 
@@ -1143,68 +1151,128 @@ export default function AdminPage() {
 
           {expandedSections.employees && (
             <div className="panel-content">
-              <div className="table-container" style={{ width: "100%", overflowX: "auto" }}>
-                {employees.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "2rem", color: "#6B7280" }}>
-                    <p style={{ margin: 0, fontSize: "14px" }}>لا يوجد موظفون حالياً</p>
-                  </div>
-                ) : (
-                  <table style={{ width: "100%", minWidth: "700px" }}>
-                    <thead>
-                      <tr>
-                        <th>رقم التوظيف</th>
-                        <th>اسم الموظف</th>
-                        <th>الفرع</th>
-                        <th>الراتب</th>
-                        <th>الحالة</th>
-                        <th>الإجراءات</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {employees.map(emp => (
-                        <tr key={emp.id}>
-                          <td style={{ fontWeight: 600, color: "#2B2A2A" }}>{emp.employment_number}</td>
-                          <td>{emp.name}</td>
-                          <td>{emp.branch?.name || "-"}</td>
-                          <td>{parseFloat(emp.salary || 0).toLocaleString()} درهم</td>
-                          <td>
-                            <span className={`status ${emp.is_active ? "status-active" : "status-rejected"}`}>
-                              {emp.is_active ? "نشط" : "معطل"}
+              {employees.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "2rem", color: "#6B7280" }}>
+                  <p style={{ margin: 0, fontSize: "14px" }}>لا يوجد موظفون حالياً</p>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+                  {branches.map(branch => {
+                    const branchEmployees = employees.filter(emp => emp.branch_id === branch.id);
+                    if (branchEmployees.length === 0) return null;
+
+                    const isBranchExpanded = !!expandedBranches[branch.id];
+
+                    return (
+                      <div key={branch.id} className="branch-employee-card" style={{ 
+                        border: "1px solid #E5E7EB", 
+                        borderRadius: "12px", 
+                        overflow: "hidden",
+                        backgroundColor: "white",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.05)"
+                      }}>
+                        <div 
+                          className="panel-header-clickable"
+                          onClick={() => toggleBranch(branch.id)}
+                          style={{ 
+                            backgroundColor: "#F9FAFB", 
+                            padding: "0.75rem 1.5rem", 
+                            borderBottom: isBranchExpanded ? "1px solid #E5E7EB" : "none",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            cursor: "pointer",
+                            transition: "background-color 0.2s"
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                            <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#4B5563" }}>
+                              {branch.name}
+                            </h3>
+                            <span style={{ 
+                              fontSize: "11px", 
+                              backgroundColor: "#EFF6FF", 
+                              color: "#5A7ACD", 
+                              padding: "0.15rem 0.6rem", 
+                              borderRadius: "999px",
+                              fontWeight: 600
+                            }}>
+                              {branchEmployees.length} موظف
                             </span>
-                          </td>
-                          <td>
-                            <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
-                              <button
-                                className="btn btn-small"
-                                style={{ backgroundColor: "#FEB05D", color: "white", border: "none" }}
-                                onClick={() => {
-                                  setEditingEmployee(emp);
-                                  setShowEmployeeModal(true);
-                                }}
-                                title="تعديل"
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-                                </svg>
-                              </button>
-                              <button
-                                className="btn btn-small btn-danger"
-                                onClick={() => handleDeleteEmployee(emp.id)}
-                                title="حذف"
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="3 6 5 6 21 6"></polyline>
-                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                </svg>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+                          </div>
+                          <svg
+                            className={`chevron-icon ${isBranchExpanded ? 'expanded' : ''}`}
+                            style={{ 
+                              transform: isBranchExpanded ? "rotate(180deg)" : "rotate(0deg)", 
+                              transition: "transform 0.2s",
+                              color: "#9CA3AF"
+                            }}
+                            width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                          >
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                          </svg>
+                        </div>
+                        {isBranchExpanded && (
+                          <div className="table-container" style={{ padding: "0", animation: "fadeIn 0.2s ease-out" }}>
+                            <table style={{ width: "100%", margin: "0", border: "none" }}>
+                            <thead>
+                              <tr>
+                                <th>رقم التوظيف</th>
+                                <th>اسم الموظف</th>
+                                <th>الراتب</th>
+                                <th>الحالة</th>
+                                <th>الإجراءات</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {branchEmployees.map(emp => (
+                                <tr key={emp.id}>
+                                  <td style={{ fontWeight: 600, color: "#2B2A2A" }}>{emp.employment_number}</td>
+                                  <td>{emp.name}</td>
+                                  <td>{parseFloat(emp.salary || 0).toLocaleString()} درهم</td>
+                                  <td>
+                                    <span className={`status ${emp.is_active ? "status-active" : "status-rejected"}`}>
+                                      {emp.is_active ? "نشط" : "معطل"}
+                                    </span>
+                                  </td>
+                                  <td>
+                                    <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
+                                      <button
+                                        className="btn btn-small"
+                                        style={{ backgroundColor: "#FEB05D", color: "white", border: "none" }}
+                                        onClick={() => {
+                                          setEditingEmployee(emp);
+                                          setShowEmployeeModal(true);
+                                        }}
+                                        title="تعديل"
+                                      >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                                        </svg>
+                                      </button>
+                                      <button
+                                        className="btn btn-small btn-danger"
+                                        onClick={() => handleDeleteEmployee(emp.id)}
+                                        title="حذف"
+                                      >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <polyline points="3 6 5 6 21 6"></polyline>
+                                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
