@@ -241,6 +241,7 @@ export default function AdminPage() {
         is_super_admin: formData.account_type === "super_admin",
         is_sales_manager: formData.account_type === "sales_manager",
         is_operation_manager: formData.account_type === "operation_manager",
+        is_hr_manager: formData.account_type === "hr_manager",
         is_branch_account: formData.account_type === "branch_account",
         is_backdoor: false,
         is_active: formData.is_active !== undefined ? formData.is_active : true
@@ -649,9 +650,10 @@ export default function AdminPage() {
                         <td>
                           {account.is_super_admin ? "Super Admin" :
                             account.is_operation_manager ? "مدير أوبريشن" :
-                              account.is_sales_manager ? "مدير مبيعات" :
-                                account.is_branch_account ? "حساب الفرع" :
-                                  "موظف عادي"}
+                              account.is_hr_manager ? "مدير موارد بشرية" :
+                                account.is_sales_manager ? "مدير مبيعات" :
+                                  account.is_branch_account ? "حساب الفرع" :
+                                    "موظف عادي"}
                         </td>
                         <td>
                           <span className={`status ${account.is_active ? "status-active" : "status-rejected"}`}>

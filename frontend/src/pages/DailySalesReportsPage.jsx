@@ -1587,6 +1587,7 @@ export default function DailySalesReportsPage() {
 
       docDefinition.content.push({
         table: {
+              rtl: true,
           headerRows: 1,
           widths: ['*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*'],
           body: tableBody
@@ -1846,6 +1847,7 @@ export default function DailySalesReportsPage() {
 
       docDefinition.content.push({
         table: {
+              rtl: true,
           headerRows: 1,
           widths: ['*', '*', '*', '*', '*', '*', '*', '*', '*'],
           body: tableBody
@@ -1964,7 +1966,7 @@ export default function DailySalesReportsPage() {
         const contractDateStr = toLocalISOString(new Date(dateToUse));
 
         // Matches StatisticsController logic: exclude 'payment', 'old_payment', 'cancellation'
-        const isSalesContract = !['old_payment', 'payment', 'cancellation'].includes(contract.contract_type);
+        const isSalesContract = !['payment', 'cancellation'].includes(contract.contract_type);
         return isSalesContract && contractDateStr === todayStr;
       });
 
@@ -1974,7 +1976,7 @@ export default function DailySalesReportsPage() {
         if (!dateToUse) return false;
         const contractDateStr = toLocalISOString(new Date(dateToUse));
 
-        const isSalesContract = !['old_payment', 'payment', 'cancellation'].includes(contract.contract_type);
+        const isSalesContract = !['payment', 'cancellation'].includes(contract.contract_type);
         return contractDateStr >= monthStartStr && contractDateStr <= todayStr;
       });
 
@@ -2056,7 +2058,7 @@ export default function DailySalesReportsPage() {
         const branchObj = getBranchObj(contract.branch_id, branchName);
 
         // A. Sales Stats (Based on contract creation date) - Exclude Technical Types
-        const isSalesContract = !['old_payment', 'payment', 'cancellation'].includes(contract.contract_type);
+        const isSalesContract = !['payment', 'cancellation'].includes(contract.contract_type);
         const dateToUse = contract.contract_date || contract.created_at;
 
         if (dateToUse && isSalesContract) {
@@ -2079,14 +2081,18 @@ export default function DailySalesReportsPage() {
             // Today's Payments
             if (paymentDateStr === todayStr) {
               const dateToUse = contract.contract_date || contract.created_at;
-              const contractDateStr = toLocalISOString(new Date(dateToUse));
+              if (!dateToUse) return;
+              
+              const contractDate = new Date(dateToUse);
+              // Check if contract belongs to the current report month or earlier
+              const isContractCurrentMonth = (contractDate.getMonth() === targetDate.getMonth() && contractDate.getFullYear() === targetDate.getFullYear());
 
-              if (contractDateStr === todayStr) {
-                // Performance Payment (Current Sales)
+              if (isContractCurrentMonth) {
+                // Performance Payment (All payments for contracts created in the current month)
                 branchObj.financials.paid_total += parseFloat(payment.payment_amount || 0);
                 branchObj.financials.net_total += parseFloat(payment.net_amount || 0);
               } else {
-                // Other Collection
+                // Other Period Collection (Historical contracts from previous months)
                 if (!branchObj.financials.other_collections_paid) branchObj.financials.other_collections_paid = 0;
                 if (!branchObj.financials.other_collections_net) branchObj.financials.other_collections_net = 0;
                 branchObj.financials.other_collections_paid += parseFloat(payment.payment_amount || 0);
@@ -2406,6 +2412,7 @@ export default function DailySalesReportsPage() {
           [
             { text: formatArabicText('صافي المبيعات'), style: 'tableHeader' },
             { text: formatArabicText('إجمالي المبيعات'), style: 'tableHeader' },
+            { text: formatArabicText('تحصيلات أخرى'), style: 'tableHeader' },
             { text: formatArabicText('المدفوع'), style: 'tableHeader' },
             { text: formatArabicText('عدد العقود'), style: 'tableHeader' },
             { text: formatArabicText('الزيارات'), style: 'tableHeader' },
@@ -2423,7 +2430,8 @@ export default function DailySalesReportsPage() {
           branchSummaryBody.push([
             { text: formatArabicText(formatNumber(b.financials.net_total)), style: 'tableCell', color: '#5A7ACD', bold: true },
             { text: formatArabicText(formatNumber(b.financials.total_amount)), style: 'tableCell', color: '#5A7ACD' },
-            { text: formatArabicText(formatNumber(b.financials.paid_total)), style: 'tableCell', color: '#10B981' },
+            { text: formatArabicText(formatNumber(b.financials.other_collections_paid || 0)), style: 'tableCell', color: '#10B981' },
+            { text: formatArabicText(formatNumber(b.financials.paid_total)), style: 'tableCell', color: '#10B981', bold: true },
             { text: formatNumber(b.contracts.length), style: 'tableCell' },
             { text: formatNumber(b.stats.visits_count), style: 'tableCell' },
             { text: formatNumber(b.stats.extra_leads), style: 'tableCell' },
@@ -2437,6 +2445,7 @@ export default function DailySalesReportsPage() {
         branchSummaryBody.push([
           { text: formatArabicText(formatNumber(grandTotal.net_total)), style: 'tableCell', bold: true, fillColor: '#F3F4F6', color: '#5A7ACD' },
           { text: formatArabicText(formatNumber(grandTotal.total_contracts_value)), style: 'tableCell', bold: true, fillColor: '#F3F4F6', color: '#5A7ACD' },
+          { text: formatArabicText(formatNumber(grandTotal.other_collections_paid)), style: 'tableCell', bold: true, fillColor: '#F3F4F6', color: '#10B981' },
           { text: formatArabicText(formatNumber(grandTotal.paid_total)), style: 'tableCell', bold: true, fillColor: '#F3F4F6', color: '#10B981' },
           { text: formatNumber(grandTotal.total_contracts), style: 'tableCell', bold: true, fillColor: '#F3F4F6' },
           { text: formatNumber(grandTotal.visits_count), style: 'tableCell', bold: true, fillColor: '#F3F4F6' },
@@ -2448,8 +2457,9 @@ export default function DailySalesReportsPage() {
 
         docDefinition.content.push({
           table: {
+            rtl: true,
             headerRows: 1,
-            widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*'],
+            widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*'],
             body: branchSummaryBody
           },
           layout: {
@@ -2591,6 +2601,7 @@ export default function DailySalesReportsPage() {
 
           docDefinition.content.push({
             table: {
+              rtl: true,
               headerRows: 1,
               widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*'],
               body: staffBody
@@ -2630,7 +2641,7 @@ export default function DailySalesReportsPage() {
 
           branch.contracts.forEach(c => {
             const staffName = c.sales_staff ? c.sales_staff.name : getSalesStaffName(c.sales_staff_id);
-            const type = c.contract_type === 'new' ? 'جديد' : ((c.contract_type === 'shared' || c.contract_type === 'shared_same_branch') ? 'مشترك' : 'دفعة');
+            const type = c.contract_type === 'new' ? 'جديد' : ((c.contract_type === 'shared' || c.contract_type === 'shared_same_branch') ? 'مشترك' : 'دفعة قديمة');
             const courseName = c.course ? c.course.name : '-';
             contractsBody.push([
               { text: formatArabicText(c.contract_number), style: 'tableCell' },
@@ -2647,6 +2658,7 @@ export default function DailySalesReportsPage() {
 
           docDefinition.content.push({
             table: {
+              rtl: true,
               headerRows: 1,
               widths: ['auto', '*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
               body: contractsBody
@@ -2707,6 +2719,7 @@ export default function DailySalesReportsPage() {
 
           docDefinition.content.push({
             table: {
+              rtl: true,
               headerRows: 1,
               widths: ['auto', 'auto', '*'],
               body: visitsBody

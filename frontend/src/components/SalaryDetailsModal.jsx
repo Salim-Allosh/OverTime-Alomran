@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 
-const SalaryDetailsModal = ({ show, onClose, branchName, monthName, year, data }) => {
+const SalaryDetailsModal = ({ show, onClose, branchName, monthName, year, data, onEmployeeClick }) => {
     if (!show || !data) return null;
 
     const formatNumber = (num) => {
@@ -88,7 +88,19 @@ const SalaryDetailsModal = ({ show, onClose, branchName, monthName, year, data }
                                     return (
                                         <tr key={idx} style={{ borderBottom: "1px solid #F3F4F6" }}>
                                             <td style={{ padding: "10px", textAlign: "center", color: "#6B7280" }}>{item.employee.employment_number || '-'}</td>
-                                            <td style={{ padding: "10px", fontWeight: "600", color: "#374151" }}>{item.employee.name}</td>
+                                            <td 
+                                                style={{ 
+                                                    padding: "10px", 
+                                                    fontWeight: "600", 
+                                                    color: "#5A7ACD", 
+                                                    cursor: "pointer",
+                                                    textDecoration: "underline"
+                                                }}
+                                                onClick={() => onEmployeeClick(item.employee.id)}
+                                                title="اضغط لمعالجة راتب هذا الموظف"
+                                            >
+                                                {item.employee.name}
+                                            </td>
                                             <td style={{ padding: "10px", textAlign: "center" }}>{formatNumber(salary.base_salary)}</td>
                                             <td style={{ padding: "10px", textAlign: "center" }}>{formatNumber(salary.entitled_salary)}</td>
                                             <td style={{ padding: "10px", textAlign: "center", color: "#10B981", fontWeight: "600" }}>{adds > 0 ? `+${formatNumber(adds)}` : '-'}</td>

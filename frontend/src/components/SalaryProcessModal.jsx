@@ -16,7 +16,8 @@ export default function SalaryProcessModal({
   employees, // List of { employee, salary_record }
   month,
   year,
-  monthName
+  monthName,
+  initialEmployeeId
 }) {
   const { error: showError } = useNotification();
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -32,6 +33,13 @@ export default function SalaryProcessModal({
   // Modification 1: Find first unprocessed employee index on mount/show
   useEffect(() => {
     if (show && employees.length > 0) {
+      if (initialEmployeeId) {
+        const index = employees.findIndex(e => e.employee.id === initialEmployeeId);
+        if (index !== -1) {
+          setCurrentIndex(index);
+          return;
+        }
+      }
       const startIndex = employees.findIndex(e => !e.salary_record || !e.salary_record.is_processed);
       if (startIndex !== -1) {
         setCurrentIndex(startIndex);
@@ -39,7 +47,7 @@ export default function SalaryProcessModal({
         setCurrentIndex(0); // All processed, start from beginning
       }
     }
-  }, [show]); // Only trigger when modal opens
+  }, [show, initialEmployeeId, employees]); // Only trigger when modal opens or initialEmployeeId changes
 
   const currentEmployeeData = useMemo(() => employees[currentIndex], [employees, currentIndex]);
   const daysInMonth = useMemo(() => new Date(year, month, 0).getDate(), [year, month]);

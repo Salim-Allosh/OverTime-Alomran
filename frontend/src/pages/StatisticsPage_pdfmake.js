@@ -187,6 +187,7 @@ export const buildStatisticsPDF = (
       },
       {
         table: {
+              rtl: true,
           headerRows: 1,
           widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*'],
           body: [
@@ -344,6 +345,7 @@ export const buildStatisticsPDF = (
       },
       {
         table: {
+              rtl: true,
           headerRows: 1,
           widths: ['auto', 'auto', 'auto', '*'],
           body: [
@@ -409,6 +411,7 @@ export const buildStatisticsPDF = (
       },
       {
         table: {
+              rtl: true,
           headerRows: 1,
           widths: ['auto', 'auto', 'auto', 'auto', '*'],
           body: [
@@ -485,6 +488,7 @@ export const buildStatisticsPDF = (
 
     const activityTableData = {
       table: {
+              rtl: true,
         headerRows: 1,
         widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
         body: [
@@ -572,6 +576,7 @@ export const buildStatisticsPDF = (
 
     const salesTableData = {
       table: {
+              rtl: true,
         headerRows: 1,
         widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*'],
         body: [
@@ -649,6 +654,7 @@ export const buildStatisticsPDF = (
       // Single Branch - Show Detailed List
       incompleteTableData = {
         table: {
+              rtl: true,
           headerRows: 1,
           widths: ['auto', 'auto', 'auto', '*'],
           body: [
@@ -687,6 +693,7 @@ export const buildStatisticsPDF = (
 
       incompleteTableData = {
         table: {
+              rtl: true,
           headerRows: 1,
           widths: ['auto', 'auto', '*'],
           body: [
@@ -742,6 +749,7 @@ export const buildStatisticsPDF = (
       },
       {
         table: {
+              rtl: true,
           headerRows: 1,
           widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*'],
           body: [
@@ -825,6 +833,7 @@ export const buildStatisticsPDF = (
       },
       {
         table: {
+              rtl: true,
           headerRows: 1,
           widths: ['auto', 'auto', 'auto', '*'],
           body: [
@@ -1036,6 +1045,7 @@ export const buildStatisticsPDF = (
           },
           {
             table: {
+              rtl: true,
               headerRows: 1,
               widths: ['auto', 'auto', 'auto', '*'],
               body: [
@@ -1101,6 +1111,7 @@ export const buildStatisticsPDF = (
           },
           {
             table: {
+              rtl: true,
               headerRows: 1,
               widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*'],
               body: [
@@ -1160,6 +1171,7 @@ export const buildStatisticsPDF = (
           },
           {
             table: {
+              rtl: true,
               headerRows: 1,
               widths: ['auto', 'auto', 'auto', 'auto', '*'],
               body: [
@@ -1209,6 +1221,7 @@ export const buildStatisticsPDF = (
           },
           {
             table: {
+              rtl: true,
               headerRows: 1,
               widths: ['auto', 'auto', 'auto', '*'],
               body: [
@@ -1255,6 +1268,7 @@ export const buildStatisticsPDF = (
           },
           {
             table: {
+              rtl: true,
               headerRows: 1,
               widths: ['auto', 'auto', 'auto', 'auto', 'auto', '*'],
               body: [
@@ -1308,6 +1322,7 @@ export const buildStatisticsPDF = (
           },
           {
             table: {
+              rtl: true,
               headerRows: 1,
               widths: ['auto', 'auto', 'auto', '*'],
               body: [
@@ -1355,6 +1370,7 @@ export const buildStatisticsPDF = (
           },
           {
             table: {
+              rtl: true,
               headerRows: 1,
               widths: ['auto', 'auto', '*'],
               body: [

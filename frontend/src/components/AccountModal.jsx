@@ -15,6 +15,7 @@ export default function AccountModal({ isOpen, onClose, onSubmit, account = null
       if (account.is_super_admin) accountType = "super_admin";
       else if (account.is_sales_manager) accountType = "sales_manager";
       else if (account.is_operation_manager) accountType = "operation_manager";
+      else if (account.is_hr_manager) accountType = "hr_manager";
       else if (account.is_branch_account) accountType = "branch_account";
       
       setFormData({
@@ -89,6 +90,9 @@ export default function AccountModal({ isOpen, onClose, onSubmit, account = null
               )}
               <option value="operation_manager">مدير أوبريشن</option>
               <option value="sales_manager">مدير مبيعات</option>
+              {isSuperAdmin && (
+                <option value="hr_manager">مدير موارد بشرية</option>
+              )}
               <option value="branch_account">حساب الفرع (عرض فقط)</option>
             </select>
             <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "13px", cursor: "pointer", marginTop: "0.5rem" }}>

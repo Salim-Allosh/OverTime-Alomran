@@ -238,8 +238,9 @@ export default function NetProfitPage() {
           { text: formatArabicText('ملخص أداء الفروع'), style: 'sectionTitle' },
           {
             table: {
+              rtl: true,
               headerRows: 1,
-              widths: ['*', 'auto', 'auto', 'auto'],
+              widths: ['auto', 'auto', 'auto', '*'],
               body: [
                 [
                   { text: formatArabicText('صافي الربح'), style: 'tableHeader', alignment: 'center' },
@@ -247,12 +248,15 @@ export default function NetProfitPage() {
                   { text: formatArabicText('إجمالي الصافي'), style: 'tableHeader', alignment: 'center' },
                   { text: formatArabicText('اسم الفرع'), style: 'tableHeader', alignment: 'center' }
                 ],
-                ...branches.sort((a,b) => (b.revenue - b.expenses) - (a.revenue - a.expenses)).map(b => [
-                  { text: formatNumber(parseFloat(b.revenue || 0) - parseFloat(b.expenses || 0)), style: 'tableCell', bold: true, color: (parseFloat(b.revenue || 0) - parseFloat(b.expenses || 0)) >= 0 ? '#10B981' : '#DC2626', alignment: 'center' },
-                  { text: formatNumber(b.expenses), style: 'tableCell', color: '#DC2626', alignment: 'center' },
-                  { text: formatNumber(b.revenue), style: 'tableCell', alignment: 'center' },
-                  { text: formatArabicText(b.branch_name), style: 'tableCell', bold: true, alignment: 'center' }
-                ]),
+                ...branches.sort((a,b) => (b.revenue - b.expenses) - (a.revenue - a.expenses)).map(b => {
+                  const bProfit = parseFloat(b.revenue || 0) - parseFloat(b.expenses || 0);
+                  return [
+                    { text: formatNumber(bProfit), style: 'tableCell', bold: true, color: bProfit >= 0 ? '#10B981' : '#DC2626', alignment: 'center' },
+                    { text: formatNumber(b.expenses), style: 'tableCell', color: '#DC2626', alignment: 'center' },
+                    { text: formatNumber(b.revenue), style: 'tableCell', alignment: 'center' },
+                    { text: formatArabicText(b.branch_name), style: 'tableCell', bold: true, alignment: 'center' }
+                  ];
+                }),
                 [
                   { text: formatNumber(totalNetProfit), style: 'tableHeader', fillColor: '#EFF6FF', alignment: 'center' },
                   { text: formatNumber(totalExpenses), style: 'tableHeader', fillColor: '#F3F4F6', alignment: 'center' },
@@ -268,6 +272,7 @@ export default function NetProfitPage() {
           { text: formatArabicText('قائمة المصاريف حسب الفئة'), style: 'sectionTitle' },
           {
             table: {
+              rtl: true,
               headerRows: 1,
               widths: ['*', 'auto', 'auto'],
               body: [
@@ -301,13 +306,13 @@ export default function NetProfitPage() {
           }
         ],
         styles: {
-          title: { fontSize: 18, bold: true, color: '#5A7ACD', alignment: 'center', margin: [0, 0, 0, 5] },
-          subtitle: { fontSize: 13, bold: true, color: '#374151', alignment: 'center', margin: [0, 0, 0, 2] },
-          subtitle2: { fontSize: 11, color: '#6B7280', alignment: 'center', margin: [0, 0, 0, 10] },
-          sectionTitle: { fontSize: 12, bold: true, color: '#5A7ACD', margin: [0, 15, 0, 10], alignment: 'right' },
-          tableHeader: { fontSize: 9, bold: true, fillColor: '#F3F4F6', color: '#1F2937', alignment: 'center' },
-          tableCell: { fontSize: 8.5, alignment: 'center', color: '#374151' },
-          branchTitle: { fontSize: 15, bold: true, color: '#5A7ACD', margin: [0, 20, 0, 10], alignment: 'center' }
+          title: { fontSize: 15, bold: true, color: '#5A7ACD', alignment: 'center', margin: [0, 0, 0, 5] },
+          subtitle: { fontSize: 12, bold: true, color: '#374151', alignment: 'center', margin: [0, 0, 0, 2] },
+          subtitle2: { fontSize: 10, color: '#6B7280', alignment: 'center', margin: [0, 0, 0, 10] },
+          sectionTitle: { fontSize: 11, bold: true, color: '#5A7ACD', margin: [0, 15, 0, 10], alignment: 'right' },
+          tableHeader: { fontSize: 8.5, bold: true, fillColor: '#F3F4F6', color: '#1F2937', alignment: 'center' },
+          tableCell: { fontSize: 8, alignment: 'center', color: '#374151' },
+          branchTitle: { fontSize: 13, bold: true, color: '#5A7ACD', margin: [0, 20, 0, 10], alignment: 'center' }
         },
         footer: (curr, total) => ({
           text: formatArabicText(`صفحة ${curr} من ${total}`),
@@ -326,20 +331,19 @@ export default function NetProfitPage() {
 
           docDefinition.content.push({
             table: {
+              rtl: true,
               headerRows: 1,
-              widths: ['auto', '*', 'auto', 'auto'],
+              widths: ['*', 'auto', 'auto'],
               body: [
                 [
-                  { text: formatArabicText('النسبة %'), style: 'tableHeader', alignment: 'center' },
-                  { text: formatArabicText('بند المصروف'), style: 'tableHeader', alignment: 'center' },
-                  { text: formatArabicText('التاريخ'), style: 'tableHeader', alignment: 'center' },
-                  { text: formatArabicText('المبلغ'), style: 'tableHeader', alignment: 'center' }
+                  { text: formatArabicText('نوع المصروف'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('إجمالي المبلغ'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('النسبة مئوية'), style: 'tableHeader', alignment: 'center' }
                 ],
                 ...b.expenses_list.map(e => [
-                  { text: (parseFloat(b.expenses || 0) > 0 ? ((parseFloat(e.amount || 0) / parseFloat(b.expenses || 0)) * 100).toFixed(1) + '%' : '0%'), style: 'tableCell', alignment: 'center' },
                   { text: formatArabicText(e.title), style: 'tableCell', alignment: 'center' },
-                  { text: e.date || '-', style: 'tableCell', alignment: 'center' },
-                  { text: formatNumber(e.amount) + ' درهم', style: 'tableCell', bold: true, color: '#DC2626', alignment: 'center' }
+                  { text: formatNumber(e.amount) + ' درهم', style: 'tableCell', bold: true, color: '#DC2626', alignment: 'center' },
+                  { text: (parseFloat(b.expenses || 0) > 0 ? ((parseFloat(e.amount || 0) / parseFloat(b.expenses || 0)) * 100).toFixed(1) + '%' : '0%'), style: 'tableCell', alignment: 'center' }
                 ])
               ]
             },
@@ -430,8 +434,9 @@ export default function NetProfitPage() {
           { text: formatArabicText('ملخص أداء الفروع السنوي'), style: 'sectionTitle' },
           {
             table: {
+              rtl: true,
               headerRows: 1,
-              widths: ['*', 'auto', 'auto', 'auto'],
+              widths: ['auto', 'auto', 'auto', '*'],
               body: [
                 [
                   { text: formatArabicText('صافي الربح'), style: 'tableHeader', alignment: 'center' },
@@ -460,6 +465,7 @@ export default function NetProfitPage() {
           { text: formatArabicText('تحليل المصاريف السنوية حسب النوع'), style: 'sectionTitle' },
           {
             table: {
+              rtl: true,
               headerRows: 1,
               widths: ['*', 'auto', 'auto'],
               body: [
@@ -493,13 +499,13 @@ export default function NetProfitPage() {
           }
         ],
         styles: {
-          title: { fontSize: 18, bold: true, color: '#5A7ACD', alignment: 'center', margin: [0, 0, 0, 5] },
-          subtitle: { fontSize: 13, bold: true, color: '#374151', alignment: 'center', margin: [0, 0, 0, 2] },
-          subtitle2: { fontSize: 11, color: '#6B7280', alignment: 'center', margin: [0, 0, 0, 10] },
-          sectionTitle: { fontSize: 12, bold: true, color: '#5A7ACD', margin: [0, 15, 0, 10], alignment: 'right' },
+          title: { fontSize: 16, bold: true, color: '#5A7ACD', alignment: 'center', margin: [0, 0, 0, 5] },
+          subtitle: { fontSize: 12, bold: true, color: '#374151', alignment: 'center', margin: [0, 0, 0, 2] },
+          subtitle2: { fontSize: 10, color: '#6B7280', alignment: 'center', margin: [0, 0, 0, 10] },
+          sectionTitle: { fontSize: 11, bold: true, color: '#5A7ACD', margin: [0, 15, 0, 10], alignment: 'right' },
           tableHeader: { fontSize: 9, bold: true, fillColor: '#F3F4F6', color: '#1F2937', alignment: 'center' },
           tableCell: { fontSize: 8.5, alignment: 'center', color: '#374151' },
-          branchTitle: { fontSize: 15, bold: true, color: '#5A7ACD', margin: [0, 20, 0, 10], alignment: 'center' }
+          branchTitle: { fontSize: 14, bold: true, color: '#5A7ACD', margin: [0, 20, 0, 10], alignment: 'center' }
         },
         footer: (curr, total) => ({
           text: formatArabicText(`صفحة ${curr} من ${total}`),
@@ -517,20 +523,19 @@ export default function NetProfitPage() {
 
           docDefinition.content.push({
             table: {
+              rtl: true,
               headerRows: 1,
-              widths: ['auto', '*', 'auto', 'auto'],
+              widths: ['*', 'auto', 'auto'],
               body: [
                 [
-                  { text: formatArabicText('النسبة %'), style: 'tableHeader', alignment: 'center' },
-                  { text: formatArabicText('بند المصروف'), style: 'tableHeader', alignment: 'center' },
-                  { text: formatArabicText('التاريخ'), style: 'tableHeader', alignment: 'center' },
-                  { text: formatArabicText('المبلغ'), style: 'tableHeader', alignment: 'center' }
+                  { text: formatArabicText('نوع المصروف'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('إجمالي المبلغ'), style: 'tableHeader', alignment: 'center' },
+                  { text: formatArabicText('النسبة مئوية'), style: 'tableHeader', alignment: 'center' }
                 ],
                 ...b.expenses_list.map(e => [
-                  { text: (parseFloat(b.expenses || 0) > 0 ? ((parseFloat(e.amount || 0) / parseFloat(b.expenses || 0)) * 100).toFixed(1) + '%' : '0%'), style: 'tableCell', alignment: 'center' },
                   { text: formatArabicText(e.title), style: 'tableCell', alignment: 'center' },
-                  { text: e.date || '-', style: 'tableCell', alignment: 'center' },
-                  { text: formatNumber(e.amount) + ' درهم', style: 'tableCell', bold: true, color: '#DC2626', alignment: 'center' }
+                  { text: formatNumber(e.amount) + ' درهم', style: 'tableCell', bold: true, color: '#DC2626', alignment: 'center' },
+                  { text: (parseFloat(b.expenses || 0) > 0 ? ((parseFloat(e.amount || 0) / parseFloat(b.expenses || 0)) * 100).toFixed(1) + '%' : '0%'), style: 'tableCell', alignment: 'center' }
                 ])
               ]
             },

@@ -48,6 +48,9 @@ export default function Layout({ children }) {
       // إذا كان سوبر أدمن أو مدير مبيعات، يتم توجيهه إلى صفحة الإحصائيات
       if ((userInfo.is_super_admin || userInfo.is_sales_manager) && !userInfo.is_backdoor) {
         navigate("/statistics");
+      } else if (userInfo.is_hr_manager) {
+        // مدير الموارد البشرية يتم توجيهه إلى صفحة الرواتب
+        navigate("/salaries");
       } else if (userInfo.is_operation_manager && !userInfo.is_backdoor) {
         // مدير العمليات يتم توجيهه إلى صفحة المسودات
         navigate("/drafts");
@@ -107,7 +110,18 @@ export default function Layout({ children }) {
           )}
           {token && userInfo ? (
             <>
-              {(userInfo.is_super_admin || userInfo.is_sales_manager) && !userInfo.is_backdoor ? (
+              {userInfo.is_hr_manager ? (
+                <Link
+                  to="/salaries"
+                  className={location.pathname === "/salaries" ? "active" : ""}
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                  </svg>
+                  الرواتب
+                </Link>
+              ) : (userInfo.is_super_admin || userInfo.is_sales_manager) && !userInfo.is_backdoor ? (
                 <>
                   {userInfo.is_super_admin && (
                     <>
@@ -277,6 +291,7 @@ export default function Layout({ children }) {
                       {userInfo.is_backdoor ? "باكدور" :
                         userInfo.is_super_admin ? "Super Admin" :
                           userInfo.is_sales_manager ? "مدير مبيعات" :
+                        userInfo.is_hr_manager ? "مدير موارد بشرية" :
                             userInfo.is_operation_manager ? "مدير أوبريشن" :
                               userInfo.is_branch_account ? "حساب الفرع" :
                                 "موظف"}

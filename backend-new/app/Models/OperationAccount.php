@@ -13,7 +13,7 @@ class OperationAccount extends Authenticatable
     protected $fillable = [
         'username', 'password_hash', 'branch_id', 'is_super_admin',
         'is_sales_manager', 'is_operation_manager', 'is_branch_account',
-        'is_backdoor', 'is_active'
+        'is_hr_manager', 'is_backdoor', 'is_active'
     ];
 
     protected $hidden = ['password_hash'];

@@ -41,6 +41,7 @@ class Contract extends Model
         'parent_contract_id',
         'contract_date',
         'deletion_requested_by_branch_id',
+        'notes',
     ];
 
     protected $casts = [

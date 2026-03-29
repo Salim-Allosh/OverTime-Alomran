@@ -267,4 +267,21 @@ php artisan migrate --path=database/migrations/2026_03_29_014000_add_soft_delete
 
 ---
 
+## [2026-03-29] Add HR Manager Role
+
+### Description
+Added a specialized `is_hr_manager` column to the `operation_accounts` table to support a restricted-access role that can only manage salaries.
+
+### SQL Migration
+```sql
+ALTER TABLE `operation_accounts` ADD `is_hr_manager` TINYINT(1) NOT NULL DEFAULT 0 AFTER `is_backdoor`;
+```
+
+### Laravel Migration
+```bash
+php artisan migrate --path=database/migrations/2026_03_29_023000_add_is_hr_manager_to_operation_accounts_table.php
+```
+
+---
+
 *Keep this file updated for any future schema changes.*

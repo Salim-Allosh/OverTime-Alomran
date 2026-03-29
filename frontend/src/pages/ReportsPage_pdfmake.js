@@ -187,6 +187,7 @@ export const buildComprehensiveMonthlyReportPDF = (
     },
     {
       table: {
+              rtl: true,
         headerRows: 1,
         widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto'],
         body: [
@@ -408,6 +409,7 @@ export const buildComprehensiveMonthlyReportPDF = (
         },
         {
           table: {
+              rtl: true,
             headerRows: 1,
             widths: ['*', 'auto', 'auto', 'auto'],
             body: [
@@ -472,6 +474,7 @@ export const buildComprehensiveMonthlyReportPDF = (
         },
         {
           table: {
+              rtl: true,
             headerRows: 1,
             widths: ['*', '*', 'auto'],
             body: [
@@ -564,6 +567,7 @@ export const buildComprehensiveMonthlyReportPDF = (
           },
           {
             table: {
+              rtl: true,
               headerRows: 1,
               widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
               body: [
@@ -880,6 +884,7 @@ export const buildBranchMonthlyReportPDF = (
       },
       {
         table: {
+              rtl: true,
           headerRows: 1,
           widths: ['*', 'auto', 'auto', 'auto'],
           body: [
@@ -944,6 +949,7 @@ export const buildBranchMonthlyReportPDF = (
       },
       {
         table: {
+              rtl: true,
           headerRows: 1,
           widths: ['*', '*', 'auto'],
           body: [
@@ -1036,6 +1042,7 @@ export const buildBranchMonthlyReportPDF = (
         },
         {
           table: {
+              rtl: true,
             headerRows: 1,
             widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
             body: [
