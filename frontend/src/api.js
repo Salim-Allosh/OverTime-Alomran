@@ -1,4 +1,4 @@
-const API_BASE = "  https://report-backend.alomrantd.com";
+const API_BASE = "  http://localhost:8000";
 
 export async function apiPost(path, body, token) {
   // Special handling for login endpoint - it requires form-data

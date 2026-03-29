@@ -24,6 +24,7 @@ export default function NetProfitPage() {
   const [branches, setBranches] = useState([]);
   const [userInfo, setUserInfo] = useState(null);
   const [appliedYear, setAppliedYear] = useState(new Date().getFullYear());
+  const [appliedMonthIds, setAppliedMonthIds] = useState([]);
   const [monthlyGroups, setMonthlyGroups] = useState([]);
   const [expenseCategories, setExpenseCategories] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -608,6 +609,15 @@ export default function NetProfitPage() {
                   }}
                 />
               </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span style={{ fontSize: "14px", fontWeight: "600", color: "#4B5563" }}>الأشهر:</span>
+                <FilterDropdown
+                  placeholder="جميع الأشهر"
+                  options={Object.entries(monthNames).map(([num, name]) => ({ label: name, value: parseInt(num) }))}
+                  selectedValues={appliedMonthIds}
+                  onChange={setAppliedMonthIds}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -626,12 +636,14 @@ export default function NetProfitPage() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
               {branches.map(branch => {
                 let totalBranchNetProfit = 0;
-                monthlyGroups.forEach(group => {
-                  const bData = group.branches.find(b => b.branch_id === branch.id);
-                  if (bData) {
-                    totalBranchNetProfit += parseFloat(bData.net_profit || 0);
-                  }
-                });
+                monthlyGroups
+                  .filter(group => appliedMonthIds.length === 0 || appliedMonthIds.includes(group.month))
+                  .forEach(group => {
+                    const bData = group.branches.find(b => b.branch_id === branch.id);
+                    if (bData) {
+                      totalBranchNetProfit += parseFloat(bData.net_profit || 0);
+                    }
+                  });
                 return (
                   <div key={branch.id} className="stat-card" style={{ padding: "1rem" }}>
                     <div className="stat-label" style={{ marginBottom: "0.5rem" }}>{branch.name}</div>
@@ -642,12 +654,14 @@ export default function NetProfitPage() {
                     }}>
                       {formatNumber(totalBranchNetProfit)}
                     </div>
-                    <div style={{ fontSize: "11px", color: "#6B7280" }}>صافي الربح للسنة</div>
+                    <div style={{ fontSize: "11px", color: "#6B7280" }}>صافي الربح {appliedMonthIds.length > 0 ? "للأشهر المختارة" : "للسنة"}</div>
                   </div>
                 );
               })}
             </div>
-            {monthlyGroups.map((group) => {
+            {monthlyGroups
+              .filter(group => appliedMonthIds.length === 0 || appliedMonthIds.includes(group.month))
+              .map((group) => {
               const monthKey = `${group.year}-${group.month}`;
               const isExpanded = expandedMonths.has(monthKey);
 

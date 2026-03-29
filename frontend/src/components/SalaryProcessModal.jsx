@@ -27,6 +27,19 @@ export default function SalaryProcessModal({
     additions: [], // { amount, reason, is_automatic }
     deductions: [] // { amount, reason }
   });
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Modification 1: Find first unprocessed employee index on mount/show
+  useEffect(() => {
+    if (show && employees.length > 0) {
+      const startIndex = employees.findIndex(e => !e.salary_record || !e.salary_record.is_processed);
+      if (startIndex !== -1) {
+        setCurrentIndex(startIndex);
+      } else {
+        setCurrentIndex(0); // All processed, start from beginning
+      }
+    }
+  }, [show]); // Only trigger when modal opens
 
   const currentEmployeeData = useMemo(() => employees[currentIndex], [employees, currentIndex]);
   const daysInMonth = useMemo(() => new Date(year, month, 0).getDate(), [year, month]);
@@ -85,7 +98,7 @@ export default function SalaryProcessModal({
     return { entitled, autoAddition: (daysInMonth - wDays) * (customBase / daysInMonth), net };
   }, [currentEmployeeData, formData, daysInMonth]);
 
-  const handleSave = () => {
+  const submitSalary = async (shouldClose = true) => {
     const wDays = parseInt(formData.working_days) || 0;
     const autoDays = formData.additions
       .filter(a => a.is_automatic)
@@ -96,9 +109,10 @@ export default function SalaryProcessModal({
     // If total days don't cover the full month, notes are REQUIRED
     if (totalDaysMatched < daysInMonth && !formData.notes.trim()) {
       showError(`الرجاء كتابة سبب نقص الراتب عن عدد الايام حيث تم تغطية ${totalDaysMatched} من اصل ${daysInMonth} يوجد فرق ${daysInMonth - totalDaysMatched} يوم`);
-      return;
+      return false;
     }
 
+    setIsSaving(true);
     const payload = {
       employee_id: currentEmployeeData.employee.id,
       branch_id: currentEmployeeData.employee.branch_id,
@@ -120,7 +134,23 @@ export default function SalaryProcessModal({
         ...formData.deductions.map(d => ({ ...d, type: 'deduction' }))
       ]
     };
-    onSubmit(payload);
+    
+    const success = await onSubmit(payload, shouldClose);
+    setIsSaving(false);
+    return success;
+  };
+
+  const handleSaveAndClose = () => {
+    submitSalary(true);
+  };
+
+  const handleNext = async () => {
+    if (currentIndex < employees.length - 1) {
+      const success = await submitSalary(false);
+      if (success) {
+        setCurrentIndex(currentIndex + 1);
+      }
+    }
   };
 
   const addAddition = (isAuto = false) => {
@@ -505,16 +535,26 @@ export default function SalaryProcessModal({
             <div style={{ display: "flex", gap: "1rem" }}>
                 <button 
                     className="btn secondary" 
-                    disabled={currentIndex === 0}
+                    disabled={currentIndex === 0 || isSaving}
                     onClick={() => setCurrentIndex(currentIndex - 1)}
                     style={{ height: "42px", padding: "0 1.5rem", borderRadius: "4px", fontWeight: "600" }}
                 >السابق</button>
                 <button 
-                    className="btn secondary"
-                    disabled={currentIndex === employees.length - 1}
-                    onClick={() => setCurrentIndex(currentIndex + 1)}
-                    style={{ height: "42px", padding: "0 1.5rem", borderRadius: "4px", fontWeight: "600" }}
-                >التالي</button>
+                    className="btn primary"
+                    disabled={currentIndex === employees.length - 1 || isSaving}
+                    onClick={handleNext}
+                    style={{ 
+                        height: "42px", 
+                        padding: "0 1.5rem", 
+                        borderRadius: "4px", 
+                        fontWeight: "700",
+                        backgroundColor: "#10B981", 
+                        border: "none",
+                        minWidth: "120px"
+                    }}
+                >
+                    {isSaving ? "جاري الحفظ..." : "حفظ والتالي"}
+                </button>
             </div>
 
             <div style={{ 
@@ -539,10 +579,11 @@ export default function SalaryProcessModal({
             <div style={{ display: "flex", gap: "1rem" }}>
                 <button 
                   className="btn primary" 
-                  onClick={handleSave}
+                  disabled={isSaving}
+                  onClick={handleSaveAndClose}
                   style={{ height: "42px", padding: "0 2rem", borderRadius: "4px", fontWeight: "700", boxShadow: "0 4px 6px -1px rgba(90, 122, 205, 0.3)" }}
                 >
-                  حفظ وإغلاق
+                  {isSaving ? "جاري الحفظ..." : "حفظ وإغلاق"}
                 </button>
                 <button 
                   className="btn secondary outline" 
