@@ -40,6 +40,9 @@ export default function NetProfitPage() {
     title: "",
     amount: ""
   });
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkExpenses, setBulkExpenses] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -145,6 +148,7 @@ export default function NetProfitPage() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const now = new Date();
       let expenseDateStr;
@@ -178,6 +182,58 @@ export default function NetProfitPage() {
       loadAllMonthsData();
     } catch (err) {
       showError("حدث خطأ أثناء " + (isEditingExpense ? "تحديث" : "إضافة") + " المصروف: " + (err.message || err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const openBulkModal = () => {
+    // Initialize bulk expenses with all categories
+    const initial = expenseCategories.map(cat => ({ title: cat.name, amount: "" }));
+    setBulkExpenses(initial);
+    setShowBulkModal(true);
+    setShowExpenseModal(false);
+  };
+
+  const closeBulkModal = () => {
+    setShowBulkModal(false);
+    setSelectedBranchForExpense(null);
+    setSelectedYearForExpense(null);
+    setSelectedMonthForExpense(null);
+    setBulkExpenses([]);
+  };
+
+  const handleBulkSubmit = async () => {
+    const validExpenses = bulkExpenses.filter(e => parseFloat(e.amount) > 0);
+    if (validExpenses.length === 0) {
+      showError("يرجى إدخال مبالغ لبعض المصاريف");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const now = new Date();
+      let expenseDateStr;
+      if (selectedYearForExpense === now.getFullYear() && selectedMonthForExpense === (now.getMonth() + 1)) {
+        expenseDateStr = now.toISOString().slice(0, 19).replace('T', ' ');
+      } else {
+        const d = new Date(selectedYearForExpense, selectedMonthForExpense - 1, 1, 12, 0, 0);
+        expenseDateStr = d.toISOString().slice(0, 19).replace('T', ' ');
+      }
+
+      await apiPost("/net-profit-expenses/bulk-branch", {
+        branch_id: selectedBranchForExpense.branch_id,
+        expenses: validExpenses.map(e => ({ title: e.title, amount: parseFloat(e.amount) })),
+        expense_date: expenseDateStr
+      }, token);
+
+      success("تم إضافة جميع المصاريف بنجاح!");
+      closeBulkModal();
+      loadAllMonthsData();
+    } catch (err) {
+      showError("حدث خطأ أثناء إضافة المصاريف: " + (err.message || err));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -900,21 +956,83 @@ export default function NetProfitPage() {
                     value={expenseForm.amount}
                     onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
                     required
-                    style={{
-                      width: "100%",
-                      padding: "0.5rem 0.75rem",
-                      borderRadius: "6px",
-                      border: "1px solid var(--border-color)",
-                      fontFamily: "Cairo",
-                      fontSize: "0.85rem"
-                    }}
                   />
                 </div>
               </div>
             </div>
+            <div className="modal-footer" style={{ padding: "0.75rem 1rem", borderTop: "1px solid var(--border-color)", display: "flex", gap: "0.5rem", justifyContent: "space-between" }}>
+              <div>
+                {!isEditingExpense && (
+                  <button 
+                    className="btn" 
+                    onClick={openBulkModal}
+                    style={{ backgroundColor: "#8B5CF6", color: "white" }}
+                  >
+                    📦 جميع المصاريف
+                  </button>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button className="btn" onClick={closeExpenseModal} disabled={isSubmitting}>إلغاء</button>
+                <button 
+                  className="btn primary" 
+                  onClick={handleAddExpense} 
+                  disabled={isSubmitting}
+                  style={{ opacity: isSubmitting ? 0.7 : 1, cursor: isSubmitting ? "not-allowed" : "pointer", minWidth: "80px" }}
+                >
+                  {isSubmitting ? (isEditingExpense ? "جاري التحديث..." : "جاري الإضافة...") : (isEditingExpense ? "تحديث" : "إضافة")}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Expenses Modal */}
+      {showBulkModal && selectedBranchForExpense && (
+        <div className="modal-overlay" onClick={closeBulkModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "600px" }}>
+            <div className="modal-header" style={{ padding: "0.75rem 1rem" }}>
+              <h3 style={{ fontSize: "0.9rem", margin: 0 }}>
+                إضافة كافة المصاريف - {selectedBranchForExpense.branch_name}
+              </h3>
+              <button className="modal-close" onClick={closeBulkModal}>×</button>
+            </div>
+            <div className="modal-body" style={{ padding: "1rem", maxHeight: "60vh", overflowY: "auto" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                {bulkExpenses.map((expense, idx) => (
+                  <div key={idx} className="form-group" style={{ marginBottom: 0, display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                    <label style={{ fontSize: "11px", fontWeight: "600", color: "#4B5563" }}>{expense.title}</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={expense.amount}
+                      onChange={(e) => {
+                        const newBulk = [...bulkExpenses];
+                        newBulk[idx].amount = e.target.value;
+                        setBulkExpenses(newBulk);
+                      }}
+                      style={{ 
+                        padding: "0.4rem 0.6rem", 
+                        fontSize: "0.8rem",
+                        borderColor: expense.amount > 0 ? "var(--color-primary)" : "#E5E7EB"
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
             <div className="modal-footer" style={{ padding: "0.75rem 1rem", borderTop: "1px solid var(--border-color)", display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-              <button className="btn" onClick={closeExpenseModal}>إلغاء</button>
-              <button className="btn primary" onClick={handleAddExpense}>{isEditingExpense ? "تحديث" : "إضافة"}</button>
+              <button className="btn" onClick={closeBulkModal} disabled={isSubmitting}>إلغاء</button>
+              <button 
+                className="btn primary" 
+                onClick={handleBulkSubmit} 
+                disabled={isSubmitting}
+                style={{ backgroundColor: "#8B5CF6", opacity: isSubmitting ? 0.7 : 1, minWidth: "100px" }}
+              >
+                {isSubmitting ? "جاري الإضافة..." : "إضافة كافة المصاريف"}
+              </button>
             </div>
           </div>
         </div>

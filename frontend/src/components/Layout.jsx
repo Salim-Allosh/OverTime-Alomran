@@ -111,19 +111,31 @@ export default function Layout({ children }) {
           {token && userInfo ? (
             <>
               {userInfo.is_hr_manager ? (
-                <Link
-                  to="/salaries"
-                  className={location.pathname === "/salaries" ? "active" : ""}
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-                  </svg>
-                  الرواتب
-                </Link>
+                <>
+                  <Link
+                    to="/salaries"
+                    className={location.pathname === "/salaries" ? "active" : ""}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2V5c0-1.1.9-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
+                    </svg>
+                    الرواتب
+                  </Link>
+                  <Link
+                    to="/certificates"
+                    className={location.pathname === "/certificates" ? "active" : ""}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                    </svg>
+                    الشهادات
+                  </Link>
+                </>
               ) : (userInfo.is_super_admin || userInfo.is_sales_manager) && !userInfo.is_backdoor ? (
                 <>
-                  {userInfo.is_super_admin && (
+                  {!!userInfo.is_super_admin && (
                     <>
                       <Link
                         to="/reports"
@@ -157,7 +169,7 @@ export default function Layout({ children }) {
                     </svg>
                     الإحصائيات
                   </Link>
-                  {userInfo.is_super_admin && (
+                  {!!userInfo.is_super_admin && (
                     <>
                       <Link
                         to="/net-profit"
@@ -175,9 +187,19 @@ export default function Layout({ children }) {
                         onClick={() => setIsMenuOpen(false)}
                       >
                         <svg viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                          <path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2V5c0-1.1.9-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
                         </svg>
                         الرواتب
+                      </Link>
+                      <Link
+                        to="/certificates"
+                        className={location.pathname === "/certificates" ? "active" : ""}
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                        </svg>
+                        الشهادات
                       </Link>
                     </>
                   )}
@@ -195,7 +217,7 @@ export default function Layout({ children }) {
               ) : (
                 <>
                   {/* المسودات وتقارير الإضافي تظهر فقط لمدير العمليات */}
-                  {userInfo?.is_operation_manager && !userInfo?.is_backdoor && (
+                  {!!(userInfo?.is_operation_manager && !userInfo?.is_backdoor) && (
                     <>
                       <Link
                         to="/drafts"
@@ -217,11 +239,21 @@ export default function Layout({ children }) {
                         </svg>
                         التقارير الشهرية
                       </Link>
+                      <Link
+                        to="/certificates"
+                        className={location.pathname === "/certificates" ? "active" : ""}
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                        </svg>
+                        الشهادات
+                      </Link>
                     </>
                   )}
                   {!userInfo?.is_operation_manager && (
                     <>
-                      {(userInfo && userInfo.is_backdoor) && (
+                      {!!(userInfo && userInfo.is_backdoor) && (
                         <Link
                           to="/daily-sales-reports"
                           className={location.pathname === "/daily-sales-reports" ? "active" : ""}
@@ -245,7 +277,7 @@ export default function Layout({ children }) {
                       </Link>
                     </>
                   )}
-                  {(userInfo?.is_sales_manager || userInfo?.is_backdoor) && (
+                  {!!(userInfo?.is_sales_manager || userInfo?.is_backdoor) && (
                     <Link
                       to="/sales-staff"
                       className={location.pathname === "/sales-staff" ? "active" : ""}
@@ -257,7 +289,7 @@ export default function Layout({ children }) {
                       موظفو المبيعات
                     </Link>
                   )}
-                  {(userInfo && userInfo.is_backdoor) && (
+                  {!!(userInfo && userInfo.is_backdoor) && (
                     <Link
                       to="/admin"
                       className={location.pathname === "/admin" ? "active" : ""}

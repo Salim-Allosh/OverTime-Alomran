@@ -164,8 +164,8 @@ export default function SalariesPage() {
 
       // CSV Headers
       const headers = [
-        "الفرع", "رقم الموظف", "اسم الموظف", "ايام الشهر", "الراتب الاساسي", 
-        "ايام الدوام", "الراتب المستحق", "ايام الاضافي", "مبلغ الاضافي", 
+        "الفرع", "رقم الموظف", "اسم الموظف", "ايام الشهر", "الراتب الاساسي", "ايام الدوام", 
+        "الراتب المستحق", "ايام الاضافي", "راتب الاضافي", "مبلغ الاضافي", 
         "سبب الاضافة", "مبلغ الخصم", "سبب الخصم", "الملاحظات", "الصافي"
       ];
 
@@ -195,10 +195,11 @@ export default function SalariesPage() {
             emp.employment_number || "",
             emp.employee_name || "",
             daysInMonth,
-            emp.base_salary || 0,
+            emp.employee?.salary || 0,
             emp.working_days || 0,
             emp.entitled_salary || 0,
             otDays,
+            emp.base_salary || 0,
             otAmount,
             additionReasons,
             deductionAmount,
@@ -627,6 +628,7 @@ export default function SalariesPage() {
           branchName={selectedBranchInfo?.branch_name}
           data={selectedBranchEmployees}
           monthName={activeMonthDetails.name}
+          month={activeMonthDetails.month}
           year={activeMonthDetails.year}
           onEmployeeClick={handleEmployeeDetailsClick}
         />

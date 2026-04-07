@@ -98,6 +98,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/payment-methods/{id}', [App\Http\Controllers\LookupController::class, 'deletePaymentMethod']);
 
     Route::get('/net-profit-expenses', [App\Http\Controllers\LookupController::class, 'netProfitExpensesIndex']);
+    Route::post('/net-profit-expenses/bulk-branch', [App\Http\Controllers\LookupController::class, 'bulkCreateBranchExpenses']);
     Route::post('/net-profit-expenses', [App\Http\Controllers\LookupController::class, 'createNetProfitExpense']);
     Route::patch('/net-profit-expenses/{net_profit_expense}', [App\Http\Controllers\LookupController::class, 'updateNetProfitExpense']);
     Route::delete('/net-profit-expenses/{net_profit_expense}', [App\Http\Controllers\LookupController::class, 'deleteNetProfitExpense']);
@@ -143,4 +144,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admin/database-schema', [App\Http\Controllers\AdminController::class, 'getDatabaseSchema']);
     Route::post('/admin/clear-and-seed', [App\Http\Controllers\AdminController::class, 'clearAndSeed']);
 
+    // Certificates
+    Route::get('/certificates', [App\Http\Controllers\CertificateController::class, 'index']);
+    Route::post('/certificates', [App\Http\Controllers\CertificateController::class, 'store']);
+    Route::patch('/certificates/{id}', [App\Http\Controllers\CertificateController::class, 'update']);
+    Route::post('/certificates/{id}/upload', [App\Http\Controllers\CertificateController::class, 'upload']);
+    Route::post('/certificates/{id}/deliver', [App\Http\Controllers\CertificateController::class, 'deliver']);
+    Route::delete('/certificates/{id}', [App\Http\Controllers\CertificateController::class, 'destroy']);
+
+    Route::get('/certificates/{id}/download', [App\Http\Controllers\CertificateController::class, 'download']);
 });

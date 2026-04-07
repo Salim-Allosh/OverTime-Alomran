@@ -1,4 +1,4 @@
-const API_BASE = "https://report-backend.alomrantd.com";
+const API_BASE = "http://localhost:8000";
 
 async function request(path, options = {}) {
     const token = localStorage.getItem('token'); // Assuming token is stored here or passed

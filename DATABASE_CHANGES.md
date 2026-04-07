@@ -284,4 +284,59 @@ php artisan migrate --path=database/migrations/2026_03_29_023000_add_is_hr_manag
 
 ---
 
+## [2026-04-07] Add Certification Management System
+
+### Description
+Created `certificates` table to manage student certificate requests and PDF uploads.
+
+### SQL Migration
+```sql
+CREATE TABLE `certificates` (
+    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `student_name_ar` VARCHAR(255) NOT NULL,
+    `student_name_en` VARCHAR(255) NOT NULL,
+    `id_passport_number` VARCHAR(255) NOT NULL,
+    `certificate_name` VARCHAR(255) NOT NULL,
+    `course_type` VARCHAR(255) NOT NULL,
+    `duration` VARCHAR(255) NOT NULL,
+    `certificate_type` ENUM('local', 'international', 'knowledge_authority') NOT NULL,
+    `status` ENUM('requested', 'uploaded') NOT NULL DEFAULT 'requested',
+    `file_path` VARCHAR(255) NULL,
+    `branch_id` INT(11) NOT NULL,
+    `operation_account_id` INT(11) NOT NULL,
+    `month` INT NOT NULL,
+    `year` INT NOT NULL,
+    `created_at` TIMESTAMP NULL,
+    `updated_at` TIMESTAMP NULL,
+    FOREIGN KEY (`branch_id`) REFERENCES `branches`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`operation_account_id`) REFERENCES `operation_accounts`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### Laravel Migration
+```bash
+php artisan migrate --path=database/migrations/2026_04_07_131100_create_certificates_table.php
+```
+
+---
+
+## [2026-04-07] Add Phone and Contract Fields to Certificates
+
+### Description
+Added `phone_number` and `contract_number` columns to the `certificates` table and updated the `status` ENUM to include `delivered`.
+
+### SQL Migration
+```sql
+ALTER TABLE `certificates` ADD `phone_number` VARCHAR(255) NULL AFTER `student_name_en`;
+ALTER TABLE `certificates` ADD `contract_number` VARCHAR(255) NULL AFTER `phone_number`;
+ALTER TABLE `certificates` MODIFY COLUMN `status` ENUM('requested', 'uploaded', 'delivered') NOT NULL DEFAULT 'requested';
+```
+
+### Laravel Migration
+```bash
+php artisan migrate --path=database/migrations/2026_04_07_153000_add_phone_and_contract_to_certificates_table.php
+```
+
+---
+
 *Keep this file updated for any future schema changes.*

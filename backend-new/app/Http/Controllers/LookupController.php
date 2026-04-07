@@ -220,6 +220,31 @@ class LookupController extends Controller
         return NetProfitExpense::create($validated);
     }
 
+    public function bulkCreateBranchExpenses(Request $request)
+    {
+        $validated = $request->validate([
+            'branch_id' => 'required|exists:branches,id',
+            'expenses' => 'required|array',
+            'expenses.*.title' => 'required|string',
+            'expenses.*.amount' => 'required|numeric',
+            'expense_date' => 'required|date'
+        ]);
+
+        $created = [];
+        foreach ($validated['expenses'] as $item) {
+            if ($item['amount'] > 0) {
+                $created[] = NetProfitExpense::create([
+                    'branch_id' => $validated['branch_id'],
+                    'title' => $item['title'],
+                    'amount' => $item['amount'],
+                    'expense_date' => $validated['expense_date']
+                ]);
+            }
+        }
+
+        return response()->json($created, 201);
+    }
+
     public function updateNetProfitExpense(Request $request, NetProfitExpense $netProfitExpense)
     {
         $validated = $request->validate([

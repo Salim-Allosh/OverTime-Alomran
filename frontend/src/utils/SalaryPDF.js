@@ -141,16 +141,17 @@ const buildSignaturesSection = () => {
 // Logical Bidi Mappers (Index 0 draws on the RIGHT visually under RTL)
 // ----------------------------------------------------------------------------
 
-const BRANCH_TABLE_WIDTHS = ['auto', '*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'];
+const BRANCH_TABLE_WIDTHS = ['auto', '*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'];
 
 const buildBranchHeaderRow = () => [
   { text: formatArabic('الرقم'), style: 'tableHeader', alignment: 'center' },
   { text: formatArabic('الاسم'), style: 'tableHeader', alignment: 'center' },
   { text: formatArabic('أيام الشهر'), style: 'tableHeader', alignment: 'center' },
-  { text: formatArabic('الراتب الأساسي'), style: 'tableHeader', alignment: 'center' },
+  { text: formatArabic('الراتب الاساسي'), style: 'tableHeader', alignment: 'center' },
   { text: formatArabic('أيام الدوام'), style: 'tableHeader', alignment: 'center' },
   { text: formatArabic('المستحق'), style: 'tableHeader', alignment: 'center' },
   { text: formatArabic('أيام الإضافي'), style: 'tableHeader', alignment: 'center' },
+  { text: formatArabic('راتب الاضافي'), style: 'tableHeader', alignment: 'center' },
   { text: formatArabic('مبلغ الإضافي'), style: 'tableHeader', alignment: 'center' },
   { text: formatArabic('سبب الإضافة'), style: 'tableHeader', alignment: 'center' },
   { text: formatArabic('مبلغ الخصم'), style: 'tableHeader', alignment: 'center' },
@@ -164,10 +165,11 @@ const correctBranchRow = (salary, isTotalRow = false) => {
       { text: formatArabic('الإجماليات'), style: 'totalHeader', alignment: 'center' },
       { text: '', style: 'totalHeader', alignment: 'center' },
       { text: '', style: 'totalHeader', alignment: 'center' },
-      { text: formatNum(salary.base), style: 'totalHeader', alignment: 'center' }, 
+      { text: formatNum(salary.originalTotal), style: 'totalHeader', alignment: 'center' },
       { text: '', style: 'totalHeader', alignment: 'center' },
       { text: formatNum(salary.entitled), style: 'totalHeader', alignment: 'center' },
       { text: '', style: 'totalHeader', alignment: 'center' },
+      { text: formatNum(salary.base), style: 'totalHeader', alignment: 'center' }, 
       { text: formatNum(salary.overtimeAmount), style: 'totalHeader', color: '#10B981', alignment: 'center' },
       { text: '', style: 'totalHeader', alignment: 'center' },
       { text: formatNum(salary.dedAmount), style: 'totalHeader', color: '#DC2626', alignment: 'center' },
@@ -180,10 +182,11 @@ const correctBranchRow = (salary, isTotalRow = false) => {
     { text: formatArabic(salary.empId), style: 'tableCell', alignment: 'center' },
     { text: formatArabic(salary.name), style: 'tableCellBold', alignment: 'center' },
     { text: formatArabic(salary.daysInMonth), style: 'tableCell', alignment: 'center' },
-    { text: formatNum(salary.contractBase), style: 'tableCell', alignment: 'center' },
+    { text: formatNum(salary.contractSalary), style: 'tableCell', alignment: 'center' },
     { text: formatArabic(salary.workDays), style: 'tableCell', alignment: 'center' },
     { text: formatNum(salary.entitled), style: 'tableCell', alignment: 'center' },
     { text: formatArabic(salary.overtimeDays), style: 'tableCell', alignment: 'center' },
+    { text: formatNum(salary.additionRate), style: 'tableCell', alignment: 'center' },
     { text: formatNum(salary.overtimeAmount), style: 'tableCell', color: '#10B981', bold: true, alignment: 'center' },
     { text: formatArabic(salary.addReasons || '-'), style: 'tableCell', alignment: 'center', fontSize: 6 },
     { text: formatNum(salary.dedAmount), style: 'tableCell', color: '#DC2626', bold: true, alignment: 'center' },
@@ -207,7 +210,8 @@ const mapSalaryData = (sourceData, daysInMonth) => {
     empId: salaryObj.employee_number || employeeObj.employment_number || '-',
     name: salaryObj.employee_name || employeeObj.name || '-',
     daysInMonth: daysInMonth,
-    contractBase: employeeObj.salary || 0,
+    contractSalary: employeeObj.salary || 0,
+    additionRate: salaryObj.base_salary || employeeObj.salary || 0,
     workDays: salaryObj.working_days || 0,
     entitled: parseFloat(salaryObj.entitled_salary || 0),
 
@@ -226,7 +230,7 @@ const buildBranchTable = (salariesData, daysInMonth, branchName = '', forceRever
   // Always reverse for all branches to ensure RTL consistency on various environments
   const isTargetBranch = true;
 
-  let totals = { base: 0, entitled: 0, overtimeAmount: 0, dedAmount: 0, net: 0 };
+  let totals = { originalTotal: 0, base: 0, entitled: 0, overtimeAmount: 0, dedAmount: 0, net: 0 };
   
   let headerRow = buildBranchHeaderRow();
   if (isTargetBranch) headerRow = [...headerRow].reverse();
@@ -235,7 +239,8 @@ const buildBranchTable = (salariesData, daysInMonth, branchName = '', forceRever
 
   salariesData.forEach((sObj) => {
     const data = mapSalaryData(sObj, daysInMonth);
-    totals.base += parseFloat(data.contractBase);
+    totals.originalTotal += parseFloat(data.contractSalary);
+    totals.base += parseFloat(data.additionRate);
     totals.entitled += data.entitled;
     totals.overtimeAmount += data.overtimeAmount;
     totals.dedAmount += data.dedAmount;
@@ -288,12 +293,13 @@ export const SalaryPDF = {
     const title = `التقرير الشامل للرواتب`;
     const doc = startDocument(title);
     
-    let totalNetAll = 0, totalEmpAll = 0, totalBasicAll = 0, totalAddsAll = 0, totalDedsAll = 0;
+    let totalNetAll = 0, totalEmpAll = 0, totalContractAll = 0, totalBasicAll = 0, totalAddsAll = 0, totalDedsAll = 0;
 
     let headers = [
         { text: formatArabic('اسم الفرع'), style: 'tableHeader', alignment: 'center' },
         { text: formatArabic('الموظفين'), style: 'tableHeader', alignment: 'center' },
-        { text: formatArabic('إجمالي الأساسي'), style: 'tableHeader', alignment: 'center' },
+        { text: formatArabic('إجمالي الراتب الاساسي'), style: 'tableHeader', alignment: 'center' },
+        { text: formatArabic('إجمالي الإضافي'), style: 'tableHeader', alignment: 'center' },
         { text: formatArabic('إجمالي الإضافات'), style: 'tableHeader', alignment: 'center' },
         { text: formatArabic('إجمالي الخصومات'), style: 'tableHeader', alignment: 'center' },
         { text: formatArabic('إجمالي الصافي'), style: 'tableHeader', alignment: 'center' }
@@ -305,6 +311,7 @@ export const SalaryPDF = {
 
     branchesData.forEach((branch) => {
       const bNet = branch.salaries.reduce((sum, s) => sum + parseFloat(s.net_salary || 0), 0);
+      const bContract = branch.salaries.reduce((sum, s) => sum + parseFloat((s.employee?.salary || s.base_salary || 0)), 0);
       const bBasic = branch.salaries.reduce((sum, s) => sum + parseFloat(s.base_salary || 0), 0);
       const bAdds = branch.salaries.reduce((sum, s) => {
           const adds = (s.items || []).filter(i => i.type === 'addition');
@@ -318,6 +325,7 @@ export const SalaryPDF = {
       const bEmps = branch.salaries.length;
       totalNetAll += bNet;
       totalEmpAll += bEmps;
+      totalContractAll += bContract;
       totalBasicAll += bBasic;
       totalAddsAll += bAdds;
       totalDedsAll += bDeds;
@@ -325,6 +333,7 @@ export const SalaryPDF = {
       let row = [
         { text: formatArabic(branch.branch_name), style: 'tableCellBold', alignment: 'center' },
         { text: formatArabic(bEmps), style: 'tableCell', alignment: 'center' },
+        { text: formatNum(bContract), style: 'tableCell', alignment: 'center' },
         { text: formatNum(bBasic), style: 'tableCell', alignment: 'center' },
         { text: formatNum(bAdds), style: 'tableCell', color: '#10B981', alignment: 'center' },
         { text: formatNum(bDeds), style: 'tableCell', color: '#DC2626', alignment: 'center' },
@@ -336,6 +345,7 @@ export const SalaryPDF = {
     let totalsRow = [
       { text: formatArabic('الإجمالي العام'), style: 'totalHeader', alignment: 'center' },
       { text: formatArabic(totalEmpAll), style: 'totalHeader', alignment: 'center' },
+      { text: formatNum(totalContractAll), style: 'totalHeader', alignment: 'center' },
       { text: formatNum(totalBasicAll), style: 'totalHeader', alignment: 'center' },
       { text: formatNum(totalAddsAll), style: 'totalHeader', color: '#10B981', alignment: 'center' },
       { text: formatNum(totalDedsAll), style: 'totalHeader', color: '#DC2626', alignment: 'center' },
@@ -350,7 +360,7 @@ export const SalaryPDF = {
       table: {
         rtl: true,
         headerRows: 1,
-        widths: ['auto', 'auto', 'auto', 'auto', 'auto', '*'],
+        widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*'],
         body: summaryRows
       },
       layout: reportsLayout,
@@ -386,7 +396,7 @@ export const SalaryPDF = {
       (monthObj.branches || []).forEach(branch => {
         const bName = branch.branch_name;
         if (!branchStats[bName]) {
-          branchStats[bName] = { basic: 0, entitled: 0, adds: 0, deds: 0, net: 0, empCount: new Set() };
+          branchStats[bName] = { contract: 0, basic: 0, entitled: 0, adds: 0, deds: 0, net: 0, empCount: new Set() };
         }
 
         (branch.salaries || []).forEach(s => {
@@ -394,6 +404,7 @@ export const SalaryPDF = {
           const empName = s.employee_name || s.employee?.name || 'Unknown';
 
           // Branch Aggregates
+          branchStats[bName].contract += parseFloat(s.employee?.salary || s.base_salary || 0);
           branchStats[bName].basic += parseFloat(s.base_salary || 0);
           branchStats[bName].entitled += parseFloat(s.entitled_salary || 0);
           branchStats[bName].net += parseFloat(s.net_salary || 0);
@@ -427,7 +438,8 @@ export const SalaryPDF = {
     let bHeaders = [
       { text: formatArabic('الفرع'), style: 'tableHeader', alignment: 'center' },
       { text: formatArabic('الموظفين (فريد)'), style: 'tableHeader', alignment: 'center' },
-      { text: formatArabic('إجمالي الأساسي'), style: 'tableHeader', alignment: 'center' },
+      { text: formatArabic('إجمالي الراتب الاساسي'), style: 'tableHeader', alignment: 'center' },
+      { text: formatArabic('إجمالي الإضافي'), style: 'tableHeader', alignment: 'center' },
       { text: formatArabic('إجمالي الإضافات'), style: 'tableHeader', alignment: 'center' },
       { text: formatArabic('إجمالي الخصومات'), style: 'tableHeader', alignment: 'center' },
       { text: formatArabic('صافي العام'), style: 'tableHeader', alignment: 'center' }
@@ -439,6 +451,7 @@ export const SalaryPDF = {
       let row = [
         { text: formatArabic(bn), style: 'tableCellBold', alignment: 'center' },
         { text: formatArabic(bs.empCount.size), style: 'tableCell', alignment: 'center' },
+        { text: formatNum(bs.contract), style: 'tableCell', alignment: 'center' },
         { text: formatNum(bs.basic), style: 'tableCell', alignment: 'center' },
         { text: formatNum(bs.adds), style: 'tableCell', color: '#10B981', alignment: 'center' },
         { text: formatNum(bs.deds), style: 'tableCell', color: '#DC2626', alignment: 'center' },
@@ -450,7 +463,7 @@ export const SalaryPDF = {
     doc.content.push({
       table: {
         rtl: true, headerRows: 1,
-        widths: ['auto', 'auto', 'auto', 'auto', 'auto', '*'], // Star on Branch Name (Last)
+        widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*'], // Star on Branch Name (Last)
         body: branchRows
       },
       layout: reportsLayout, margin: [0, 0, 0, 30]
@@ -467,7 +480,7 @@ export const SalaryPDF = {
         { text: formatArabic('الرقم'), style: 'tableHeader', alignment: 'center' },
         { text: formatArabic('الاسم'), style: 'tableHeader', alignment: 'center' },
         { text: formatArabic('الأشهر'), style: 'tableHeader', alignment: 'center' },
-        { text: formatArabic('إجمالي الأساسي'), style: 'tableHeader', alignment: 'center' },
+        { text: formatArabic('إجمالي الإضافي'), style: 'tableHeader', alignment: 'center' },
         { text: formatArabic('إجمالي الإضافات'), style: 'tableHeader', alignment: 'center' },
         { text: formatArabic('إجمالي الخصومات'), style: 'tableHeader', alignment: 'center' },
         { text: formatArabic('صافي السنة'), style: 'tableHeader', alignment: 'center' }
