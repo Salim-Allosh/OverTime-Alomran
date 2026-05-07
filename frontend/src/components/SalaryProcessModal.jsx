@@ -85,7 +85,7 @@ export default function SalaryProcessModal({
     
     const base = parseFloat(currentEmployeeData.employee.salary || 0);
     const customBase = parseFloat(formData.custom_base_salary || base);
-    const wDays = parseInt(formData.working_days) || 0;
+    const wDays = parseFloat(formData.working_days) || 0;
     
     const entitled = (base / daysInMonth) * wDays;
     
@@ -107,7 +107,7 @@ export default function SalaryProcessModal({
   }, [currentEmployeeData, formData, daysInMonth]);
 
   const submitSalary = async (shouldClose = true) => {
-    const wDays = parseInt(formData.working_days) || 0;
+    const wDays = parseFloat(formData.working_days) || 0;
     const autoDays = formData.additions
       .filter(a => a.is_automatic)
       .reduce((sum, a) => sum + (parseFloat(a.days) || 0), 0);
@@ -161,10 +161,14 @@ export default function SalaryProcessModal({
     }
   };
 
-  const addAddition = (isAuto = false) => {
+  const addAddition = (e, isAuto = false) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     const newItems = [...formData.additions];
     if (isAuto) {
-      const gapDays = daysInMonth - parseInt(formData.working_days || 0);
+      const gapDays = daysInMonth - parseFloat(formData.working_days || 0);
       newItems.push({ 
         days: gapDays.toString(), 
         reason: "إضافة تلقائية (فرق أيام الدوام)", 
@@ -176,7 +180,11 @@ export default function SalaryProcessModal({
     setFormData({ ...formData, additions: newItems });
   };
 
-  const addDeduction = () => {
+  const addDeduction = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setFormData({ ...formData, deductions: [...formData.deductions, { amount: "", reason: "" }] });
   };
 
@@ -278,11 +286,12 @@ export default function SalaryProcessModal({
                         <div style={{ position: "relative" }}>
                             <input 
                                 type="number"
+                                step="any"
                                 className="form-control"
                                 value={formData.working_days}
                                 onChange={(e) => {
                                     const val = e.target.value;
-                                    const wDays = parseInt(val) || 0;
+                                    const wDays = parseFloat(val) || 0;
                                     const gapDays = daysInMonth - wDays;
                                     
                                     // Update working days AND any automatic additions in the list
@@ -331,6 +340,7 @@ export default function SalaryProcessModal({
                                 <span style={{ fontSize: "11px", fontWeight: "600", display: "flex", alignItems: "center", height: "100%" }}>الراتب المخصص للاضافة:</span>
                                 <input 
                                     type="number"
+                                    step="any"
                                     value={formData.custom_base_salary}
                                     onChange={(e) => setFormData({ ...formData, custom_base_salary: e.target.value })}
                                     style={{ 
@@ -355,7 +365,7 @@ export default function SalaryProcessModal({
                         <div style={{ display: "flex", gap: "0.4rem", width: "100%" }}>
                             <button 
                                 className="btn primary" 
-                                onClick={() => addAddition(true)} 
+                                onClick={(e) => addAddition(e, true)} 
                                 style={{ flex: 1, fontSize: "10px", height: "28px", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", fontWeight: "700", background: "#3B82F6", border: "none" }}
                             >
                                 <i className="fas fa-magic" style={{fontSize: "10px"}}></i>
@@ -363,7 +373,7 @@ export default function SalaryProcessModal({
                             </button>
                             <button 
                                 className="btn secondary outline" 
-                                onClick={() => addAddition(false)} 
+                                onClick={(e) => addAddition(e, false)} 
                                 style={{ flex: 1, fontSize: "10px", height: "28px", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", fontWeight: "600", border: "1px solid #D1D1D1" }}
                             >
                                 <i className="fas fa-plus" style={{fontSize: "10px"}}></i>
@@ -388,6 +398,7 @@ export default function SalaryProcessModal({
                                         <div style={{ width: "45px" }}>
                                             <input 
                                                 type="number" 
+                                                step="any"
                                                 value={item.days}
                                                 onChange={(e) => {
                                                     const newArr = [...formData.additions];
@@ -416,6 +427,7 @@ export default function SalaryProcessModal({
                                     <>
                                         <input 
                                             type="number" 
+                                            step="any"
                                             placeholder="0"
                                             value={item.amount}
                                             onChange={(e) => {
@@ -454,7 +466,7 @@ export default function SalaryProcessModal({
                         </h4>
                         <button 
                             className="btn primary" 
-                            onClick={addDeduction} 
+                            onClick={(e) => addDeduction(e)} 
                             style={{ fontSize: "10px", height: "28px", padding: "0 0.8rem", display: "flex", alignItems: "center", gap: "0.4rem", fontWeight: "700", background: "#3B82F6", border: "none" }}
                         >
                             <i className="fas fa-minus" style={{fontSize: "10px"}}></i>
@@ -474,6 +486,7 @@ export default function SalaryProcessModal({
                             <div key={idx} style={{ display: "flex", gap: "0.3rem", alignItems: "center", background: "#fef2f2", padding: "0.25rem", borderRadius: "4px", border: "1px solid #FEE2E2" }}>
                                 <input 
                                     type="number" 
+                                    step="any"
                                     placeholder="0"
                                     value={item.amount}
                                     onChange={(e) => {

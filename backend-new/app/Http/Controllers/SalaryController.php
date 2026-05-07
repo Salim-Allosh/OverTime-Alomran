@@ -101,7 +101,7 @@ class SalaryController extends Controller
             'month' => 'required|integer|min:1|max:12',
             'year' => 'required|integer',
             'base_salary' => 'required|numeric',
-            'working_days' => 'required|integer',
+            'working_days' => 'required|numeric',
             'entitled_salary' => 'required|numeric',
             'net_salary' => 'required|numeric',
             'notes' => 'nullable|string',

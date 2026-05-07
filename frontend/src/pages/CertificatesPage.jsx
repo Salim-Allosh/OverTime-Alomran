@@ -26,8 +26,8 @@ export default function CertificatesPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   // Filters (Aligned with ReportsPage style/logic)
-  const [appliedYearIds, setAppliedYearIds] = useState([new Date().getFullYear()]);
-  const [appliedMonthIds, setAppliedMonthIds] = useState([new Date().getMonth() + 1]);
+  const [appliedYearIds, setAppliedYearIds] = useState([2024, 2025, 2026]);
+  const [appliedMonthIds, setAppliedMonthIds] = useState([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   const [appliedBranchIds, setAppliedBranchIds] = useState([]);
 
   // Modals
@@ -118,8 +118,8 @@ export default function CertificatesPage() {
       duration: "",
       certificate_type: "local",
       branch_id: userInfo?.branch_id || "",
-      month: appliedMonthIds[0],
-      year: appliedYearIds[0]
+      month: new Date().getMonth() + 1,
+      year: new Date().getFullYear()
     });
   };
 
@@ -134,7 +134,7 @@ export default function CertificatesPage() {
     setLoading(true);
     try {
       // Use the same base as apiPost/apiGet
-      const apiBase = "http://localhost:8000"; 
+      const apiBase = "https://report-backend.alomrantd.com";
       const res = await fetch(`${apiBase}/certificates/${selectedCert.id}/upload`, {
         method: "POST",
         headers: {
@@ -170,7 +170,7 @@ export default function CertificatesPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/certificates/${editData.id}`, {
+      const res = await fetch(`https://report-backend.alomrantd.com/certificates/${editData.id}`, {
         method: "PATCH",
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -181,6 +181,22 @@ export default function CertificatesPage() {
       });
 
       if (!res.ok) throw new Error(await res.text());
+
+      // Upload new file if selected
+      const fileInput = e.target.elements.edit_certificate_pdf;
+      if (fileInput && fileInput.files[0]) {
+        const fd = new FormData();
+        fd.append("certificate_pdf", fileInput.files[0]);
+        const uploadRes = await fetch(`https://report-backend.alomrantd.com/certificates/${editData.id}/upload`, {
+          method: "POST",
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+          },
+          body: fd
+        });
+        if (!uploadRes.ok) throw new Error(await uploadRes.text());
+      }
 
       success("تم تحديث بيانات الشهادة بنجاح");
       setShowEditModal(false);
@@ -208,7 +224,7 @@ export default function CertificatesPage() {
   const handleDelete = async (id) => {
     confirm("هل أنت متأكد من حذف هذا الطلب؟", async () => {
       try {
-        const res = await fetch(`http://localhost:8000/certificates/${id}`, {
+        const res = await fetch(`https://report-backend.alomrantd.com/certificates/${id}`, {
           method: "DELETE",
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -224,9 +240,30 @@ export default function CertificatesPage() {
     });
   };
 
+  const handleUndoStatus = async (id, newStatus) => {
+    confirm("هل أنت متأكد من التراجع عن الحالة؟", async () => {
+      try {
+        const res = await fetch(`https://report-backend.alomrantd.com/certificates/${id}`, {
+          method: "PATCH",
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ status: newStatus })
+        });
+        if (!res.ok) throw new Error("Undo failed");
+        success("تم التراجع عن الحالة بنجاح");
+        loadCertificates();
+      } catch (err) {
+        showError("حدث خطأ أثناء التراجع");
+      }
+    });
+  };
+
   const handleDownload = async (cert) => {
     try {
-      const response = await fetch(`http://localhost:8000/certificates/${cert.id}/download`, {
+      const response = await fetch(`https://report-backend.alomrantd.com/certificates/${cert.id}/download`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json'
@@ -336,22 +373,22 @@ export default function CertificatesPage() {
       </div>
 
       <div className="tabs" style={{ display: "flex", flexWrap: "wrap", gap: "1rem", marginBottom: "1rem" }}>
-        <button 
-          className={`btn ${activeTab === 'requested' ? 'primary' : 'outline'}`} 
+        <button
+          className={`btn ${activeTab === 'requested' ? 'primary' : 'outline'}`}
           onClick={() => setActiveTab('requested')}
           style={{ flex: 1 }}
         >
           الشهادات المطلوبة ({certificates.filter(c => c.status === 'requested').length})
         </button>
-        <button 
-          className={`btn ${activeTab === 'uploaded' ? 'primary' : 'outline'}`} 
+        <button
+          className={`btn ${activeTab === 'uploaded' ? 'primary' : 'outline'}`}
           onClick={() => setActiveTab('uploaded')}
           style={{ flex: 1 }}
         >
           الشهادات المصدرة ({certificates.filter(c => c.status === 'uploaded').length})
         </button>
-        <button 
-          className={`btn ${activeTab === 'delivered' ? 'primary' : 'outline'}`} 
+        <button
+          className={`btn ${activeTab === 'delivered' ? 'primary' : 'outline'}`}
           onClick={() => setActiveTab('delivered')}
           style={{ flex: 1 }}
         >
@@ -392,7 +429,7 @@ export default function CertificatesPage() {
                         {cert.file_path && (
                           <div style={{ display: "flex", gap: "0.2rem" }}>
                             <a
-                              href={`http://localhost:8000/storage/${cert.file_path}`}
+                              href={`https://report-backend.alomrantd.com/storage/${cert.file_path}`}
                               target="_blank"
                               rel="noreferrer"
                               className="btn btn-small success"
@@ -411,25 +448,45 @@ export default function CertificatesPage() {
                             </button>
                           </div>
                         )}
-                        {!!(userInfo?.is_hr_manager || userInfo?.is_super_admin) && cert.status === 'requested' && (
+                        {!!(userInfo?.is_hr_manager || userInfo?.is_super_admin) && (
                           <button
                             className="btn btn-small primary"
                             onClick={() => { setSelectedCert(cert); setShowUploadModal(true); }}
-                            title="رفع الشهادة"
+                            title="رفع/تحديث الشهادة"
                           >
                             📁 رفع PDF
                           </button>
                         )}
                         {cert.status === 'uploaded' && !!(userInfo?.is_operation_manager || userInfo?.is_super_admin) && (
+                          <div style={{ display: "flex", gap: "0.2rem" }}>
+                            <button
+                              className="btn btn-small warning"
+                              onClick={() => handleDeliver(cert.id)}
+                              title="تم التسليم"
+                            >
+                              ✅ تم التسليم
+                            </button>
+                            <button
+                              className="btn btn-small outline"
+                              onClick={() => handleUndoStatus(cert.id, 'requested')}
+                              title="تراجع إلى الطلبات"
+                              style={{ padding: "0.3rem 0.6rem" }}
+                            >
+                              ↩️ تراجع
+                            </button>
+                          </div>
+                        )}
+                        {cert.status === 'delivered' && !!(userInfo?.is_operation_manager || userInfo?.is_super_admin) && (
                           <button
-                            className="btn btn-small warning"
-                            onClick={() => handleDeliver(cert.id)}
-                            title="تم التسليم"
+                            className="btn btn-small outline"
+                            onClick={() => handleUndoStatus(cert.id, 'uploaded')}
+                            title="تراجع إلى المصدرة"
+                            style={{ padding: "0.3rem 0.6rem" }}
                           >
-                            ✅ تم التسليم
+                            ↩️ تراجع
                           </button>
                         )}
-                        {!!(userInfo?.is_super_admin || (userInfo?.is_operation_manager && cert.status === 'requested')) && (
+                        {!!(userInfo?.is_super_admin || userInfo?.is_operation_manager) && (
                           <div style={{ display: "flex", gap: "0.2rem" }}>
                             <button
                               className="btn btn-small warning"
@@ -468,18 +525,18 @@ export default function CertificatesPage() {
 
       {/* Add Modal */}
       {showAddModal && (
-        <div className="modal-backdrop" style={{ 
-          position: "fixed", top: 0, left: 0, width: "100%", height: "100%", 
+        <div className="modal-backdrop" style={{
+          position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
           backgroundColor: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(8px)",
-          display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 
+          display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000
         }}>
-          <div className="modal-content" style={{ 
+          <div className="modal-content" style={{
             backgroundColor: "white", padding: "0", borderRadius: "20px", width: "95%", maxWidth: "900px",
             boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.15)", position: "relative", overflow: "hidden",
             border: "1px solid rgba(255,255,255,0.7)", maxHeight: "90vh", display: "flex", flexDirection: "column"
           }}>
             {/* Modal Header with Accent */}
-            <div style={{ 
+            <div style={{
               backgroundColor: "#f8fafc", padding: "0.75rem 1rem", borderBottom: "1px solid #e2e8f0",
               display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0
             }}>
@@ -487,10 +544,10 @@ export default function CertificatesPage() {
                 <h3 style={{ margin: 0, color: "#1e293b", fontSize: "1.25rem", fontWeight: "700", fontFamily: "Cairo" }}>طلب شهادة جديد</h3>
                 <p style={{ margin: "4px 0 0 0", fontSize: "0.85rem", color: "#64748b", fontFamily: "Cairo" }}>أدخل بيانات المتدرب بدقة لإصدار الشهادة</p>
               </div>
-              <button 
+              <button
                 onClick={() => setShowAddModal(false)}
-                style={{ 
-                  background: "#f1f5f9", border: "none", width: "32px", height: "32px", 
+                style={{
+                  background: "#f1f5f9", border: "none", width: "32px", height: "32px",
                   borderRadius: "8px", fontSize: "1.2rem", cursor: "pointer", color: "#64748b",
                   display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s"
                 }}
@@ -503,7 +560,7 @@ export default function CertificatesPage() {
                 <div style={{ gridColumn: "1 / -1", borderBottom: "1px solid #f1f5f9", paddingBottom: "0.5rem", marginBottom: "0.25rem" }}>
                   <h4 style={{ margin: 0, fontSize: "0.9rem", color: "#3b82f6", fontWeight: "600", fontFamily: "Cairo" }}>بيانات المتدرب</h4>
                 </div>
-                
+
                 <div className="form-group">
                   <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.85rem", fontWeight: "600", color: "#475569", fontFamily: "Cairo" }}>الاسم (بالعربي)</label>
                   <input required style={{ width: "100%", padding: "0.7rem", borderRadius: "10px", border: "1px solid #cbd5e1", outline: "none", fontFamily: "Cairo", fontSize: "0.9rem" }} placeholder="أحمد محمد" value={formData.student_name_ar} onChange={e => setFormData({ ...formData, student_name_ar: e.target.value })} />
@@ -516,7 +573,7 @@ export default function CertificatesPage() {
                   <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.85rem", fontWeight: "600", color: "#475569", fontFamily: "Cairo" }}>رقم الهاتف</label>
                   <input style={{ width: "100%", padding: "0.7rem", borderRadius: "10px", border: "1px solid #cbd5e1", outline: "none", fontFamily: "Cairo", fontSize: "0.9rem" }} placeholder="05xxxxxxxx" value={formData.phone_number} onChange={e => setFormData({ ...formData, phone_number: e.target.value })} />
                 </div>
-                
+
                 <div className="form-group">
                   <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.85rem", fontWeight: "600", color: "#475569", fontFamily: "Cairo" }}>رقم العقد</label>
                   <input style={{ width: "100%", padding: "0.7rem", borderRadius: "10px", border: "1px solid #cbd5e1", outline: "none", fontFamily: "Cairo", fontSize: "0.9rem" }} placeholder="12345" value={formData.contract_number} onChange={e => setFormData({ ...formData, contract_number: e.target.value })} />
@@ -572,18 +629,18 @@ export default function CertificatesPage() {
 
       {/* Upload Modal */}
       {showUploadModal && (
-        <div className="modal-backdrop" style={{ 
-          position: "fixed", top: 0, left: 0, width: "100%", height: "100%", 
+        <div className="modal-backdrop" style={{
+          position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
           backgroundColor: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(8px)",
-          display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 
+          display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000
         }}>
-          <div className="modal-content" style={{ 
+          <div className="modal-content" style={{
             backgroundColor: "white", padding: "0", borderRadius: "20px", width: "95%", maxWidth: "500px",
             boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.15)", position: "relative", overflow: "hidden",
             border: "1px solid rgba(255,255,255,0.7)"
           }}>
             {/* Modal Header */}
-            <div style={{ 
+            <div style={{
               backgroundColor: "#f8fafc", padding: "1.25rem 2rem", borderBottom: "1px solid #e2e8f0",
               display: "flex", justifyContent: "space-between", alignItems: "center"
             }}>
@@ -591,10 +648,10 @@ export default function CertificatesPage() {
                 <h3 style={{ margin: 0, color: "#1e293b", fontSize: "1.25rem", fontWeight: "700", fontFamily: "Cairo" }}>رفع ملف الشهادة</h3>
                 <p style={{ margin: "4px 0 0 0", fontSize: "0.85rem", color: "#64748b", fontFamily: "Cairo" }}>يرجى اختيار ملف PDF الخاص بالمتدرب</p>
               </div>
-              <button 
+              <button
                 onClick={() => setShowUploadModal(false)}
-                style={{ 
-                  background: "#f1f5f9", border: "none", width: "32px", height: "32px", 
+                style={{
+                  background: "#f1f5f9", border: "none", width: "32px", height: "32px",
                   borderRadius: "8px", fontSize: "1.2rem", cursor: "pointer", color: "#64748b"
                 }}
               >&times;</button>
@@ -610,13 +667,13 @@ export default function CertificatesPage() {
               <div className="form-group">
                 <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.85rem", fontWeight: "600", color: "#475569", fontFamily: "Cairo" }}>اختيار ملف PDF</label>
                 <div style={{ position: "relative" }}>
-                  <input 
-                    type="file" 
-                    name="certificate_pdf" 
-                    accept=".pdf" 
-                    required 
-                    style={{ 
-                      width: "100%", padding: "2rem 1rem", border: "2px dashed #cbd5e1", 
+                  <input
+                    type="file"
+                    name="certificate_pdf"
+                    accept=".pdf"
+                    required
+                    style={{
+                      width: "100%", padding: "2rem 1rem", border: "2px dashed #cbd5e1",
                       borderRadius: "15px", cursor: "pointer", textAlign: "center",
                       backgroundColor: "#f8fafc", transition: "all 0.2s"
                     }}
@@ -629,23 +686,23 @@ export default function CertificatesPage() {
               </div>
 
               <div style={{ marginTop: "2rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-                <button type="submit" 
+                <button type="submit"
                   disabled={loading}
-                  style={{ 
-                    flex: 1, backgroundColor: "#10b981", color: "white", border: "none", 
-                    padding: "1rem", borderRadius: "12px", fontSize: "1rem", fontWeight: "700", 
-                    fontFamily: "Cairo", cursor: loading ? "not-allowed" : "pointer", 
+                  style={{
+                    flex: 1, backgroundColor: "#10b981", color: "white", border: "none",
+                    padding: "1rem", borderRadius: "12px", fontSize: "1rem", fontWeight: "700",
+                    fontFamily: "Cairo", cursor: loading ? "not-allowed" : "pointer",
                     boxShadow: "0 4px 6px -1px rgba(16, 185, 129, 0.3)", transition: "all 0.2s",
                     opacity: loading ? 0.7 : 1
                   }}
                 >
                   {loading ? "جاري الرفع..." : "تأكيد الرفع والاعتماد"}
                 </button>
-                <button type="button" 
+                <button type="button"
                   onClick={() => setShowUploadModal(false)}
-                  style={{ 
-                    backgroundColor: "#f1f5f9", color: "#64748b", border: "none", 
-                    padding: "1rem 1.5rem", borderRadius: "12px", fontSize: "1rem", fontWeight: "600", 
+                  style={{
+                    backgroundColor: "#f1f5f9", color: "#64748b", border: "none",
+                    padding: "1rem 1.5rem", borderRadius: "12px", fontSize: "1rem", fontWeight: "600",
                     fontFamily: "Cairo", cursor: "pointer"
                   }}
                 >إلغاء</button>
@@ -656,18 +713,18 @@ export default function CertificatesPage() {
       )}
       {/* Edit Modal */}
       {showEditModal && editData && (
-        <div className="modal-backdrop" style={{ 
-          position: "fixed", top: 0, left: 0, width: "100%", height: "100%", 
+        <div className="modal-backdrop" style={{
+          position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
           backgroundColor: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(8px)",
-          display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 
+          display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000
         }}>
-          <div className="modal-content" style={{ 
+          <div className="modal-content" style={{
             backgroundColor: "white", padding: "0", borderRadius: "20px", width: "95%", maxWidth: "900px",
             boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.15)", position: "relative", overflow: "hidden",
             border: "1px solid rgba(255,255,255,0.7)", maxHeight: "90vh", display: "flex", flexDirection: "column"
           }}>
             {/* Modal Header with Accent */}
-            <div style={{ 
+            <div style={{
               backgroundColor: "#f8fafc", padding: "0.75rem 1rem", borderBottom: "1px solid #e2e8f0",
               display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0
             }}>
@@ -675,10 +732,10 @@ export default function CertificatesPage() {
                 <h3 style={{ margin: 0, color: "#1e293b", fontSize: "1.25rem", fontWeight: "700", fontFamily: "Cairo" }}>تعديل طلب الشهادة</h3>
                 <p style={{ margin: "4px 0 0 0", fontSize: "0.85rem", color: "#64748b", fontFamily: "Cairo" }}>تعديل بيانات المتدرب الحالي</p>
               </div>
-              <button 
+              <button
                 onClick={() => { setShowEditModal(false); setEditData(null); }}
-                style={{ 
-                  background: "#f1f5f9", border: "none", width: "32px", height: "32px", 
+                style={{
+                  background: "#f1f5f9", border: "none", width: "32px", height: "32px",
                   borderRadius: "8px", fontSize: "1.2rem", cursor: "pointer", color: "#64748b",
                   display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s"
                 }}
@@ -691,7 +748,7 @@ export default function CertificatesPage() {
                 <div style={{ gridColumn: "1 / -1", borderBottom: "1px solid #f1f5f9", paddingBottom: "0.5rem", marginBottom: "0.25rem" }}>
                   <h4 style={{ margin: 0, fontSize: "0.9rem", color: "#3b82f6", fontWeight: "600", fontFamily: "Cairo" }}>بيانات المتدرب</h4>
                 </div>
-                
+
                 <div className="form-group">
                   <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.85rem", fontWeight: "600", color: "#475569", fontFamily: "Cairo" }}>الاسم (بالعربي)</label>
                   <input required style={{ width: "100%", padding: "0.7rem", borderRadius: "10px", border: "1px solid #cbd5e1", outline: "none", fontFamily: "Cairo", fontSize: "0.9rem" }} value={editData.student_name_ar} onChange={e => setEditData({ ...editData, student_name_ar: e.target.value })} />
@@ -704,7 +761,7 @@ export default function CertificatesPage() {
                   <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.85rem", fontWeight: "600", color: "#475569", fontFamily: "Cairo" }}>رقم الهاتف</label>
                   <input style={{ width: "100%", padding: "0.7rem", borderRadius: "10px", border: "1px solid #cbd5e1", outline: "none", fontFamily: "Cairo", fontSize: "0.9rem" }} value={editData.phone_number || ""} onChange={e => setEditData({ ...editData, phone_number: e.target.value })} />
                 </div>
-                
+
                 <div className="form-group">
                   <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.85rem", fontWeight: "600", color: "#475569", fontFamily: "Cairo" }}>رقم العقد</label>
                   <input style={{ width: "100%", padding: "0.7rem", borderRadius: "10px", border: "1px solid #cbd5e1", outline: "none", fontFamily: "Cairo", fontSize: "0.9rem" }} value={editData.contract_number || ""} onChange={e => setEditData({ ...editData, contract_number: e.target.value })} />
@@ -749,6 +806,13 @@ export default function CertificatesPage() {
                     </select>
                   </div>
                 )}
+                
+                {/* File Upload Section in Edit */}
+                <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #f1f5f9", paddingTop: "0.75rem", marginTop: "0.5rem" }}>
+                  <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.85rem", fontWeight: "600", color: "#475569", fontFamily: "Cairo" }}>تحديث ملف الشهادة (PDF) - اختياري</label>
+                  <input type="file" name="edit_certificate_pdf" accept=".pdf" style={{ width: "100%", padding: "0.5rem", borderRadius: "10px", border: "1px dashed #cbd5e1", backgroundColor: "#f8fafc", fontFamily: "Cairo", fontSize: "0.85rem" }} />
+                  <p style={{ margin: "4px 0 0 0", fontSize: "0.75rem", color: "#94a3b8", fontFamily: "Cairo" }}>اتركه فارغاً إذا كنت لا تريد تغيير ملف الشهادة الحالي.</p>
+                </div>
               </div>
               <div style={{ marginTop: "0.75rem", display: "flex", gap: "1rem" }}>
                 <button type="submit" className="btn primary" disabled={loading} style={{ flex: 1, padding: "0.8rem", borderRadius: "12px", border: "none", color: "white", fontWeight: "700", fontFamily: "Cairo", cursor: "pointer", backgroundColor: "#3b82f6" }}>{loading ? "جاري الحفظ..." : "حفظ التعديلات"}</button>

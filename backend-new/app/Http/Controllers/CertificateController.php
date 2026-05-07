@@ -89,7 +89,7 @@ class CertificateController extends Controller
             'branch_id' => 'sometimes|exists:branches,id',
             'month' => 'sometimes|integer',
             'year' => 'sometimes|integer',
-            'status' => 'sometimes|in:requested,uploaded',
+            'status' => 'sometimes|in:requested,uploaded,delivered',
         ]);
 
         $certificate->update($validated);
@@ -154,7 +154,11 @@ class CertificateController extends Controller
         $path = storage_path('app/public/' . $certificate->file_path);
 
         if (!file_exists($path)) {
-            return response()->json(['message' => 'File not found'], 404);
+            return response()->json([
+                'message' => 'File not found on server disk',
+                'attempted_path' => $path,
+                'db_file_path' => $certificate->file_path
+            ], 404);
         }
 
         $filename = "{$certificate->student_name_ar}-{$certificate->certificate_name}-{$certificate->duration}.pdf";
